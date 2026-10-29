@@ -20,8 +20,8 @@ android {
 }
 
 dependencies {
-    // Media3 stable release: ExoPlayer + Android media session/notification controls.
-    val media3Version = "1.11.1"
+    // Media3 1.5.1 is compatible with this project's compileSdk 35 / AGP 8.7.3.
+    val media3Version = "1.5.1"
     implementation("androidx.media3:media3-exoplayer:$media3Version")
     implementation("androidx.media3:media3-session:$media3Version")
 }
