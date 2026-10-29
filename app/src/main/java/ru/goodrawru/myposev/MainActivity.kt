@@ -695,7 +695,7 @@ class MainActivity : Activity() {
                 connection.connectTimeout = 12000
                 connection.readTimeout = 12000
                 connection.requestMethod = "GET"
-                connection.setRequestProperty("User-Agent", "MoiPosevnoy/1.0 (https://github.com/goodrawru/myposev)")
+                connection.setRequestProperty("User-Agent", "MoiPosevnoy/1.1.0 (https://github.com/goodrawru/myposev/issues)")
                 connection.setRequestProperty("Accept", "application/json")
                 val status = connection.responseCode
                 if (status !in 200..299) throw java.io.IOException("HTTP " + status)
