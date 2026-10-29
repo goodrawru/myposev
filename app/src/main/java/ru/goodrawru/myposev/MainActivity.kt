@@ -586,7 +586,7 @@ class MainActivity : Activity() {
         card("📍 Место вашего огорода","$city · $region\nКлиматическая зона: $zone\nНажмите, чтобы изменить место.",{showLocationSettings()})
         card("🌿 План на сегодня",regionalTodayAdvice())
         card("🧤 Задачи по уходу",todayTasksSummary(),{showTasks()})
-        card("🌦️ Погода на 3 дня",prefs.getString("weather_summary","Нажмите, чтобы получить прогноз для выбранного места.") ?: "Прогноз пока не загружен.",{loadWeather()})
+        card("🌦️ Яндекс Погода","Прогноз для выбранного места откроется прямо в приложении. Интернет нужен только для загрузки страницы.",{loadWeather()})
         card("🪴 Полезный принцип","Посевные сроки — ориентир, а не гарантия. Сверяйте рекомендации с прогнозом заморозков, температурой почвы и условиями конкретной грядки.")
         card("🌙 Лунный календарь",lunarSummary(Calendar.getInstance()),{showCalendar()})
         card("📅 Выбрать дату","Откройте календарь, чтобы посмотреть сезонные подсказки и заметки.",{showCalendar()})
@@ -721,51 +721,86 @@ class MainActivity : Activity() {
     }
 
     private fun loadWeather() {
-        val lat=prefs.getString("garden_lat",null)?.toDoubleOrNull()
-        val lon=prefs.getString("garden_lon",null)?.toDoubleOrNull()
-        if(lat==null || lon==null) {
-            Toast.makeText(this,"Сначала выберите город или определите местоположение.",Toast.LENGTH_LONG).show()
+        val lat = prefs.getString("garden_lat", null)?.toDoubleOrNull()
+        val lon = prefs.getString("garden_lon", null)?.toDoubleOrNull()
+        if (lat == null || lon == null) {
+            Toast.makeText(this, "Сначала выберите город или определите местоположение.", Toast.LENGTH_LONG).show()
             showLocationSettings()
             return
         }
-        Toast.makeText(this,"Загружаю прогноз погоды…",Toast.LENGTH_SHORT).show()
-        Thread {
-            try {
-                val url="https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&daily=temperature_2m_min,temperature_2m_max,precipitation_probability_max&forecast_days=3&timezone=auto"
-                val connection=java.net.URL(url).openConnection() as java.net.HttpURLConnection
-                connection.connectTimeout=9000
-                connection.readTimeout=9000
-                connection.requestMethod="GET"
-                val body=connection.inputStream.bufferedReader().use { it.readText() }
-                connection.disconnect()
-                val daily=JSONObject(body).getJSONObject("daily")
-                val dates=daily.getJSONArray("time")
-                val mins=daily.getJSONArray("temperature_2m_min")
-                val maxs=daily.getJSONArray("temperature_2m_max")
-                val rain=daily.getJSONArray("precipitation_probability_max")
-                val lines=mutableListOf<String>()
-                var frost=false
-                for(i in 0 until dates.length()) {
-                    val min=mins.optDouble(i,Double.NaN)
-                    val max=maxs.optDouble(i,Double.NaN)
-                    val rainChance=rain.optInt(i,-1)
-                    val date=dates.optString(i).takeLast(5).replace("-",".")
-                    if(min.isFinite() && min<=0.0) frost=true
-                    val minText=if(min.isFinite()) String.format(Locale.US,"%.0f",min) else "?"
-                    val maxText=if(max.isFinite()) String.format(Locale.US,"%.0f",max) else "?"
-                    val rainText=if(rainChance>=0) "; осадки до $rainChance%" else ""
-                    lines.add("$date: $minText…$maxText °C$rainText")
+        showYandexWeather(lat, lon)
+    }
+
+    private fun showYandexWeather(lat: Double, lon: Double) {
+        val url = String.format(Locale.US, "https://yandex.ru/pogoda/?lat=%.6f&lon=%.6f", lat, lon)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(pale)
+            setOnApplyWindowInsetsListener { view, insets ->
+                val topInset = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+                    insets.getInsets(WindowInsets.Type.statusBars()).top else insets.systemWindowInsetTop
+                val bottomInset = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
+                    insets.getInsets(WindowInsets.Type.navigationBars()).bottom else 0
+                view.setPadding(0, topInset, 0, bottomInset)
+                insets
+            }
+        }
+        root.addView(TextView(this).apply {
+            text = "🌦️  Яндекс Погода"
+            textSize = 23f
+            setTextColor(Color.WHITE)
+            setBackgroundColor(green)
+            setPadding(dp(18), dp(18), dp(18), dp(18))
+            gravity = Gravity.CENTER_VERTICAL
+        })
+        root.addView(LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(10), dp(4), dp(10), dp(4))
+            setBackgroundColor(Color.WHITE)
+            addView(TextView(this@MainActivity).apply {
+                val city = prefs.getString("garden_city", "Выбранное место") ?: "Выбранное место"
+                text = "📍 $city"
+                textSize = 14f
+                setTextColor(Color.rgb(45, 65, 48))
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(Button(this@MainActivity).apply {
+                text = "← Назад"
+                isAllCaps = false
+                setOnClickListener { showHome() }
+            })
+        })
+        val webView = android.webkit.WebView(this).apply {
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.loadsImagesAutomatically = true
+            settings.javaScriptCanOpenWindowsAutomatically = false
+            settings.setSupportMultipleWindows(false)
+            settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+            webViewClient = object : android.webkit.WebViewClient() {
+                override fun onPageFinished(view: android.webkit.WebView?, pageUrl: String?) {
+                    super.onPageFinished(view, pageUrl)
                 }
-                val warning=if(frost) "\n⚠️ Возможен заморозок: защитите теплолюбивую рассаду." else "\nСверяйте прогноз с условиями именно вашего участка."
-                val summary=lines.joinToString("\n")+warning+"\nИсточник: Open-Meteo. Координаты передаются сервису только при запросе прогноза."
-                prefs.edit().putString("weather_summary",summary).apply()
-                runOnUiThread { showHome() }
-            } catch (_:Exception) {
-                runOnUiThread {
-                    Toast.makeText(this,"Не удалось загрузить прогноз. Проверьте интернет.",Toast.LENGTH_LONG).show()
+
+                override fun onReceivedError(
+                    view: android.webkit.WebView?,
+                    request: android.webkit.WebResourceRequest?,
+                    error: android.webkit.WebResourceError?
+                ) {
+                    super.onReceivedError(view, request, error)
+                    if (request?.isForMainFrame == true) {
+                        runOnUiThread {
+                            Toast.makeText(this@MainActivity,
+                                "Не удалось загрузить Яндекс Погоду. Проверьте интернет-соединение.",
+                                Toast.LENGTH_LONG).show()
+                        }
+                    }
                 }
             }
-        }.start()
+            loadUrl(url)
+        }
+        root.addView(webView, LinearLayout.LayoutParams(-1, 0, 1f))
+        setContentView(root)
     }
 
     private fun showTasks() {
