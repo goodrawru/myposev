@@ -50,6 +50,7 @@ class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("moi_posevnoy", Context.MODE_PRIVATE) }
     private lateinit var content: LinearLayout
     private var selectedDate = Calendar.getInstance()
+    private val ortonRefreshInProgress = mutableSetOf<String>()
     private var musicController: MediaController? = null
     private var musicControllerFuture: ListenableFuture<MediaController>? = null
     private var musicStatusView: TextView? = null
@@ -1040,8 +1041,16 @@ class MainActivity : Activity() {
         button("🌱 Открыть статью Ортон за этот месяц") { openCalendarSource(ortonUrl(selectedDate)) }
         button("🔄 Обновить календарь Ортон") { refreshOrtonCalendar(monthKey) }
         val cached = getOrtonMonth(monthKey)
-        val status = if(cached == null) "Календарь ещё не загружен. Нажмите «Обновить календарь Ортон»." else
-            "Данные получены: " + cached.optString("checkedAt","дата неизвестна") + "\nИсточник: Ортон. Проверьте условия участка и прогноз погоды."
+        val checkedAtEpoch = cached?.optLong("checkedAtEpoch", 0L) ?: 0L
+        val lastAttempt = prefs.getLong("orton_last_attempt_" + monthKey, 0L)
+        val stale = checkedAtEpoch == 0L || System.currentTimeMillis() - checkedAtEpoch >= 24L * 60L * 60L * 1000L
+        if (stale && System.currentTimeMillis() - lastAttempt >= 15L * 60L * 1000L && !ortonRefreshInProgress.contains(monthKey)) {
+            refreshOrtonCalendar(monthKey, automatic = true)
+        }
+        val status = if(cached == null) "Загружаем календарь Ортон автоматически. Если сеть недоступна, можно открыть статью вручную." else {
+            val age = if (stale) "\\nДанные устарели — выполняется проверка обновления." else ""
+            "Данные получены: " + cached.optString("checkedAt","дата неизвестна") + age + "\\nИсточник: Ортон. Проверьте условия участка и прогноз погоды."
+        }
         card("Состояние календаря",status)
         val weekdays = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")
         val header = GridLayout(this).apply { columnCount=7; rowCount=1 }
@@ -1114,16 +1123,47 @@ class MainActivity : Activity() {
         all.optJSONObject(key)
     } catch (_:Exception) { null }
 
-    private fun refreshOrtonCalendar(monthKey:String) {
-        Toast.makeText(this,"Загружаю календарь Ортон…",Toast.LENGTH_SHORT).show()
-        val target = selectedDate.clone() as Calendar
+    private fun refreshOrtonCalendar(monthKey:String, automatic:Boolean = false) {
+        synchronized(ortonRefreshInProgress) {
+            if (!ortonRefreshInProgress.add(monthKey)) return
+        }
+        prefs.edit().putLong("orton_last_attempt_" + monthKey, System.currentTimeMillis()).apply()
+        if (!automatic) Toast.makeText(this,"Загружаю календарь Ортон…",Toast.LENGTH_SHORT).show()
+
+        // Важно: запрашиваем именно месяц из ключа, даже если пользователь успел переключить экран.
+        val target = try {
+            val parsed = SimpleDateFormat("yyyy-MM", Locale.US).apply { isLenient = false }.parse(monthKey)
+                ?: throw IllegalArgumentException("Неверный месяц")
+            Calendar.getInstance().apply {
+                time = parsed
+                set(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.HOUR_OF_DAY, 12)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+        } catch (_:Exception) {
+            synchronized(ortonRefreshInProgress) { ortonRefreshInProgress.remove(monthKey) }
+            if (!automatic) Toast.makeText(this,"Не удалось определить месяц календаря.",Toast.LENGTH_LONG).show()
+            return
+        }
+
         Thread {
+            var errorMessage: String? = null
+            var ratingCount = 0
             try {
                 val connection=java.net.URL(ortonUrl(target)).openConnection() as java.net.HttpURLConnection
-                connection.connectTimeout=12000; connection.readTimeout=12000
+                connection.connectTimeout=12000
+                connection.readTimeout=12000
                 connection.setRequestProperty("User-Agent","Mozilla/5.0 (Android) MoiPosevnoy/1.0")
-                val html=connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                connection.disconnect()
+                connection.setRequestProperty("Accept-Language","ru-RU,ru;q=0.9")
+                val html = try {
+                    val status = connection.responseCode
+                    if (status !in 200..299) throw java.io.IOException("HTTP " + status)
+                    connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                } finally {
+                    connection.disconnect()
+                }
                 val plain=html.replace(Regex("(?is)<script.*?</script>|<style.*?</style>")," ")
                     .replace(Regex("(?s)<[^>]+>")," ")
                     .replace("&nbsp;"," ").replace("&#8211;","–").replace("&ndash;","–")
@@ -1143,18 +1183,38 @@ class MainActivity : Activity() {
                 collect("Нейтральные дни","Нейтральный")
                 collect("Нежелательные дни","Нежелательный")
                 collect("Самые неблагоприятные дни","Неблагоприятный")
-                val checked=SimpleDateFormat("d MMM yyyy, HH:mm",Locale("ru")).format(Date())
-                val result=JSONObject().put("checkedAt",checked).put("source","Ортон").put("ratings",ratings)
+                ratingCount = ratings.length()
+                if (ratingCount == 0) throw java.io.IOException("Страница загружена, но отметки дней не распознаны")
+
+                val now = System.currentTimeMillis()
+                val checked=SimpleDateFormat("d MMM yyyy, HH:mm",Locale("ru")).format(Date(now))
+                val result=JSONObject().put("checkedAt",checked).put("checkedAtEpoch",now)
+                    .put("source","Ортон").put("ratings",ratings)
                     .put("month",monthKey).put("sourceUrl",ortonUrl(target))
                 val all=JSONObject(prefs.getString("orton_calendar_cache","{}") ?: "{}")
                 all.put(monthKey,result)
-                prefs.edit().putString("orton_calendar_cache",all.toString()).putString("calendar_sources_checked",checked).apply()
-                runOnUiThread {
-                    Toast.makeText(this,"Календарь обновлён. Дней с отметками: "+ratings.length(),Toast.LENGTH_LONG).show()
+                prefs.edit().putString("orton_calendar_cache",all.toString())
+                    .putString("calendar_sources_checked",checked).apply()
+            } catch (e:Exception) {
+                errorMessage = e.message ?: "Ошибка загрузки"
+            } finally {
+                synchronized(ortonRefreshInProgress) { ortonRefreshInProgress.remove(monthKey) }
+            }
+
+            runOnUiThread {
+                if (errorMessage == null) {
+                    if (!automatic) {
+                        Toast.makeText(this,"Календарь обновлён. Дней с отметками: " + ratingCount,Toast.LENGTH_LONG).show()
+                    }
+                    // Не переключаем выбранный месяц: перерисовываем только текущий экран.
                     showCalendar()
+                } else if (!automatic) {
+                    Toast.makeText(this,
+                        "Не удалось обновить календарь Ортон. Проверьте интернет. Если страница изменилась, откройте её вручную.",
+                        Toast.LENGTH_LONG).show()
+                } else if (getOrtonMonth(monthKey) == null && SimpleDateFormat("yyyy-MM", Locale.US).format(selectedDate.time) == monthKey) {
+                    Toast.makeText(this,"Не удалось автоматически загрузить календарь Ортон. Проверьте интернет или откройте статью вручную.",Toast.LENGTH_LONG).show()
                 }
-            } catch (_:Exception) {
-                runOnUiThread { Toast.makeText(this,"Не удалось загрузить календарь. Проверьте интернет; можно открыть статью Ортон вручную.",Toast.LENGTH_LONG).show() }
             }
         }.start()
     }
