@@ -1303,14 +1303,14 @@ class MainActivity : Activity() {
             plants.filter { it.name.contains(filter,true) || it.group.contains(filter,true) }.forEach { p ->
                 val box=LinearLayout(this).apply {
                     orientation=LinearLayout.HORIZONTAL; setPadding(10,10,10,12)
-                    background=roundedBackground(Color.WHITE, dp(16))
+                    background=roundedBackground(Color.WHITE, 16f)
                     elevation=dp(2).toFloat()
                 }
                 val icon=ImageView(this).apply {
                     setImageResource(plantIllustration(p.name))
                     scaleType=ImageView.ScaleType.CENTER_INSIDE
                     setPadding(dp(4),dp(4),dp(4),dp(4))
-                    background=roundedBackground(Color.rgb(239,246,235), dp(12))
+                    background=roundedBackground(Color.rgb(239,246,235), 12f)
                 }
                 box.addView(icon, LinearLayout.LayoutParams(dp(88),dp(100)).apply { marginEnd=dp(12) })
                 val details=LinearLayout(this).apply {
