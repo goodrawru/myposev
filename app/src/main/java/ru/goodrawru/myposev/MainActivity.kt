@@ -21,6 +21,7 @@ import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
+import android.view.WindowInsets
 import android.widget.*
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -45,6 +46,8 @@ class MainActivity : Activity() {
         GardenCity("Воронеж","Воронежская область","Центральный",51.6755,39.2089),
         GardenCity("Белгород","Белгородская область","Юг",50.5997,36.5983),
         GardenCity("Краснодар","Краснодарский край","Юг",45.0355,38.9753),
+        GardenCity("Симферополь","Крым","Юг",44.9521,34.1024),
+        GardenCity("Севастополь","Севастополь","Юг",44.6167,33.5254),
         GardenCity("Ростов-на-Дону","Ростовская область","Юг",47.2357,39.7015),
         GardenCity("Ставрополь","Ставропольский край","Юг",45.0445,41.9690),
         GardenCity("Волгоград","Волгоградская область","Поволжье",48.7080,44.5133),
@@ -91,7 +94,16 @@ class MainActivity : Activity() {
     }
 
     private fun baseLayout(title:String) {
-        val root = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(pale) }
+        val root = LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setBackgroundColor(pale)
+            // Respect Android 15 edge-to-edge status-bar inset.
+            setOnApplyWindowInsetsListener { view, insets ->
+                val topInset = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) insets.getInsets(WindowInsets.Type.statusBars()).top else insets.systemWindowInsetTop
+                view.setPadding(0, topInset, 0, 0)
+                insets
+            }
+        }
         root.addView(TextView(this).apply {
             text = "🌱  " + title; textSize=25f; setTextColor(Color.WHITE); setBackgroundColor(green)
             setPadding(20,22,20,22); gravity=Gravity.CENTER_VERTICAL
@@ -390,6 +402,9 @@ class MainActivity : Activity() {
         val d=dateString(selectedDate)
         card("🌙 Лунная фаза",lunarSummary(selectedDate))
         card("🌱 Сезонные подсказки",seasonalAdvice(selectedDate))
+        card("📚 Календарь из источников","Сверяйте лунные советы с практическими рекомендациями. Данные статей не смешиваются автоматически: источники могут расходиться.")
+        button("🔄 Узнать / обновить календарь") { showCalendarSources() }
+        card("🕒 Последняя проверка источников",prefs.getString("calendar_sources_checked","Пока не проверялись") ?: "Пока не проверялись")
         card("📝 Заметка на дату",prefs.getString("note_"+d,"")?.ifBlank{"Заметок пока нет."} ?: "Заметок пока нет.")
         button("Добавить заметку") {
             val input=EditText(this).apply { hint="Например: посеял томаты" }
@@ -399,6 +414,28 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun showCalendarSources() {
+        baseLayout("Календарь: источники")
+        val month = SimpleDateFormat("LLLL yyyy", Locale("ru")).format(selectedDate.time)
+        content.addView(txt("Материалы для сверки · " + month,18f,true))
+        card("🌙 Яндекс Погода","Лунный посевной календарь и сезонные рекомендации. Откроется статья в браузере; ссылка на октябрь 2026 года приведена как пример.")
+        button("Открыть календарь Яндекс Погоды") { openCalendarSource("https://yandex.ru/pogoda/ru/blog/lunnyj-posevnoj-kalendar-oktyabr-2026") }
+        card("🌱 Ортон","Календарь огородника по месяцам. Выберите нужный месяц на сайте и сравните рекомендации с погодой своего региона.")
+        button("Открыть календарь Ортон") { openCalendarSource("https://orton.ru/kalendar-ogorodnika/oktyabr/") }
+        card("Как обновляются данные","Приложение пока не копирует статьи автоматически: структура сайтов может меняться, а даты разных источников иногда расходятся. Кнопки открывают первоисточники для проверки. Можно сохранить дату проверки; личные заметки и задачи не затрагиваются.")
+        button("Отметить, что источники проверены") {
+            val stamp = SimpleDateFormat("d MMM yyyy, HH:mm", Locale("ru")).format(Date())
+            prefs.edit().putString("calendar_sources_checked",stamp).apply()
+            Toast.makeText(this,"Дата проверки сохранена",Toast.LENGTH_SHORT).show()
+            showCalendarSources()
+        }
+        button("Назад к календарю") { showCalendar() }
+    }
+
+    private fun openCalendarSource(url:String) {
+        try { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
+        catch (_:Exception) { Toast.makeText(this,"Не удалось открыть браузер.",Toast.LENGTH_LONG).show() }
+    }
     private fun dateString(c:Calendar)=SimpleDateFormat("d MMMM yyyy",Locale("ru")).format(c.time)
     private fun seasonalAdvice(c:Calendar):String {
         val actualMonth = c.get(Calendar.MONTH)
