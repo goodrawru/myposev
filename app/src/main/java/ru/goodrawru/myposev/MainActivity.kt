@@ -18,9 +18,6 @@ import android.text.Editable
 import org.json.JSONArray
 import org.json.JSONObject
 import android.graphics.Color
-import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioTrack
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
@@ -39,8 +36,6 @@ data class GardenCity(val city:String, val region:String, val zone:String, val l
 class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("moi_posevnoy", Context.MODE_PRIVATE) }
     private lateinit var content: LinearLayout
-    private var immersionTrack: AudioTrack? = null
-    private var immersionPlaying = false
     private var selectedDate = Calendar.getInstance()
     private val green = Color.rgb(39, 91, 57)
     private val pale = Color.rgb(239, 246, 235)
@@ -129,15 +124,12 @@ class MainActivity : Activity() {
             maxLines = 2
         }, LinearLayout.LayoutParams(0, -2, 1f))
         sectionRow.addView(Button(this).apply {
-            text = if (immersionPlaying) "⏸ Погружение" else "🎧 Погружение"
+            text = "🎧 Погружение"
             textSize = 12f
             isAllCaps = false
             minWidth = 0
             setPadding(dp(8), dp(2), dp(8), dp(2))
-            setOnClickListener {
-                toggleImmersionMusic()
-                text = if (immersionPlaying) "⏸ Погружение" else "🎧 Погружение"
-            }
+            setOnClickListener { showImmersionPlayer() }
         })
         root.addView(sectionRow)
         val nav = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; setBackgroundColor(Color.WHITE) }
@@ -161,85 +153,33 @@ class MainActivity : Activity() {
         setContentView(root)
     }
 
-    private fun toggleImmersionMusic() {
-        try {
-            if (immersionPlaying) {
-                immersionTrack?.pause()
-                immersionPlaying = false
-                Toast.makeText(this, "Погружение: пауза", Toast.LENGTH_SHORT).show()
-                return
-            }
-            if (immersionTrack == null) immersionTrack = createImmersionTrack()
-            immersionTrack?.play()
-            immersionPlaying = true
-            Toast.makeText(this, "Спокойная музыка включена · офлайн", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            immersionPlaying = false
-            try { immersionTrack?.release() } catch (_: Exception) {}
-            immersionTrack = null
-            Toast.makeText(this, "Не удалось включить звук на устройстве", Toast.LENGTH_LONG).show()
+    private fun showImmersionPlayer() {
+        baseLayout("Погружение · музыка и радио")
+        content.addView(txt("Выберите, что включить во время работы в саду", 19f, true))
+        content.addView(txt("Здесь собраны официальные страницы радио и каталоги бесплатной музыки. При выборе источника приложение откроет его сайт в браузере — воспроизведение остаётся у самого сервиса, без неофициальных потоков.", 14f))
+        card("📻 Радио Дача", "Русскоязычная музыка и прямой эфир. Откроется официальный онлайн-плеер радиостанции.") {
+            openMusicSource("https://www.radiodacha.ru/player/", "Радио Дача")
         }
+        button("▶ Слушать Радио Дача") { openMusicSource("https://www.radiodacha.ru/player/", "Радио Дача") }
+        card("🎶 Zvukogram · весёлая музыка", "Большой каталог инструментальных треков. Сайт заявляет бесплатное использование, но перед скачиванием проверяйте условия конкретной записи.") {
+            openMusicSource("https://zvukogram.com/category/veselaya-muzyika/", "Zvukogram")
+        }
+        button("Открыть каталог Zvukogram") { openMusicSource("https://zvukogram.com/category/veselaya-muzyika/", "Zvukogram") }
+        card("☀️ Chosic · позитивная музыка", "Бесплатные треки для прослушивания и скачивания. Условия различаются: часть музыки требует указать автора; для встраивания музыки непосредственно в приложение права нужно проверять отдельно.") {
+            openMusicSource("https://www.chosic.com/free-music/happy/", "Chosic")
+        }
+        button("Открыть каталог Chosic") { openMusicSource("https://www.chosic.com/free-music/happy/", "Chosic") }
+        card("ℹ️ Важно", "Для онлайн-источников нужен интернет. Доступность сайтов и воспроизведения в России зависит от самого сервиса и сети. Если сайт не откроется, попробуйте другой источник.")
+        button("На главный экран") { showHome() }
     }
 
-    // Original synthesized ambient pad: no streaming service, ads, account, or network required.
-    private fun createImmersionTrack(): AudioTrack {
-        val sampleRate = 22050
-        val seconds = 20
-        val samples = ShortArray(sampleRate * seconds)
-        val chords = arrayOf(
-            doubleArrayOf(130.81, 164.81, 196.00, 261.63), // C
-            doubleArrayOf(110.00, 164.81, 220.00, 261.63), // Am
-            doubleArrayOf(87.31, 130.81, 174.61, 220.00),  // F
-            doubleArrayOf(98.00, 146.83, 196.00, 246.94)  // G
-        )
-        val chordSeconds = seconds.toDouble() / chords.size
-        for (i in samples.indices) {
-            val t = i.toDouble() / sampleRate
-            val chordIndex = (t / chordSeconds).toInt().coerceIn(0, chords.lastIndex)
-            val local = t - chordIndex * chordSeconds
-            val fade = 0.75
-            val attack = (local / fade).coerceIn(0.0, 1.0)
-            val release = ((chordSeconds - local) / fade).coerceIn(0.0, 1.0)
-            val chordEnvelope = 0.88 + 0.12 * minOf(attack, release)
-            val edgeEnvelope = minOf((t / 0.18).coerceIn(0.0, 1.0), ((seconds - t) / 0.18).coerceIn(0.0, 1.0))
-            val envelope = chordEnvelope * edgeEnvelope
-            var value = 0.0
-            val chord = chords[chordIndex]
-            for (n in chord.indices) {
-                val slowDrift = 1.0 + 0.002 * kotlin.math.sin(2.0 * Math.PI * t / (7.0 + n))
-                val phase = 2.0 * Math.PI * chord[n] * slowDrift * t
-                val level = when (n) { 0 -> 0.22; 1 -> 0.15; 2 -> 0.12; else -> 0.075 }
-                value += kotlin.math.sin(phase) * level
-                value += kotlin.math.sin(phase * 2.0) * level * 0.12
-            }
-            // Very quiet, slow high note adds movement without sharp attacks.
-            value += kotlin.math.sin(2.0 * Math.PI * (523.25 + 4.0 * kotlin.math.sin(t / 5.0)) * t) *
-                (0.025 + 0.012 * kotlin.math.sin(t * 0.35))
-            val sample = (value * envelope * 11000.0).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
-            samples[i] = sample.toShort()
+    private fun openMusicSource(url:String, sourceName:String) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+            startActivity(intent)
+        } catch (_:Exception) {
+            Toast.makeText(this, "Не удалось открыть $sourceName. Проверьте, установлен ли браузер.", Toast.LENGTH_LONG).show()
         }
-        val attributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_MEDIA)
-            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-            .build()
-        val format = AudioFormat.Builder()
-            .setSampleRate(sampleRate)
-            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-            .build()
-        val track = AudioTrack.Builder()
-            .setAudioAttributes(attributes)
-            .setAudioFormat(format)
-            .setTransferMode(AudioTrack.MODE_STATIC)
-            .setBufferSizeInBytes(samples.size * 2)
-            .build()
-        val written = track.write(samples, 0, samples.size)
-        if (written < samples.size) {
-            track.release()
-            throw IllegalStateException("Audio buffer could not be written")
-        }
-        track.setLoopPoints(0, samples.size, -1)
-        return track
     }
 
     private fun dp(value:Int):Int = (value * resources.displayMetrics.density).toInt()
@@ -824,17 +764,6 @@ class MainActivity : Activity() {
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
-    override fun onDestroy() {
-        try {
-            immersionTrack?.pause()
-            immersionTrack?.flush()
-            immersionTrack?.release()
-        } catch (_: Exception) {}
-        immersionTrack = null
-        immersionPlaying = false
-        super.onDestroy()
-    }
-
     private fun scheduleDailyReminder() {
         val alarm=getSystemService(ALARM_SERVICE) as AlarmManager
         val intent=Intent(this,ReminderReceiver::class.java)
