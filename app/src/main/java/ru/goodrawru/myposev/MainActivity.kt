@@ -201,204 +201,51 @@ class MainActivity : Activity() {
         setContentView(root)
     }
 
-    private data class RadioStation(val name: String, val genre: String, val url: String)
-
-    private val zaycevStations = listOf(
-        RadioStation("Pop", "Поп-хиты", "https://abs.zaycev.fm/pop256k"),
-        RadioStation("Club", "Клубная музыка", "https://abs.zaycev.fm/club256k"),
-        RadioStation("NewRock", "Новый рок", "https://abs.zaycev.fm/rock256k"),
-        RadioStation("Disco", "Диско", "https://abs.zaycev.fm/disco256k"),
-        RadioStation("Metal", "Метал", "https://abs.zaycev.fm/metal256k")
-    )
-
+    // RuStore build: no third-party radio streams. Users can play audio files stored on their device.
     private fun showImmersionPlayer() {
-        baseLayout("Музыка и радио")
+        baseLayout("Аудиоплеер")
         content.setPadding(dp(14), dp(14), dp(14), dp(28))
-
-        val intro = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(18), dp(18), dp(18))
-            background = roundedBackground(Color.rgb(31, 76, 49), 22f)
-        }
-        intro.addView(TextView(this).apply {
-            text = "🎧  Время музыки"
-            textSize = 24f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(Color.WHITE)
-        })
-        intro.addView(TextView(this).apply {
-            text = "Радио Zaycev.FM и ваша музыка — в одном плеере"
-            textSize = 14f
-            setTextColor(Color.rgb(226, 240, 225))
-            setPadding(0, dp(6), 0, 0)
-        })
-        content.addView(intro, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(14) })
-
+        card("🎧 Локальный аудиоплеер",
+            "Воспроизводите собственные аудиофайлы с телефона. Выбранные файлы не загружаются на сервер. Радиопотоки сторонних сервисов не входят в версию для RuStore.")
         val nowCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(14), dp(16), dp(14))
             background = roundedBackground(Color.WHITE, 18f, Color.rgb(220, 230, 218))
         }
         nowCard.addView(TextView(this).apply {
-            text = "СЕЙЧАС ИГРАЕТ"
-            textSize = 11f
-            letterSpacing = 0.08f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(Color.rgb(75, 112, 79))
+            text = "СЕЙЧАС ИГРАЕТ"; textSize = 11f; letterSpacing = 0.08f
+            setTypeface(null, android.graphics.Typeface.BOLD); setTextColor(Color.rgb(75, 112, 79))
         })
         val nowPlaying = TextView(this).apply {
-            text = "Подключение к плееру…"
-            textSize = 18f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(Color.rgb(35, 48, 38))
+            text = "Выберите аудиофайлы с телефона"; textSize = 18f
+            setTypeface(null, android.graphics.Typeface.BOLD); setTextColor(Color.rgb(35, 48, 38))
             setPadding(0, dp(5), 0, dp(3))
         }
         musicStatusView = nowPlaying
         nowCard.addView(nowPlaying)
         nowCard.addView(TextView(this).apply {
-            text = "Воспроизведение продолжится при сворачивании приложения"
-            textSize = 12f
+            text = "Воспроизведение может продолжаться в фоне"; textSize = 12f
             setTextColor(Color.rgb(105, 115, 103))
         })
         content.addView(nowCard, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
-
-        val progress = SeekBar(this).apply {
-            max = 1000
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, value: Int, fromUser: Boolean) {
-                    if (fromUser) userSeekingMusic = true
-                }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) { userSeekingMusic = true }
-                override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                    val player = musicController
-                    if (player != null && player.duration > 0 && player.duration != androidx.media3.common.C.TIME_UNSET) {
-                        player.seekTo((player.duration * (seekBar?.progress ?: 0) / 1000).toLong())
-                    }
-                    userSeekingMusic = false
-                }
-            })
-        }
-        musicProgress = progress
-        content.addView(progress)
-
         content.addView(LinearLayout(this).apply {
-            gravity = Gravity.CENTER
-            orientation = LinearLayout.HORIZONTAL
-            addView(playerControlButton("⏮", "Предыдущий трек") { musicController?.seekToPreviousMediaItem() })
-            addView(playerControlButton("▶  /  ⏸", "Воспроизвести или приостановить") {
+            gravity = Gravity.CENTER; orientation = LinearLayout.HORIZONTAL
+            addView(playerControlButton("⏮", "Предыдущий файл") { musicController?.seekToPreviousMediaItem() })
+            addView(playerControlButton("▶ / ⏸", "Воспроизвести или приостановить") {
                 val player = musicController
                 if (player == null) Toast.makeText(this@MainActivity, "Плеер ещё подключается", Toast.LENGTH_SHORT).show()
                 else if (player.isPlaying) player.pause()
                 else if (player.mediaItemCount == 0) chooseLocalAudio()
                 else player.play()
             })
-            addView(playerControlButton("⏭", "Следующий трек") { musicController?.seekToNextMediaItem() })
+            addView(playerControlButton("⏭", "Следующий файл") { musicController?.seekToNextMediaItem() })
         }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(14) })
-
-        content.addView(sectionHeading("Радио Zaycev.FM", "Выберите станцию — музыка начнёт играть здесь же"))
-        val radioGrid = GridLayout(this).apply {
-            columnCount = 2
-            alignmentMode = GridLayout.ALIGN_BOUNDS
-            useDefaultMargins = false
-        }
-        zaycevStations.forEachIndexed { index, station ->
-            val stationCard = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(13), dp(14), dp(10), dp(14))
-                background = roundedBackground(Color.WHITE, 16f, Color.rgb(220, 230, 218))
-                isClickable = true
-                isFocusable = true
-                setOnClickListener { playRadio(station) }
-            }
-            stationCard.addView(TextView(this).apply {
-                text = "📻  " + station.name
-                textSize = 17f
-                setTypeface(null, android.graphics.Typeface.BOLD)
-                setTextColor(Color.rgb(36, 77, 48))
-            })
-            stationCard.addView(TextView(this).apply {
-                text = station.genre
-                textSize = 12f
-                setTextColor(Color.rgb(105, 115, 103))
-                setPadding(0, dp(4), 0, 0)
-            })
-            val lp = GridLayout.LayoutParams(
-                GridLayout.spec(index / 2),
-                GridLayout.spec(index % 2, 1f)
-            ).apply {
-                width = 0
-                height = dp(94)
-                setMargins(dp(3), dp(3), dp(3), dp(7))
-            }
-            radioGrid.addView(stationCard, lp)
-        }
-        val lastStation = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(13), dp(14), dp(10), dp(14))
-            background = roundedBackground(Color.rgb(234, 243, 230), 16f, Color.rgb(203, 220, 198))
-            setOnClickListener { chooseLocalAudio() }
-        }
-        lastStation.addView(TextView(this).apply {
-            text = "🎵  Моя музыка"
-            textSize = 17f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(Color.rgb(36, 77, 48))
-        })
-        lastStation.addView(TextView(this).apply {
-            text = "Файлы с телефона"
-            textSize = 12f
-            setTextColor(Color.rgb(105, 115, 103))
-            setPadding(0, dp(4), 0, 0)
-        })
-        radioGrid.addView(lastStation, GridLayout.LayoutParams(
-            GridLayout.spec(3), GridLayout.spec(0, 2)
-        ).apply {
-            width = 0
-            height = dp(82)
-            setMargins(dp(3), dp(3), dp(3), dp(7))
-        })
-        content.addView(radioGrid, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
-        content.addView(TextView(this).apply {
-            text = "Потоки добавлены по опубликованным адресам Zaycev.FM. Доступность конкретной станции зависит от работы источника и сети."
-            textSize = 12f
-            setTextColor(Color.rgb(103, 112, 101))
-            setPadding(dp(4), dp(2), dp(4), dp(10))
-        })
-
-        content.addView(sectionHeading("Музыка с телефона", "Можно выбрать один или несколько аудиофайлов"))
-        button("＋  Выбрать аудиофайлы") { chooseLocalAudio() }
-        button("Очистить очередь воспроизведения") {
-            musicController?.clearMediaItems()
-            updateMusicStatus()
-        }
-        button("←  На главный экран") { showHome() }
-
+        button("＋ Выбрать аудиофайлы") { chooseLocalAudio() }
+        button("Очистить очередь") { musicController?.clearMediaItems(); updateMusicStatus() }
+        button("← На главный экран") { showHome() }
         updateMusicStatus()
         musicHandler.removeCallbacks(musicProgressTask)
         musicHandler.post(musicProgressTask)
-    }
-
-    private fun playRadio(station: RadioStation) {
-        val player = musicController
-        if (player == null) {
-            Toast.makeText(this, "Плеер ещё подключается. Попробуйте ещё раз через секунду.", Toast.LENGTH_LONG).show()
-            return
-        }
-        val item = MediaItem.Builder()
-            .setUri(station.url)
-            .setMediaMetadata(
-                MediaMetadata.Builder()
-                    .setTitle("Zaycev.FM · ${station.name}")
-                    .setArtist(station.genre)
-                    .build()
-            )
-            .build()
-        player.setMediaItem(item)
-        player.prepare()
-        player.play()
-        updateMusicStatus()
     }
 
     private fun playerControlButton(label: String, description: String, action: () -> Unit): Button =
@@ -591,6 +438,7 @@ class MainActivity : Activity() {
         card("📍 Место вашего огорода","$city · $region\nКлиматическая зона: $zone\nНажмите, чтобы изменить место.",{showLocationSettings()})
         card("🌿 План на сегодня",regionalTodayAdvice())
         card("🧤 Задачи по уходу",todayTasksSummary(),{showTasks()})
+        button("Политика конфиденциальности") { showPrivacyPolicy() }
         card("🌦️ Погода на 5 дней","Прогноз на ближайшие 5 дней: температура, осадки и предупреждение о заморозках. Яндекс Погода доступна отдельной кнопкой внизу.",{loadWeather()})
         card("🪴 Полезный принцип","Посевные сроки — ориентир, а не гарантия. Сверяйте рекомендации с прогнозом заморозков, температурой почвы и условиями конкретной грядки.")
         card("🌙 Лунный календарь",lunarSummary(Calendar.getInstance()),{showCalendar()})
@@ -916,7 +764,15 @@ class MainActivity : Activity() {
                 runOnUiThread {
                     if (!isFinishing && weatherForecastOpen) {
                         content.removeAllViews()
-                        content.addView(txt("Не удалось загрузить прогноз. Проверьте интернет и попробуйте ещё раз.", 15f))
+                        val savedForecast = prefs.getString("weather_summary", null)
+                        if (!savedForecast.isNullOrBlank()) {
+                            content.addView(txt("Не удалось обновить прогноз. Показаны последние сохранённые данные.", 15f, true))
+                            savedForecast.split("\\n\\n").forEachIndexed { index, part ->
+                                card(if (index == 0) "Последний сохранённый прогноз" else "Информация", part)
+                            }
+                        } else {
+                            content.addView(txt("Прогноз сейчас недоступен. Основные функции приложения продолжают работать без VPN и интернета; попробуйте позже или откройте Яндекс Погоду.", 15f))
+                        }
                         button("Повторить загрузку") { loadWeatherForecast(lat, lon) }
                         button("Открыть Яндекс Погоду") {
                             weatherForecastOpen = false
@@ -969,6 +825,17 @@ class MainActivity : Activity() {
             "clearsky" in normalized -> "☀️ Ясно"
             else -> "🌥️ Переменная погода"
         }
+    }
+
+    private fun showPrivacyPolicy() {
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Конфиденциальность")
+            .setMessage("Приложение не требует учётной записи и не содержит рекламы или аналитических трекеров. Задачи, заметки и выбранный город хранятся локально на устройстве. Если вы запрашиваете прогноз, координаты выбранного места передаются сервису погоды MET Norway для получения прогноза. При открытии календаря Ортон или Яндекс Погоды соответствующий сайт открывается отдельно в браузере. Выбранные аудиофайлы воспроизводятся с устройства и не отправляются разработчику.\n\nПолная политика конфиденциальности доступна в репозитории проекта.")
+            .setPositiveButton("Открыть политику") { _, _ ->
+                openCalendarSource("https://github.com/goodrawru/myposev/blob/rustore/PRIVACY_POLICY.md")
+            }
+            .setNegativeButton("Закрыть", null)
+            .show()
     }
 
     private fun showTasks() {
@@ -1039,20 +906,10 @@ class MainActivity : Activity() {
             LinearLayout.LayoutParams(0,-2,1f))
         content.addView(monthNav)
         button("🌱 Открыть статью Ортон за этот месяц") { openCalendarSource(ortonUrl(selectedDate)) }
-        button("🔄 Обновить календарь Ортон") { refreshOrtonCalendar(monthKey) }
-        val cached = getOrtonMonth(monthKey)
-        val checkedAtEpoch = cached?.optLong("checkedAtEpoch", 0L) ?: 0L
-        val lastAttempt = prefs.getLong("orton_last_attempt_" + monthKey, 0L)
-        val stale = checkedAtEpoch == 0L || System.currentTimeMillis() - checkedAtEpoch >= 24L * 60L * 60L * 1000L
-        if (stale && System.currentTimeMillis() - lastAttempt >= 15L * 60L * 1000L && !ortonRefreshInProgress.contains(monthKey)) {
-            refreshOrtonCalendar(monthKey, automatic = true)
-        }
-        val status = if(cached == null) "Загружаем календарь Ортон автоматически. Если сеть недоступна, можно открыть статью вручную." else {
-            val age = if (stale) "\nДанные устарели — выполняется проверка обновления." else ""
-            "Данные получены: " + cached.optString("checkedAt","дата неизвестна") + age + "\\nИсточник: Ортон. Проверьте условия участка и прогноз погоды."
-        }
-        card("Состояние календаря",status)
-        val weekdays = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")
+        button("Открыть календарь Ортон за этот месяц") { openCalendarSource(ortonUrl(selectedDate)) }
+        card("Календарь и рекомендации",
+            "Календарная сетка, фазы Луны, задачи и личные записи работают на устройстве. Материалы Ортон открываются на сайте источника; приложение не копирует и не распространяет его статьи или отметки.")
+                val weekdays = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")
         val header = GridLayout(this).apply { columnCount=7; rowCount=1 }
         weekdays.forEach { day ->
             header.addView(TextView(this).apply { text=day; gravity=Gravity.CENTER; textSize=12f; setTextColor(green); setPadding(0,6,0,6) },
@@ -1124,99 +981,16 @@ class MainActivity : Activity() {
     } catch (_:Exception) { null }
 
     private fun refreshOrtonCalendar(monthKey:String, automatic:Boolean = false) {
-        synchronized(ortonRefreshInProgress) {
-            if (!ortonRefreshInProgress.add(monthKey)) return
-        }
-        prefs.edit().putLong("orton_last_attempt_" + monthKey, System.currentTimeMillis()).apply()
-        if (!automatic) Toast.makeText(this,"Загружаю календарь Ортон…",Toast.LENGTH_SHORT).show()
-
-        // Важно: запрашиваем именно месяц из ключа, даже если пользователь успел переключить экран.
         val target = try {
             val parsed = SimpleDateFormat("yyyy-MM", Locale.US).apply { isLenient = false }.parse(monthKey)
                 ?: throw IllegalArgumentException("Неверный месяц")
-            Calendar.getInstance().apply {
-                time = parsed
-                set(Calendar.DAY_OF_MONTH, 1)
-                set(Calendar.HOUR_OF_DAY, 12)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
-            }
-        } catch (_:Exception) {
-            synchronized(ortonRefreshInProgress) { ortonRefreshInProgress.remove(monthKey) }
-            if (!automatic) Toast.makeText(this,"Не удалось определить месяц календаря.",Toast.LENGTH_LONG).show()
+            Calendar.getInstance().apply { time = parsed; set(Calendar.DAY_OF_MONTH, 1) }
+        } catch (_: Exception) {
+            Toast.makeText(this, "Не удалось определить месяц календаря.", Toast.LENGTH_LONG).show()
             return
         }
-
-        Thread {
-            var errorMessage: String? = null
-            var ratingCount = 0
-            try {
-                val connection=java.net.URL(ortonUrl(target)).openConnection() as java.net.HttpURLConnection
-                connection.connectTimeout=12000
-                connection.readTimeout=12000
-                connection.setRequestProperty("User-Agent","Mozilla/5.0 (Android) MoiPosevnoy/1.0")
-                connection.setRequestProperty("Accept-Language","ru-RU,ru;q=0.9")
-                val html = try {
-                    val status = connection.responseCode
-                    if (status !in 200..299) throw java.io.IOException("HTTP " + status)
-                    connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                } finally {
-                    connection.disconnect()
-                }
-                val plain=html.replace(Regex("(?is)<script.*?</script>|<style.*?</style>")," ")
-                    .replace(Regex("(?s)<[^>]+>")," ")
-                    .replace("&nbsp;"," ").replace("&#8211;","–").replace("&ndash;","–")
-                    .replace("&#8212;","—").replace("&mdash;","—").replace("&amp;","&")
-                    .replace("&#39;","'").replace("&quot;","\"").replace(Regex("\\s+")," ")
-                val ratings=JSONObject()
-                fun collect(label:String, rating:String) {
-                    val pattern=Regex("(?i)(?<!Самые )"+Regex.escape(label)+"\\s*[-–—:]\\s*([0-9,\\s]+?)(?=\\s+(?:Самые благоприятные дни|Благоприятные дни|Нейтральные дни|Нежелательные дни|Самые неблагоприятные дни|Благоприятные посадочные дни|Благоприятные дни для|Неблагоприятные дни|Фазы луны|$))")
-                    val match=pattern.find(plain) ?: return
-                    Regex("\\d{1,2}").findAll(match.groupValues[1]).forEach { token ->
-                        val n=token.value.toIntOrNull() ?: return@forEach
-                        if(n in 1..31 && !ratings.has(n.toString())) ratings.put(n.toString(),rating)
-                    }
-                }
-                collect("Самые благоприятные дни","Лучший день")
-                collect("Благоприятные дни","Благоприятный")
-                collect("Нейтральные дни","Нейтральный")
-                collect("Нежелательные дни","Нежелательный")
-                collect("Самые неблагоприятные дни","Неблагоприятный")
-                ratingCount = ratings.length()
-                if (ratingCount == 0) throw java.io.IOException("Страница загружена, но отметки дней не распознаны")
-
-                val now = System.currentTimeMillis()
-                val checked=SimpleDateFormat("d MMM yyyy, HH:mm",Locale("ru")).format(Date(now))
-                val result=JSONObject().put("checkedAt",checked).put("checkedAtEpoch",now)
-                    .put("source","Ортон").put("ratings",ratings)
-                    .put("month",monthKey).put("sourceUrl",ortonUrl(target))
-                val all=JSONObject(prefs.getString("orton_calendar_cache","{}") ?: "{}")
-                all.put(monthKey,result)
-                prefs.edit().putString("orton_calendar_cache",all.toString())
-                    .putString("calendar_sources_checked",checked).apply()
-            } catch (e:Exception) {
-                errorMessage = e.message ?: "Ошибка загрузки"
-            } finally {
-                synchronized(ortonRefreshInProgress) { ortonRefreshInProgress.remove(monthKey) }
-            }
-
-            runOnUiThread {
-                if (errorMessage == null) {
-                    if (!automatic) {
-                        Toast.makeText(this,"Календарь обновлён. Дней с отметками: " + ratingCount,Toast.LENGTH_LONG).show()
-                    }
-                    // Не переключаем выбранный месяц: перерисовываем только текущий экран.
-                    showCalendar()
-                } else if (!automatic) {
-                    Toast.makeText(this,
-                        "Не удалось обновить календарь Ортон. Проверьте интернет. Если страница изменилась, откройте её вручную.",
-                        Toast.LENGTH_LONG).show()
-                } else if (getOrtonMonth(monthKey) == null && SimpleDateFormat("yyyy-MM", Locale.US).format(selectedDate.time) == monthKey) {
-                    Toast.makeText(this,"Не удалось автоматически загрузить календарь Ортон. Проверьте интернет или откройте статью вручную.",Toast.LENGTH_LONG).show()
-                }
-            }
-        }.start()
+        // RuStore edition opens the source page instead of scraping or redistributing its content.
+        openCalendarSource(ortonUrl(target))
     }
 
     private fun showOrtonDay(monthKey:String,dayNumber:Int) {
