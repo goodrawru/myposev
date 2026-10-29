@@ -18,6 +18,9 @@ import android.text.Editable
 import org.json.JSONArray
 import org.json.JSONObject
 import android.graphics.Color
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
@@ -36,6 +39,8 @@ data class GardenCity(val city:String, val region:String, val zone:String, val l
 class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("moi_posevnoy", Context.MODE_PRIVATE) }
     private lateinit var content: LinearLayout
+    private var immersionTrack: AudioTrack? = null
+    private var immersionPlaying = false
     private var selectedDate = Calendar.getInstance()
     private val green = Color.rgb(39, 91, 57)
     private val pale = Color.rgb(239, 246, 235)
@@ -110,6 +115,31 @@ class MainActivity : Activity() {
             text = "🌱  " + title; textSize=25f; setTextColor(Color.WHITE); setBackgroundColor(green)
             setPadding(20,22,20,22); gravity=Gravity.CENTER_VERTICAL
         })
+        // Section description row with an offline, original ambient sound toggle.
+        val sectionRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(3), dp(6), dp(3))
+            setBackgroundColor(Color.WHITE)
+        }
+        sectionRow.addView(TextView(this).apply {
+            text = "Раздел: $title"
+            textSize = 12f
+            setTextColor(Color.rgb(65, 78, 67))
+            maxLines = 2
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        sectionRow.addView(Button(this).apply {
+            text = if (immersionPlaying) "⏸ Погружение" else "🎧 Погружение"
+            textSize = 12f
+            isAllCaps = false
+            minWidth = 0
+            setPadding(dp(8), dp(2), dp(8), dp(2))
+            setOnClickListener {
+                toggleImmersionMusic()
+                text = if (immersionPlaying) "⏸ Погружение" else "🎧 Погружение"
+            }
+        })
+        root.addView(sectionRow)
         val nav = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; setBackgroundColor(Color.WHITE) }
         listOf("Сегодня","Календарь","Культуры","Задачи","Огород").forEach { label ->
             nav.addView(Button(this).apply {
@@ -129,6 +159,85 @@ class MainActivity : Activity() {
         scroll.addView(content)
         root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
         setContentView(root)
+    }
+
+    private fun toggleImmersionMusic() {
+        try {
+            if (immersionPlaying) {
+                immersionTrack?.pause()
+                immersionPlaying = false
+                Toast.makeText(this, "Погружение: пауза", Toast.LENGTH_SHORT).show()
+                return
+            }
+            if (immersionTrack == null) immersionTrack = createImmersionTrack()
+            immersionTrack?.play()
+            immersionPlaying = true
+            Toast.makeText(this, "Спокойная музыка включена · офлайн", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            immersionPlaying = false
+            try { immersionTrack?.release() } catch (_: Exception) {}
+            immersionTrack = null
+            Toast.makeText(this, "Не удалось включить звук на устройстве", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // Original synthesized ambient pad: no streaming service, ads, account, or network required.
+    private fun createImmersionTrack(): AudioTrack {
+        val sampleRate = 22050
+        val seconds = 24
+        val samples = ShortArray(sampleRate * seconds)
+        val chords = arrayOf(
+            doubleArrayOf(130.81, 164.81, 196.00, 261.63), // C
+            doubleArrayOf(110.00, 164.81, 220.00, 261.63), // Am
+            doubleArrayOf(87.31, 130.81, 174.61, 220.00),  // F
+            doubleArrayOf(98.00, 146.83, 196.00, 246.94)  // G
+        )
+        val chordSeconds = seconds.toDouble() / chords.size
+        for (i in samples.indices) {
+            val t = i.toDouble() / sampleRate
+            val chordIndex = (t / chordSeconds).toInt().coerceIn(0, chords.lastIndex)
+            val local = t - chordIndex * chordSeconds
+            val fade = 0.75
+            val attack = (local / fade).coerceIn(0.0, 1.0)
+            val release = ((chordSeconds - local) / fade).coerceIn(0.0, 1.0)
+            val envelope = minOf(attack, release)
+            var value = 0.0
+            val chord = chords[chordIndex]
+            for (n in chord.indices) {
+                val slowDrift = 1.0 + 0.002 * kotlin.math.sin(2.0 * Math.PI * t / (7.0 + n))
+                val phase = 2.0 * Math.PI * chord[n] * slowDrift * t
+                val level = when (n) { 0 -> 0.22; 1 -> 0.15; 2 -> 0.12; else -> 0.075 }
+                value += kotlin.math.sin(phase) * level
+                value += kotlin.math.sin(phase * 2.0) * level * 0.12
+            }
+            // Very quiet, slow high note adds movement without sharp attacks.
+            value += kotlin.math.sin(2.0 * Math.PI * (523.25 + 4.0 * kotlin.math.sin(t / 5.0)) * t) *
+                (0.025 + 0.012 * kotlin.math.sin(t * 0.35))
+            val sample = (value * envelope * 11000.0).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
+            samples[i] = sample.toShort()
+        }
+        val attributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+            .build()
+        val format = AudioFormat.Builder()
+            .setSampleRate(sampleRate)
+            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+            .build()
+        val track = AudioTrack.Builder()
+            .setAudioAttributes(attributes)
+            .setAudioFormat(format)
+            .setTransferMode(AudioTrack.MODE_STATIC)
+            .setBufferSizeInBytes(samples.size * 2)
+            .build()
+        val written = track.write(samples, 0, samples.size)
+        if (written < samples.size) {
+            track.release()
+            throw IllegalStateException("Audio buffer could not be written")
+        }
+        track.setLoopPoints(0, samples.size, -1)
+        return track
     }
 
     private fun dp(value:Int):Int = (value * resources.displayMetrics.density).toInt()
@@ -713,6 +822,17 @@ class MainActivity : Activity() {
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
     }
+    override fun onDestroy() {
+        try {
+            immersionTrack?.pause()
+            immersionTrack?.flush()
+            immersionTrack?.release()
+        } catch (_: Exception) {}
+        immersionTrack = null
+        immersionPlaying = false
+        super.onDestroy()
+    }
+
     private fun scheduleDailyReminder() {
         val alarm=getSystemService(ALARM_SERVICE) as AlarmManager
         val intent=Intent(this,ReminderReceiver::class.java)
