@@ -129,7 +129,19 @@ class MainActivity : Activity() {
         Plant("Салат листовой","Зелень","Весной и в прохладные периоды","0,5–1 см","4–10 дней","Мелкие семена не заглубляйте; почва должна оставаться влажной."),
         Plant("Капуста белокочанная","Капустные","По сроку созревания и планируемой высадке","0,5–1 см","4–10 дней","Рассаде нужны свет и проветривание. Учитывайте сорт и риск заморозков."),
         Plant("Клубника","Ягоды","Обычно весной или в конце лета","Корни расправить; сердечко не заглублять","Зависит от способа","Выберите солнечное место и не засыпайте точку роста."),
-        Plant("Бархатцы","Цветы","Весной на рассаду или после заморозков","0,5–1 см","5–10 дней","Теплолюбивы; высаживайте после угрозы заморозков.")
+        Plant("Бархатцы","Цветы","Весной на рассаду или после заморозков","0,5–1 см","5–10 дней","Теплолюбивы; высаживайте после угрозы заморозков."),
+        Plant("Тыква","Овощи","После прогрева почвы или за 20–30 дней до высадки","3–5 см","5–10 дней","Нужны тепло, место для плетей и регулярный полив в период роста."),
+        Plant("Кабачок","Овощи","После угрозы заморозков или за 20–25 дней до высадки","3–4 см","4–8 дней","Не загущайте посадки; собирайте молодые плоды регулярно."),
+        Plant("Свёкла","Корнеплоды","Весной в прогретую почву; возможен летний посев","2–3 см","7–14 дней","Прореживайте всходы и поддерживайте равномерную влажность."),
+        Plant("Лук репчатый","Луковые","Севок весной после подсыхания почвы","3–5 см для севка","7–14 дней","Не переувлажняйте грядку; прекращайте полив перед уборкой по погоде."),
+        Plant("Чеснок","Луковые","Озимый осенью или яровой весной","3–6 см","Зависит от температуры","Выбирайте здоровые зубки и хорошо дренированное место."),
+        Plant("Горох","Бобовые","Ранней весной, когда почва готова к обработке","3–5 см","7–14 дней","Предусмотрите опору для высокорослых сортов."),
+        Plant("Фасоль","Бобовые","После прогрева почвы и окончания заморозков","3–5 см","7–14 дней","Теплолюбива; не сейте в холодную мокрую землю."),
+        Plant("Базилик","Зелень","На рассаду в тепле или после заморозков","0,5–1 см","5–10 дней","Нужны тепло, свет и защита от холодных ночей."),
+        Plant("Петрушка","Зелень","Ранней весной; возможен подзимний посев","1–2 см","14–25 дней","Всходит медленно; поддерживайте влажность до появления всходов."),
+        Plant("Малина","Ягоды","Весной или осенью в подходящем регионе","Корневая шейка на уровне почвы","Зависит от посадочного материала","Подберите сорт и место с учётом зимостойкости и обеспечьте опору при необходимости."),
+        Plant("Смородина","Ягоды","Весной или осенью в период покоя","Корни расправить; не пересушивать","Зависит от посадочного материала","Выберите сорт под климат и регулярно обновляйте обрезкой куст."),
+        Plant("Яблоня","Плодовые деревья","Весной или осенью, когда нет экстремальных условий","Корневая шейка на уровне почвы","Не применимо","Подберите подвой и сорт для региона; не заглубляйте место прививки."),
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -1337,29 +1349,97 @@ class MainActivity : Activity() {
     private fun showDiary() {
         baseLayout("Мой огород")
         content.addView(txt("Мои посадки",20f,true))
-        val input=EditText(this).apply { hint="Например: томаты, сорт Де Барао" }
-        content.addView(input)
-        val dateInput=EditText(this).apply { hint="Дата посева (например, 15.03.2027)"; setText(SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(Date())) }
-        content.addView(dateInput)
+        content.addView(txt("Записывайте сорт, место выращивания и заметки. Данные сохраняются на устройстве.",14f))
+        val name=EditText(this).apply { hint="Культура (например, томат)"; setSingleLine(true) }
+        val variety=EditText(this).apply { hint="Сорт"; setSingleLine(true) }
+        val sowing=EditText(this).apply { hint="Дата посева (дд.мм.гггг)"; setText(SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(Date())); setSingleLine(true) }
+        val place=EditText(this).apply { hint="Место (теплица, грядка №1, балкон)"; setSingleLine(true) }
+        val notes=EditText(this).apply { hint="Заметки (необязательно) }
+        content.addView(name); content.addView(variety); content.addView(sowing); content.addView(place); content.addView(notes)
         button("Добавить посадку") {
-            val name=input.text.toString().trim(); val date=dateInput.text.toString().trim()
-            if(name.isBlank()) Toast.makeText(this,"Введите название культуры",Toast.LENGTH_SHORT).show()
-            else {
-                val old=prefs.getString("plantings","").orEmpty()
-                val updated=(old.split("\n").filter{it.isNotBlank()}+"$date — $name").joinToString("\n")
-                prefs.edit().putString("plantings",updated).apply()
-                showDiary()
+            val crop=name.text.toString().trim()
+            val date=sowing.text.toString().trim()
+            if(crop.isBlank()) { Toast.makeText(this,"Введите название культуры",Toast.LENGTH_SHORT).show(); return@button }
+            if(parseTaskDate(date)==null) { Toast.makeText(this,"Введите дату в формате дд.мм.гггг",Toast.LENGTH_SHORT).show(); return@button }
+            val records=try { JSONArray(prefs.getString("planting_records","[]")) } catch (_:Exception) { JSONArray() }
+            records.put(JSONObject().put("id",System.currentTimeMillis()).put("crop",crop)
+                .put("variety",variety.text.toString().trim()).put("sowing",date)
+                .put("place",place.text.toString().trim()).put("notes",notes.text.toString().trim())
+                .put("created",System.currentTimeMillis()))
+            prefs.edit().putString("planting_records",records.toString()).apply()
+            showDiary()
+        }
+        content.addView(txt("Сохранённые посадки",18f,true))
+        val records=try { JSONArray(prefs.getString("planting_records","[]")) } catch (_:Exception) { JSONArray() }
+        if(records.length()==0) content.addView(txt("Пока нет подробных посадок. Добавьте первую запись."))
+        for(i in records.length()-1 downTo 0) {
+            val item=records.optJSONObject(i) ?: continue
+            val crop=item.optString("crop","Культура")
+            val varName=item.optString("variety","")
+            val sow=item.optString("sowing","")
+            val placeName=item.optString("place","")
+            val note=item.optString("notes","")
+            val age=try {
+                val d=parseTaskDate(sow)
+                if(d!=null) {
+                    val days=((System.currentTimeMillis()-d.timeInMillis)/86400000L).toInt()
+                    if(days>=0) "Возраст: $days дн." else "До посева: ${-days} дн."
+                } else ""
+            } catch (_:Exception) { "" }
+            val details=listOf("Посев: $sow",varName.takeIf{it.isNotBlank()}?.let{"Сорт: $it"},
+                placeName.takeIf{it.isNotBlank()}?.let{"Место: $it"},age.takeIf{it.isNotBlank()},
+                note.takeIf{it.isNotBlank()}?.let{"Заметки: $it"}).filterNotNull().joinToString("\n")
+            card("🌱 $crop",details)
+            button("Удалить посадку: $crop") {
+                val current=try { JSONArray(prefs.getString("planting_records","[]")) } catch (_:Exception) { JSONArray() }
+                val kept=JSONArray()
+                for(j in 0 until current.length()) if(current.optJSONObject(j)?.optLong("id")!=item.optLong("id")) kept.put(current.getJSONObject(j))
+                prefs.edit().putString("planting_records",kept.toString()).apply(); showDiary()
             }
         }
-        content.addView(txt("Сохранённые записи",18f,true))
-        val entries=prefs.getString("plantings","").orEmpty()
-        if(entries.isBlank()) content.addView(txt("Пока пусто. Добавьте первую посадку."))
-        else entries.split("\n").forEach { card("🌱 "+it,"Запись хранится на этом устройстве.") }
-        button("Очистить дневник") {
-            android.app.AlertDialog.Builder(this).setTitle("Очистить дневник?")
-                .setMessage("Все записи о посадках будут удалены.")
+        val legacy=prefs.getString("plantings","").orEmpty().split("\n").filter{it.isNotBlank()}
+        if(legacy.isNotEmpty()) {
+            content.addView(txt("Старые записи",16f,true))
+            legacy.forEach { card("🌿 $it","Запись из прежней версии дневника.") }
+        }
+        content.addView(txt("Журнал урожая",20f,true))
+        val harvestCrop=EditText(this).apply { hint="Что собрали?"; setSingleLine(true) }
+        val harvestAmount=EditText(this).apply { hint="Количество (например, 2,5 кг)"; setSingleLine(true) }
+        val harvestDate=EditText(this).apply { hint="Дата сбора"; setText(SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(Date())); setSingleLine(true) }
+        val harvestNotes=EditText(this).apply { hint="Примечание (необязательно)"; setSingleLine(true) }
+        content.addView(harvestCrop); content.addView(harvestAmount); content.addView(harvestDate); content.addView(harvestNotes)
+        button("Записать урожай") {
+            val crop=harvestCrop.text.toString().trim()
+            val date=harvestDate.text.toString().trim()
+            if(crop.isBlank() || harvestAmount.text.toString().trim().isBlank()) {
+                Toast.makeText(this,"Укажите культуру и количество",Toast.LENGTH_SHORT).show(); return@button
+            }
+            if(parseTaskDate(date)==null) { Toast.makeText(this,"Проверьте дату сбора",Toast.LENGTH_SHORT).show(); return@button }
+            val list=try { JSONArray(prefs.getString("harvest_records","[]")) } catch (_:Exception) { JSONArray() }
+            list.put(JSONObject().put("id",System.currentTimeMillis()).put("crop",crop)
+                .put("amount",harvestAmount.text.toString().trim()).put("date",date)
+                .put("notes",harvestNotes.text.toString().trim()))
+            prefs.edit().putString("harvest_records",list.toString()).apply(); showDiary()
+        }
+        val harvests=try { JSONArray(prefs.getString("harvest_records","[]")) } catch (_:Exception) { JSONArray() }
+        if(harvests.length()==0) content.addView(txt("Записей об урожае пока нет."))
+        for(i in harvests.length()-1 downTo 0) {
+            val h=harvests.optJSONObject(i) ?: continue
+            val desc=listOf("Сбор: ${h.optString("date")}","Количество: ${h.optString("amount")}",
+                h.optString("notes").takeIf{it.isNotBlank()}?.let{"Примечание: $it"}).filterNotNull().joinToString("\n")
+            card("🧺 ${h.optString("crop","Урожай")}",desc)
+        }
+        button("Очистить дневник посадок") {
+            android.app.AlertDialog.Builder(this).setTitle("Очистить посадки?")
+                .setMessage("Удалятся подробные и старые записи о посадках. Журнал урожая останется.")
                 .setNegativeButton("Отмена",null)
-                .setPositiveButton("Очистить") { _,_ -> prefs.edit().remove("plantings").apply(); showDiary() }.show()
+                .setPositiveButton("Очистить") { _,_ -> prefs.edit().remove("plantings").remove("planting_records").apply(); showDiary() }.show()
+        }
+        button("Очистить журнал урожая") {
+            android.app.AlertDialog.Builder(this).setTitle("Очистить журнал урожая?")
+                .setMessage("Все записи о собранном урожае будут удалены.")
+                .setNegativeButton("Отмена",null)
+                .setPositiveButton("Очистить") { _,_ -> prefs.edit().remove("harvest_records").apply(); showDiary() }.show()
         }
     }
 
