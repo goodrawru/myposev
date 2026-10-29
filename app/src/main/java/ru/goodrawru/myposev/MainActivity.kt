@@ -1048,7 +1048,7 @@ class MainActivity : Activity() {
             var count = 0
             for (i in 0 until tasks.length()) { val task = tasks.optJSONObject(i) ?: continue; if (task.optString("date") == key && !task.optBoolean("done", false)) count++ }
             val cellView = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(dp(1), dp(3), dp(1), dp(2)); background = roundedBackground(if (isToday) green else if (count > 0 || note) Color.rgb(226,241,219) else Color.WHITE, 8f, if (isToday) green else Color.rgb(216,228,211)); isClickable = true; isFocusable = true; setOnClickListener { selectedDate = day.clone() as Calendar; showCalendarDay(selectedDate) } }
-            cellView.addView(TextView(this).apply { text = number.toString(); textSize = 15f; gravity = Gravity.CENTER; setTextColor(if (isToday) Color.WHITE else Color.rgb(35,48,38)); setTypeface(null, if (isToday) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL) }, LinearLayout.LayoutParams(-1, 0, 1f))
+            cellView.addView(TextView(this).apply { text = lunarGlyph(day) + "\n" + number.toString(); textSize = 15f; gravity = Gravity.CENTER; setTextColor(if (isToday) Color.WHITE else Color.rgb(35,48,38)); setTypeface(null, if (isToday) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL) }, LinearLayout.LayoutParams(-1, 0, 1f))
             cellView.addView(TextView(this).apply { text = (if (count > 0) "● $count" else "") + if (note) " ◆" else ""; textSize = 9f; gravity = Gravity.CENTER; setTextColor(if (isToday) Color.WHITE else green) }, LinearLayout.LayoutParams(-1, dp(14)))
             grid.addView(cellView, lp)
         }
@@ -1065,7 +1065,17 @@ class MainActivity : Activity() {
         val tasks = tasksArray(); val lines = mutableListOf<String>()
         for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; if (item.optString("date") == key) lines.add((if (item.optBoolean("done", false)) "✓ " else "• ") + item.optString("title", "Задача") + " — " + item.optString("type", "Уход")) }
         val note = prefs.getString("note_" + dateString(day), "").orEmpty()
-        val body = dateString(day) + "\\n\\n" + lunarSummary(day) + "\\n\\n" + seasonalAdvice(day) + "\\n\\nЗадачи:\\n" + (if (lines.isEmpty()) "На эту дату задач нет." else lines.joinToString("\\n")) + "\\n\\nЗаметка: " + if (note.isBlank()) "нет" else note
+        val body = dateString(day) + "
+
+" + lunarSummary(day) + "
+
+" + seasonalAdvice(day) + "
+
+Задачи:
+" + (if (lines.isEmpty()) "На эту дату задач нет." else lines.joinToString("
+")) + "
+
+Заметка: " + if (note.isBlank()) "нет" else note
         android.app.AlertDialog.Builder(this).setTitle("Календарь на день").setMessage(body).setPositiveButton("Добавить задачу") { _, _ -> addTaskForDate(day) }.setNegativeButton("Закрыть", null).show()
     }
 
@@ -1141,6 +1151,47 @@ class MainActivity : Activity() {
         return "$phase. Фаза вычислена приближённо. Лунные советы — традиционная практика и не заменяют агрономические рекомендации."
     }
 
+    private fun lunarGlyph(c: Calendar): String {
+        val knownNewMoon = Calendar.getInstance().apply { set(2000, Calendar.JANUARY, 6, 18, 14, 0) }.timeInMillis
+        val synodicMonth = 29.530588853 * 24 * 60 * 60 * 1000
+        val age = ((((c.timeInMillis - knownNewMoon) % synodicMonth) + synodicMonth) % synodicMonth) / synodicMonth
+        return when {
+            age < 0.035 || age >= 0.965 -> "🌑"
+            age < 0.22 -> "🌒"
+            age < 0.28 -> "🌓"
+            age < 0.47 -> "🌔"
+            age < 0.535 -> "🌕"
+            age < 0.72 -> "🌖"
+            age < 0.78 -> "🌗"
+            else -> "🌘"
+        }
+    }
+
+    private fun plantEmoji(name: String): String {
+        val n = name.lowercase(Locale.ROOT)
+        return when {
+            "томат" in n || "помидор" in n -> "🍅"
+            "перец" in n -> "🫑"
+            "огур" in n -> "🥒"
+            "морков" in n -> "🥕"
+            "редис" in n || "свёкл" in n || "свекл" in n -> "🌱"
+            "укроп" in n || "петруш" in n || "зелень" in n -> "🌿"
+            "салат" in n || "шпинат" in n -> "🥬"
+            "капуст" in n -> "🥬"
+            "клубник" in n || "земляник" in n -> "🍓"
+            "цвет" in n || "бархатц" in n -> "🌼"
+            "тыкв" in n -> "🎃"
+            "кабач" in n -> "🥒"
+            "лук" in n || "чеснок" in n -> "🧅"
+            "горох" in n || "фасол" in n -> "🫛"
+            "картоф" in n -> "🥔"
+            "кукуруз" in n -> "🌽"
+            "яблон" in n || "дерев" in n -> "🌳"
+            "ягод" in n || "смородин" in n || "малин" in n -> "🫐"
+            else -> "🌱"
+        }
+    }
+
     private fun plantIllustration(name:String): Int {
         val n=name.lowercase(Locale.ROOT)
         return when {
@@ -1179,9 +1230,10 @@ class MainActivity : Activity() {
                     background=roundedBackground(Color.WHITE, 16f)
                     elevation=dp(2).toFloat()
                 }
-                val icon=ImageView(this).apply {
-                    setImageResource(plantIllustration(p.name))
-                    scaleType=ImageView.ScaleType.CENTER_INSIDE
+                val icon=TextView(this).apply {
+                    text = plantEmoji(p.name)
+                    textSize = 54f
+                    gravity = Gravity.CENTER
                     setPadding(dp(2),dp(2),dp(2),dp(2))
                     background=roundedBackground(Color.rgb(225,241,217), 14f)
                     contentDescription = "Иллюстрация культуры: ${p.name}"
