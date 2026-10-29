@@ -397,6 +397,14 @@ class MainActivity : Activity() {
         val monthKey = SimpleDateFormat("yyyy-MM", Locale.US).format(selectedDate.time)
         content.addView(txt("Календарь Ортон · " + monthTitle.replaceFirstChar { it.uppercase(Locale("ru")) },19f,true))
         content.addView(txt("После обновления нажимайте на день, чтобы посмотреть отметку календаря и запланировать работу.",14f))
+        val monthNav=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+        monthNav.addView(Button(this).apply { text="‹"; contentDescription="Предыдущий месяц"; setOnClickListener { selectedDate.add(Calendar.MONTH,-1); showCalendar() } },
+            LinearLayout.LayoutParams(0,-2,1f))
+        monthNav.addView(Button(this).apply { text="Сегодня"; isAllCaps=false; setOnClickListener { selectedDate=Calendar.getInstance(); showCalendar() } },
+            LinearLayout.LayoutParams(0,-2,2f))
+        monthNav.addView(Button(this).apply { text="›"; contentDescription="Следующий месяц"; setOnClickListener { selectedDate.add(Calendar.MONTH,1); showCalendar() } },
+            LinearLayout.LayoutParams(0,-2,1f))
+        content.addView(monthNav)
         button("🌱 Открыть статью Ортон за этот месяц") { openCalendarSource(ortonUrl(selectedDate)) }
         button("🔄 Обновить календарь Ортон") { refreshOrtonCalendar(monthKey) }
         val cached = getOrtonMonth(monthKey)
@@ -491,7 +499,7 @@ class MainActivity : Activity() {
                     .replace("&#39;","'").replace("&quot;","\"").replace(Regex("\\s+")," ")
                 val ratings=JSONObject()
                 fun collect(label:String, rating:String) {
-                    val pattern=Regex("(?i)"+Regex.escape(label)+"\\s*[-–—:]\\s*([0-9,\\s]+?)(?=\\s+(?:Самые благоприятные дни|Благоприятные дни|Нейтральные дни|Нежелательные дни|Самые неблагоприятные дни|Благоприятные посадочные дни|Благоприятные дни для|Неблагоприятные дни|Фазы луны|$))")
+                    val pattern=Regex("(?i)(?<!Самые )"+Regex.escape(label)+"\\s*[-–—:]\\s*([0-9,\\s]+?)(?=\\s+(?:Самые благоприятные дни|Благоприятные дни|Нейтральные дни|Нежелательные дни|Самые неблагоприятные дни|Благоприятные посадочные дни|Благоприятные дни для|Неблагоприятные дни|Фазы луны|$))")
                     val match=pattern.find(plain) ?: return
                     Regex("\\d{1,2}").findAll(match.groupValues[1]).forEach { token ->
                         val n=token.value.toIntOrNull() ?: return@forEach
