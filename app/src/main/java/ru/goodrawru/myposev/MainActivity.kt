@@ -28,6 +28,19 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import android.content.ComponentName
+import android.net.Uri
+import android.database.Cursor
+import android.os.Handler
+import android.os.Looper
+import android.provider.OpenableColumns
+import android.widget.SeekBar
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.ListenableFuture
 
 data class Plant(val name:String, val group:String, val sowing:String, val depth:String, val sprouts:String, val advice:String)
 data class GardenCity(val city:String, val region:String, val zone:String, val latitude:Double, val longitude:Double)
@@ -37,6 +50,34 @@ class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("moi_posevnoy", Context.MODE_PRIVATE) }
     private lateinit var content: LinearLayout
     private var selectedDate = Calendar.getInstance()
+    private var musicController: MediaController? = null
+    private var musicControllerFuture: ListenableFuture<MediaController>? = null
+    private var musicStatusView: TextView? = null
+    private var musicProgress: SeekBar? = null
+    private var userSeekingMusic = false
+    private val musicHandler = Handler(Looper.getMainLooper())
+    private val musicProgressTask = object : Runnable {
+        override fun run() {
+            val player = musicController
+            val bar = musicProgress
+            if (player != null && bar != null && !userSeekingMusic) {
+                val duration = player.duration
+                if (duration > 0 && duration != androidx.media3.common.C.TIME_UNSET) {
+                    bar.progress = ((player.currentPosition.toDouble() / duration) * 1000).toInt().coerceIn(0, 1000)
+                } else bar.progress = 0
+            }
+            musicHandler.postDelayed(this, 1000)
+        }
+    }
+    private val musicListener = object : Player.Listener {
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) { updateMusicStatus() }
+        override fun onIsPlayingChanged(isPlaying: Boolean) { updateMusicStatus() }
+        override fun onPlaybackStateChanged(playbackState: Int) { updateMusicStatus() }
+        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+            Toast.makeText(this@MainActivity, "Не удалось воспроизвести аудио: ${error.errorCodeName}", Toast.LENGTH_LONG).show()
+            updateMusicStatus()
+        }
+    }
     private val green = Color.rgb(39, 91, 57)
     private val pale = Color.rgb(239, 246, 235)
     private val cities = listOf(
@@ -91,6 +132,7 @@ class MainActivity : Activity() {
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
         scheduleDailyReminder()
+        connectMusicController()
         showHome()
     }
 
@@ -154,23 +196,189 @@ class MainActivity : Activity() {
     }
 
     private fun showImmersionPlayer() {
-        baseLayout("Погружение · музыка и радио")
-        content.addView(txt("Выберите, что включить во время работы в саду", 19f, true))
-        content.addView(txt("Здесь собраны официальные страницы радио и каталоги бесплатной музыки. При выборе источника приложение откроет его сайт в браузере — воспроизведение остаётся у самого сервиса, без неофициальных потоков.", 14f))
-        card("📻 Радио Дача", "Русскоязычная музыка и прямой эфир. Откроется официальный онлайн-плеер радиостанции.") {
+        baseLayout("Музыка и радио")
+        content.addView(txt("Музыкальный плеер", 23f, true))
+        content.addView(txt("Слушайте файлы с телефона или добавьте прямую ссылку на аудиопоток. Плеер работает в фоне и показывает системные кнопки управления.", 14f))
+        val nowPlaying = txt("Подключение к плееру…", 18f, true)
+        musicStatusView = nowPlaying
+        card("🎵 Сейчас играет", "Название трека и состояние воспроизведения появятся здесь.")
+        content.addView(nowPlaying)
+        val progress = SeekBar(this).apply {
+            max = 1000
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, value: Int, fromUser: Boolean) {
+                    if (fromUser) userSeekingMusic = true
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) { userSeekingMusic = true }
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                    val player = musicController
+                    if (player != null && player.duration > 0 && player.duration != androidx.media3.common.C.TIME_UNSET) {
+                        player.seekTo((player.duration * (seekBar?.progress ?: 0) / 1000).toLong())
+                    }
+                    userSeekingMusic = false
+                }
+            })
+        }
+        musicProgress = progress
+        content.addView(progress)
+        content.addView(LinearLayout(this).apply {
+            gravity = Gravity.CENTER
+            orientation = LinearLayout.HORIZONTAL
+            addView(Button(this@MainActivity).apply { text = "⏮"; contentDescription = "Предыдущий трек"; setOnClickListener { musicController?.seekToPreviousMediaItem() } })
+            addView(Button(this@MainActivity).apply { text = "▶ / ⏸"; contentDescription = "Воспроизвести или поставить на паузу"; setOnClickListener {
+                val player = musicController
+                if (player == null) Toast.makeText(this@MainActivity, "Плеер ещё подключается", Toast.LENGTH_SHORT).show()
+                else if (player.isPlaying) player.pause() else { if (player.mediaItemCount == 0) chooseLocalAudio() else player.play() }
+            } })
+            addView(Button(this@MainActivity).apply { text = "⏭"; contentDescription = "Следующий трек"; setOnClickListener { musicController?.seekToNextMediaItem() } })
+        })
+        button("＋ Выбрать музыку на телефоне") { chooseLocalAudio() }
+        button("＋ Добавить прямую ссылку на аудио") { showStreamUrlDialog() }
+        button("Очистить очередь") {
+            musicController?.clearMediaItems()
+            updateMusicStatus()
+        }
+        content.addView(txt("Онлайн-источники", 20f, true))
+        card("📻 Радио Дача", "Открыть официальный онлайн-плеер радиостанции. Поток не извлекается и не ретранслируется приложением.") {
             openMusicSource("https://www.radiodacha.ru/player/", "Радио Дача")
         }
-        button("▶ Слушать Радио Дача") { openMusicSource("https://www.radiodacha.ru/player/", "Радио Дача") }
-        card("🎶 Zvukogram · весёлая музыка", "Большой каталог инструментальных треков. Сайт заявляет бесплатное использование, но перед скачиванием проверяйте условия конкретной записи.") {
+        button("Открыть Радио Дача в браузере") { openMusicSource("https://www.radiodacha.ru/player/", "Радио Дача") }
+        card("🎶 Zvukogram", "Каталог музыки. Проверяйте лицензию и условия конкретной записи перед скачиванием или использованием.") {
             openMusicSource("https://zvukogram.com/category/veselaya-muzyika/", "Zvukogram")
         }
-        button("Открыть каталог Zvukogram") { openMusicSource("https://zvukogram.com/category/veselaya-muzyika/", "Zvukogram") }
-        card("☀️ Chosic · позитивная музыка", "Бесплатные треки для прослушивания и скачивания. Условия различаются: часть музыки требует указать автора; для встраивания музыки непосредственно в приложение права нужно проверять отдельно.") {
+        button("Открыть Zvukogram") { openMusicSource("https://zvukogram.com/category/veselaya-muzyika/", "Zvukogram") }
+        card("☀️ Chosic", "Каталог бесплатной музыки. Условия и требования к указанию автора зависят от трека.") {
             openMusicSource("https://www.chosic.com/free-music/happy/", "Chosic")
         }
-        button("Открыть каталог Chosic") { openMusicSource("https://www.chosic.com/free-music/happy/", "Chosic") }
-        card("ℹ️ Важно", "Для онлайн-источников нужен интернет. Доступность сайтов и воспроизведения в России зависит от самого сервиса и сети. Если сайт не откроется, попробуйте другой источник.")
+        button("Открыть Chosic") { openMusicSource("https://www.chosic.com/free-music/happy/", "Chosic") }
         button("На главный экран") { showHome() }
+        updateMusicStatus()
+        musicHandler.removeCallbacks(musicProgressTask)
+        musicHandler.post(musicProgressTask)
+    }
+
+    private fun connectMusicController() {
+        val token = SessionToken(this, ComponentName(this, MusicPlaybackService::class.java))
+        val future = MediaController.Builder(this, token).buildAsync()
+        musicControllerFuture = future
+        future.addListener({
+            try {
+                runOnUiThread {
+                    try {
+                        musicController = future.get()
+                        musicController?.addListener(musicListener)
+                        updateMusicStatus()
+                    } catch (_: Exception) {
+                        musicStatusView?.text = "Плеер запускается. Откройте раздел ещё раз."
+                    }
+                }
+            } catch (_: Exception) { }
+        }, java.util.concurrent.Executor { it.run() })
+    }
+
+    private fun chooseLocalAudio() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "audio/*"
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        try { startActivityForResult(intent, 2301) }
+        catch (_: Exception) { Toast.makeText(this, "Не удалось открыть выбор аудиофайлов", Toast.LENGTH_LONG).show() }
+    }
+
+    @Deprecated("Uses the document picker to support older Android versions")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != 2301 || resultCode != Activity.RESULT_OK || data == null) return
+        val uris = mutableListOf<Uri>()
+        data.clipData?.let { clip -> for (i in 0 until clip.itemCount) uris.add(clip.getItemAt(i).uri) }
+        if (uris.isEmpty()) data.data?.let { uris.add(it) }
+        if (uris.isEmpty()) return
+        uris.forEach { uri ->
+            try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { }
+        }
+        val items = uris.map { uri ->
+            val name = queryAudioName(uri) ?: uri.lastPathSegment ?: "Аудиофайл"
+            MediaItem.Builder().setUri(uri).setMediaMetadata(MediaMetadata.Builder().setTitle(name).build()).build()
+        }
+        val player = musicController
+        if (player == null) {
+            Toast.makeText(this, "Плеер ещё подключается. Повторите выбор через пару секунд.", Toast.LENGTH_LONG).show()
+            return
+        }
+        player.setMediaItems(items, true)
+        player.prepare()
+        player.play()
+        updateMusicStatus()
+    }
+
+    private fun queryAudioName(uri: Uri): String? {
+        var cursor: Cursor? = null
+        return try {
+            cursor = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            if (cursor != null && cursor.moveToFirst()) cursor.getString(0) else null
+        } catch (_: Exception) { null } finally { cursor?.close() }
+    }
+
+    private fun showStreamUrlDialog() {
+        val input = EditText(this).apply {
+            hint = "https://…/stream.mp3"
+            setSingleLine(true)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Прямая ссылка на аудио")
+            .setMessage("Вставьте прямую ссылку на разрешённый аудиофайл или поток (MP3/AAC/HLS). Обычная ссылка на страницу сайта не подойдёт.")
+            .setView(input)
+            .setNegativeButton("Отмена", null)
+            .setPositiveButton("Добавить") { _, _ ->
+                val raw = input.text.toString().trim()
+                val uri = try { Uri.parse(raw) } catch (_: Exception) { null }
+                if (uri == null || (uri.scheme != "https" && uri.scheme != "http") || uri.host.isNullOrBlank()) {
+                    Toast.makeText(this, "Введите корректную ссылку http:// или https://", Toast.LENGTH_LONG).show()
+                    return@setPositiveButton
+                }
+                val player = musicController
+                if (player == null) {
+                    Toast.makeText(this, "Плеер ещё подключается", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val title = uri.host ?: "Интернет-аудио"
+                val item = MediaItem.Builder().setUri(uri).setMediaMetadata(MediaMetadata.Builder().setTitle(title).build()).build()
+                if (player.mediaItemCount == 0) {
+                    player.setMediaItem(item)
+                    player.prepare()
+                    player.play()
+                } else player.addMediaItem(item)
+                updateMusicStatus()
+            }.show()
+    }
+
+    private fun updateMusicStatus() {
+        val player = musicController ?: run {
+            musicStatusView?.text = "Подключение к плееру…"
+            return
+        }
+        val title = player.currentMediaItem?.mediaMetadata?.title?.toString()?.takeIf { it.isNotBlank() }
+            ?: if (player.mediaItemCount == 0) "Очередь пуста — добавьте аудиофайл или поток" else "Аудио"
+        val state = when {
+            player.playerError != null -> "Ошибка воспроизведения"
+            player.isPlaying -> "▶ Воспроизводится"
+            player.playbackState == Player.STATE_BUFFERING -> "⏳ Загрузка…"
+            player.playbackState == Player.STATE_ENDED -> "Воспроизведение завершено"
+            player.mediaItemCount > 0 -> "⏸ На паузе"
+            else -> "Готов к работе"
+        }
+        musicStatusView?.text = "$title\n$state"
+    }
+
+    override fun onDestroy() {
+        musicHandler.removeCallbacks(musicProgressTask)
+        musicController?.removeListener(musicListener)
+        musicControllerFuture?.let { MediaController.releaseFuture(it) }
+        musicController = null
+        super.onDestroy()
     }
 
     private fun openMusicSource(url:String, sourceName:String) {
