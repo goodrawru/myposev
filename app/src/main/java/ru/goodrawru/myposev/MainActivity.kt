@@ -861,7 +861,7 @@ class MainActivity : Activity() {
         baseLayout("Прогноз на 5 дней")
         content.addView(txt("📍 " + city, 17f, true))
         content.addView(txt("Источник: MET Norway · данные адаптированы и сгруппированы по дням · CC BY 4.0", 12f))
-        button("Лицензия CC BY 4.0") { openCalendarSource("https://creativecommons.org/licenses/by/4.0/") }
+        button("Лицензия CC BY 4.0") { openExternalLink("https://creativecommons.org/licenses/by/4.0/") }
         val parts = summary.split("\n\n")
         parts.forEachIndexed { index, part ->
             if (index == parts.lastIndex && (part.startsWith("⚠️") || part.startsWith("Сверяйте"))) {
@@ -901,7 +901,7 @@ class MainActivity : Activity() {
     private fun showPrivacyPolicy() {
         android.app.AlertDialog.Builder(this)
             .setTitle("Конфиденциальность")
-            .setMessage("Приложение не требует учётной записи и не содержит рекламы или аналитических трекеров. Задачи, заметки и выбранный город хранятся локально на устройстве. Если вы запрашиваете прогноз, координаты выбранного места передаются сервису погоды MET Norway для получения прогноза. При открытии календаря Ортон или Яндекс Погоды соответствующий сайт открывается отдельно в браузере. Выбранные аудиофайлы воспроизводятся с устройства и не отправляются разработчику.\n\nПолная политика конфиденциальности доступна в репозитории проекта.")
+            .setMessage("Приложение не требует учётной записи и не содержит рекламы или аналитических трекеров. Задачи, заметки и выбранный город хранятся локально на устройстве. Если вы запрашиваете прогноз, координаты выбранного места передаются сервису погоды MET Norway для получения прогноза. Календарь посева и заметки работают внутри приложения. Ссылки на внешние источники открываются отдельно в браузере. Выбранные аудиофайлы воспроизводятся с устройства и не отправляются разработчику.\n\nПолная политика конфиденциальности доступна в репозитории проекта.")
             .setPositiveButton("Открыть политику") { _, _ ->
                 openExternalLink("https://github.com/goodrawru/myposev/blob/rustore/PRIVACY_POLICY.md")
             }
@@ -1089,40 +1089,6 @@ class MainActivity : Activity() {
             }.show()
     }
 
-    private fun showCalendarSources() {
-        baseLayout("Календарь: источники")
-        val month = SimpleDateFormat("LLLL yyyy", Locale("ru")).format(selectedDate.time)
-        content.addView(txt("Материалы для сверки · " + month,18f,true))
-        card("🌙 Яндекс Погода","Лунный посевной календарь и сезонные рекомендации. Откроется статья в браузере; ссылка на октябрь 2026 года приведена как пример.")
-        button("Открыть календарь Яндекс Погоды") { openCalendarSource("https://yandex.ru/pogoda/ru/blog/lunnyj-posevnoj-kalendar-oktyabr-2026") }
-        card("🌱 Ортон","Календарь огородника по месяцам. Выберите нужный месяц на сайте и сравните рекомендации с погодой своего региона.")
-        button("Открыть календарь Ортон · " + month.substringBefore(" ").lowercase(Locale("ru"))) {
-            val slug = when (selectedDate.get(Calendar.MONTH)) {
-                Calendar.JANUARY -> "yanvar"
-                Calendar.FEBRUARY -> "fevral"
-                Calendar.MARCH -> "mart"
-                Calendar.APRIL -> "aprel"
-                Calendar.MAY -> "may"
-                Calendar.JUNE -> "iyun"
-                Calendar.JULY -> "iyul"
-                Calendar.AUGUST -> "avgust"
-                Calendar.SEPTEMBER -> "sentyabr"
-                Calendar.OCTOBER -> "oktyabr"
-                Calendar.NOVEMBER -> "noyabr"
-                else -> "dekabr"
-            }
-            openCalendarSource("https://orton.ru/kalendar-ogorodnika/" + slug + "/")
-        }
-        card("Как обновляются данные","Приложение пока не копирует статьи автоматически: структура сайтов может меняться, а даты разных источников иногда расходятся. Кнопки открывают первоисточники для проверки. Можно сохранить дату проверки; личные заметки и задачи не затрагиваются.")
-        button("Отметить, что источники проверены") {
-            val stamp = SimpleDateFormat("d MMM yyyy, HH:mm", Locale("ru")).format(Date())
-            prefs.edit().putString("calendar_sources_checked",stamp).apply()
-            Toast.makeText(this,"Дата проверки сохранена",Toast.LENGTH_SHORT).show()
-            showCalendarSources()
-        }
-        button("Назад к календарю") { showCalendar() }
-    }
-
     private fun openExternalLink(url:String) {
         try { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
         catch (_:Exception) { Toast.makeText(this,"Не удалось открыть браузер.",Toast.LENGTH_LONG).show() }
@@ -1216,10 +1182,11 @@ class MainActivity : Activity() {
                 val icon=ImageView(this).apply {
                     setImageResource(plantIllustration(p.name))
                     scaleType=ImageView.ScaleType.CENTER_INSIDE
-                    setPadding(dp(4),dp(4),dp(4),dp(4))
-                    background=roundedBackground(Color.rgb(239,246,235), 12f)
+                    setPadding(dp(2),dp(2),dp(2),dp(2))
+                    background=roundedBackground(Color.rgb(225,241,217), 14f)
+                    contentDescription = "Иллюстрация культуры: ${p.name}"
                 }
-                box.addView(icon, LinearLayout.LayoutParams(dp(88),dp(100)).apply { marginEnd=dp(12) })
+                box.addView(icon, LinearLayout.LayoutParams(dp(112),dp(124)).apply { marginEnd=dp(12) })
                 val details=LinearLayout(this).apply {
                     orientation=LinearLayout.VERTICAL
                     addView(txt(p.name,18f,true))

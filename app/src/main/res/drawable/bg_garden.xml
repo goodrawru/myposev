@@ -1,1 +1,19 @@
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android"><item><shape android:shape="rectangle"><gradient android:angle="135" android:startColor="#E7F3E4" android:centerColor="#F7FAF3" android:endColor="#D6E8D0"/></shape></item><item android:gravity="right|top"><shape android:shape="oval"><size android:width="190dp" android:height="190dp"/><solid android:color="#1A8CBF78"/></shape></item><item android:gravity="left|bottom"><shape android:shape="oval"><size android:width="150dp" android:height="150dp"/><solid android:color="#1481A96A"/></shape></item></layer-list>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient android:angle="135" android:startColor="#D4E9CB" android:centerColor="#F2F7E9" android:endColor="#BBD9AD"/>
+        </shape>
+    </item>
+    <item android:gravity="right|top">
+        <shape android:shape="oval">
+            <size android:width="250dp" android:height="250dp"/>
+            <solid android:color="#2582B96B"/>
+        </shape>
+    </item>
+    <item android:gravity="left|bottom">
+        <shape android:shape="oval">
+            <size android:width="220dp" android:height="220dp"/>
+            <solid android:color="#2682A96A"/>
+        </shape>
+    </item>
+</layer-list>
