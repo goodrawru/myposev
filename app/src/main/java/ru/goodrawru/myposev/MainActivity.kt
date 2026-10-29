@@ -312,8 +312,8 @@ class MainActivity : Activity() {
                     val rainText=if(rainChance>=0) "; осадки до $rainChance%" else ""
                     lines.add("$date: $minText…$maxText °C$rainText")
                 }
-                val warning=if(frost) "\\n⚠️ Возможен заморозок: защитите теплолюбивую рассаду." else "\\nСверяйте прогноз с условиями именно вашего участка."
-                val summary=lines.joinToString("\\n")+warning+"\\nИсточник: Open-Meteo. Координаты передаются сервису только при запросе прогноза."
+                val warning=if(frost) "\n⚠️ Возможен заморозок: защитите теплолюбивую рассаду." else "\nСверяйте прогноз с условиями именно вашего участка."
+                val summary=lines.joinToString("\n")+warning+"\nИсточник: Open-Meteo. Координаты передаются сервису только при запросе прогноза."
                 prefs.edit().putString("weather_summary",summary).apply()
                 runOnUiThread { showHome() }
             } catch (_:Exception) {
