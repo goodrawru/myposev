@@ -131,6 +131,8 @@ class MainActivity : Activity() {
         setContentView(root)
     }
 
+    private fun dp(value:Int):Int = (value * resources.displayMetrics.density).toInt()
+
     private fun txt(value:String,size:Float=16f,bold:Boolean=false)=TextView(this).apply {
         text=value; textSize=size; setTextColor(Color.rgb(35,48,38))
         if(bold) setTypeface(null,android.graphics.Typeface.BOLD)
@@ -426,7 +428,7 @@ class MainActivity : Activity() {
         for(cell in 0 until 42) {
             val dayNumber = cell-offset+1
             val lp = GridLayout.LayoutParams(GridLayout.spec(cell/7),GridLayout.spec(cell%7,1f)).apply {
-                width=0; height=48; setMargins(2,2,2,2)
+                width=0; height=dp(48); setMargins(dp(2),dp(2),dp(2),dp(2))
             }
             if(dayNumber !in 1..daysInMonth) {
                 grid.addView(TextView(this),lp)
