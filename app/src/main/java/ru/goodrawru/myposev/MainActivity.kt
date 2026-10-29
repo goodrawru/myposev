@@ -10,6 +10,13 @@ import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
+import android.provider.Settings
+import android.text.TextWatcher
+import android.text.Editable
+import org.json.JSONArray
+import org.json.JSONObject
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -21,6 +28,8 @@ import java.util.Date
 import java.util.Locale
 
 data class Plant(val name:String, val group:String, val sowing:String, val depth:String, val sprouts:String, val advice:String)
+data class GardenCity(val city:String, val region:String, val zone:String, val latitude:Double, val longitude:Double)
+
 
 class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("moi_posevnoy", Context.MODE_PRIVATE) }
@@ -28,6 +37,37 @@ class MainActivity : Activity() {
     private var selectedDate = Calendar.getInstance()
     private val green = Color.rgb(39, 91, 57)
     private val pale = Color.rgb(239, 246, 235)
+    private val cities = listOf(
+        GardenCity("Москва","Москва","Центральный",55.7558,37.6173),
+        GardenCity("Санкт-Петербург","Ленинградская область","Северо-Запад",59.9343,30.3351),
+        GardenCity("Калининград","Калининградская область","Северо-Запад",54.7104,20.4522),
+        GardenCity("Псков","Псковская область","Северо-Запад",57.8194,28.3318),
+        GardenCity("Воронеж","Воронежская область","Центральный",51.6755,39.2089),
+        GardenCity("Белгород","Белгородская область","Юг",50.5997,36.5983),
+        GardenCity("Краснодар","Краснодарский край","Юг",45.0355,38.9753),
+        GardenCity("Ростов-на-Дону","Ростовская область","Юг",47.2357,39.7015),
+        GardenCity("Ставрополь","Ставропольский край","Юг",45.0445,41.9690),
+        GardenCity("Волгоград","Волгоградская область","Поволжье",48.7080,44.5133),
+        GardenCity("Самара","Самарская область","Поволжье",53.1959,50.1002),
+        GardenCity("Казань","Республика Татарстан","Поволжье",55.7961,49.1064),
+        GardenCity("Нижний Новгород","Нижегородская область","Центральный",56.2965,43.9361),
+        GardenCity("Екатеринбург","Свердловская область","Урал",56.8389,60.6057),
+        GardenCity("Пермь","Пермский край","Урал",58.0105,56.2502),
+        GardenCity("Челябинск","Челябинская область","Урал",55.1644,61.4368),
+        GardenCity("Тюмень","Тюменская область","Сибирь",57.1522,65.5272),
+        GardenCity("Новосибирск","Новосибирская область","Сибирь",55.0084,82.9357),
+        GardenCity("Омск","Омская область","Сибирь",54.9885,73.3242),
+        GardenCity("Красноярск","Красноярский край","Сибирь",56.0153,92.8932),
+        GardenCity("Иркутск","Иркутская область","Сибирь",52.2864,104.2807),
+        GardenCity("Якутск","Республика Саха (Якутия)","Север",62.0355,129.6755),
+        GardenCity("Хабаровск","Хабаровский край","Дальний Восток",48.4802,135.0719),
+        GardenCity("Владивосток","Приморский край","Дальний Восток",43.1155,131.8855),
+        GardenCity("Южно-Сахалинск","Сахалинская область","Дальний Восток",46.9591,142.7380),
+        GardenCity("Мурманск","Мурманская область","Север",68.9585,33.0827),
+        GardenCity("Архангельск","Архангельская область","Север",64.5399,40.5158),
+        GardenCity("Минск","Беларусь","Центральный",53.9006,27.5590),
+        GardenCity("Алматы","Казахстан","Юг",43.2383,76.9455)
+    )
     private val plants = listOf(
         Plant("Томат","Овощи","Обычно за 50–65 дней до высадки","0,5–1 см","5–10 дней","Сейте в рыхлый грунт. После всходов обеспечьте хорошее освещение; сроки зависят от сорта и региона."),
         Plant("Перец сладкий","Овощи","Часто за 60–75 дней до высадки","0,5–1 см","7–14 дней","Перец любит тепло. Не высаживайте в холодную почву; учитывайте местную погоду."),
@@ -57,13 +97,14 @@ class MainActivity : Activity() {
             setPadding(20,22,20,22); gravity=Gravity.CENTER_VERTICAL
         })
         val nav = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; setBackgroundColor(Color.WHITE) }
-        listOf("Сегодня","Календарь","Культуры","Мой огород").forEach { label ->
+        listOf("Сегодня","Календарь","Культуры","Задачи","Огород").forEach { label ->
             nav.addView(Button(this).apply {
-                text=label; textSize=10f; isAllCaps=false
+                text=label; textSize=9f; isAllCaps=false; minWidth=0; setPadding(2,4,2,4)
                 setOnClickListener { when(label) {
                     "Сегодня" -> showHome()
                     "Календарь" -> showCalendar()
                     "Культуры" -> showPlants("")
+                    "Задачи" -> showTasks()
                     else -> showDiary()
                 } }
             }, LinearLayout.LayoutParams(0,-2,1f))
@@ -95,12 +136,195 @@ class MainActivity : Activity() {
         baseLayout("Мой Посевной")
         content.addView(txt("Ваш помощник для сада и огорода",18f,true))
         content.addView(txt(SimpleDateFormat("d MMMM yyyy, EEEE",Locale("ru")).format(Date()),15f))
-        card("🌿 План на сегодня","Выбирайте культуру и регион, чтобы уточнить сроки. Учитывайте местный климат, прогноз и состояние почвы.")
+        val city = prefs.getString("garden_city", "Не выбран") ?: "Не выбран"
+        val region = prefs.getString("garden_region", "Выберите город или геолокацию") ?: "Выберите город или геолокацию"
+        val zone = prefs.getString("garden_zone", "Центральный") ?: "Центральный"
+        card("📍 Место вашего огорода","$city · $region\nКлиматическая зона: $zone\nНажмите, чтобы изменить место.",{showLocationSettings()})
+        card("🌿 План на сегодня",regionalTodayAdvice())
+        card("🧤 Задачи по уходу",todayTasksSummary(),{showTasks()})
         card("🌙 Лунный календарь",lunarSummary(Calendar.getInstance()),{showCalendar()})
         card("📅 Выбрать дату","Откройте календарь, чтобы посмотреть сезонные подсказки и заметки.",{showCalendar()})
         card("🌱 Каталог культур","Овощи, зелень, ягоды и цветы — сроки, глубина посева и советы.",{showPlants("")})
         card("🔔 Напоминания","Ежедневное локальное напоминание запланировано на 09:00.")
         card("ℹ️ Важно","Это стартовая база. Универсальных дат посева для всей России не существует.")
+    }
+
+    private fun showLocationSettings() {
+        baseLayout("Место и регион")
+        val city = prefs.getString("garden_city","Не выбран") ?: "Не выбран"
+        val region = prefs.getString("garden_region","Не выбран") ?: "Не выбран"
+        val zone = prefs.getString("garden_zone","Центральный") ?: "Центральный"
+        card("📍 Сейчас выбрано","$city\n$region\nКлиматическая зона: $zone")
+        card("Почему это важно","Сроки посева зависят от климата, высоты участка, микроклимата и погоды. Региональные подсказки в приложении ориентировочные — перед высадкой проверяйте прогноз и температуру почвы.")
+        button("Выбрать город или регион вручную") { showCityPicker() }
+        button("Определить местоположение по GPS") { requestGardenLocation() }
+        button("Вернуться на главный экран") { showHome() }
+    }
+
+    private fun showCityPicker() {
+        val wrap = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(20,12,20,4) }
+        val search = EditText(this).apply { hint="Поиск города или региона"; setSingleLine(true) }
+        val list = ListView(this)
+        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1,
+            cities.sortedBy { it.city }.map { it.city + " — " + it.region + " · " + it.zone })
+        list.adapter = adapter
+        wrap.addView(search)
+        wrap.addView(list,LinearLayout.LayoutParams(-1,520))
+        val dialog = android.app.AlertDialog.Builder(this).setTitle("Выберите город").setView(wrap).setNegativeButton("Отмена",null).create()
+        fun refreshCities(query:String) {
+            val filtered = cities.filter { it.city.contains(query,true) || it.region.contains(query,true) || it.zone.contains(query,true) }.sortedBy { it.city }
+            adapter.clear()
+            adapter.addAll(filtered.map { it.city + " — " + it.region + " · " + it.zone })
+        }
+        list.setOnItemClickListener { _,_,position,_ ->
+            val shown = adapter.getItem(position).orEmpty()
+            val selected = cities.firstOrNull { shown.startsWith(it.city + " — ") }
+            if(selected != null) {
+                saveGardenLocation(selected.city,selected.region,selected.zone,selected.latitude,selected.longitude)
+                dialog.dismiss()
+                showHome()
+            }
+        }
+        search.addTextChangedListener(object:TextWatcher {
+            override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
+            override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) { refreshCities(s?.toString().orEmpty()) }
+            override fun afterTextChanged(s:Editable?) {}
+        })
+        dialog.show()
+    }
+
+    private fun saveGardenLocation(city:String,region:String,zone:String,lat:Double,lon:Double) {
+        prefs.edit().putString("garden_city",city).putString("garden_region",region).putString("garden_zone",zone)
+            .putString("garden_lat",lat.toString()).putString("garden_lon",lon.toString()).putBoolean("garden_location_set",true).apply()
+        Toast.makeText(this,"Место сохранено: $city",Toast.LENGTH_SHORT).show()
+    }
+
+    private fun requestGardenLocation() {
+        if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION),2002)
+            return
+        }
+        resolveGardenLocation()
+    }
+
+    override fun onRequestPermissionsResult(requestCode:Int, permissions:Array<out String>, grantResults:IntArray) {
+        super.onRequestPermissionsResult(requestCode,permissions,grantResults)
+        if(requestCode == 2002) {
+            if(grantResults.any { it == PackageManager.PERMISSION_GRANTED }) resolveGardenLocation()
+            else Toast.makeText(this,"Без разрешения на геолокацию выберите город вручную.",Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun resolveGardenLocation() {
+        try {
+            val manager = getSystemService(LOCATION_SERVICE) as LocationManager
+            val location = manager.getProviders(true).mapNotNull { provider ->
+                try { manager.getLastKnownLocation(provider) } catch (_:SecurityException) { null }
+            }.maxByOrNull { it.time }
+            if(location == null) {
+                android.app.AlertDialog.Builder(this).setTitle("Местоположение пока недоступно")
+                    .setMessage("Включите геолокацию на телефоне и попробуйте снова. Либо выберите город вручную.")
+                    .setPositiveButton("Настройки") { _,_ -> startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
+                    .setNegativeButton("Выбрать город") { _,_ -> showCityPicker() }.show()
+                return
+            }
+            val nearest = cities.minByOrNull { distanceKm(location.latitude,location.longitude,it.latitude,it.longitude) }
+            if(nearest != null && distanceKm(location.latitude,location.longitude,nearest.latitude,nearest.longitude) <= 180.0) {
+                saveGardenLocation(nearest.city,nearest.region,nearest.zone,location.latitude,location.longitude)
+            } else {
+                val zone = when {
+                    location.latitude >= 63 -> "Север"
+                    location.latitude >= 57 -> "Сибирь"
+                    location.latitude <= 48 -> "Юг"
+                    else -> "Центральный"
+                }
+                saveGardenLocation("Моё местоположение","Определено по GPS",zone,location.latitude,location.longitude)
+            }
+            showHome()
+        } catch (_:SecurityException) {
+            Toast.makeText(this,"Не удалось получить геолокацию. Выберите город вручную.",Toast.LENGTH_LONG).show()
+        } catch (_:Exception) {
+            Toast.makeText(this,"Ошибка определения местоположения. Выберите город вручную.",Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun distanceKm(lat1:Double,lon1:Double,lat2:Double,lon2:Double):Double {
+        val r=6371.0
+        val dLat=Math.toRadians(lat2-lat1)
+        val dLon=Math.toRadians(lon2-lon1)
+        val a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(Math.toRadians(lat1))*Math.cos(Math.toRadians(lat2))*Math.sin(dLon/2)*Math.sin(dLon/2)
+        return 2*r*Math.asin(Math.sqrt(a.coerceIn(0.0,1.0)))
+    }
+
+    private fun tasksArray():JSONArray = try { JSONArray(prefs.getString("care_tasks","[]")) } catch (_:Exception) { JSONArray() }
+
+    private fun todayTasksSummary():String {
+        val today=SimpleDateFormat("yyyy-MM-dd",Locale.US).format(Date())
+        val tasks=tasksArray()
+        var due=0
+        var total=0
+        for(i in 0 until tasks.length()) {
+            val item=tasks.optJSONObject(i) ?: continue
+            if(!item.optBoolean("done",false)) {
+                total++
+                if(item.optString("date") <= today) due++
+            }
+        }
+        return if(total==0) "Задач пока нет. Добавьте полив, подкормку или другую работу." else "Открытых задач: $total. Сегодня или просрочено: $due."
+    }
+
+    private fun showTasks() {
+        baseLayout("Задачи по уходу")
+        content.addView(txt("Планируйте полив, посев, подкормку, прополку и сбор урожая. Отмечайте выполненное — оно останется в истории.",14f))
+        val titleInput=EditText(this).apply { hint="Задача (например, полить томаты)" }
+        val cropInput=EditText(this).apply { hint="Культура или грядка (необязательно)" }
+        val dateInput=EditText(this).apply { hint="Дата ГГГГ-ММ-ДД"; setSingleLine(true); setText(SimpleDateFormat("yyyy-MM-dd",Locale.US).format(Date())) }
+        val type=Spinner(this).apply {
+            adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,
+                listOf("Уход","Посев","Полив","Подкормка","Прополка","Пересадка","Защита растений","Сбор урожая"))
+        }
+        content.addView(titleInput); content.addView(cropInput); content.addView(dateInput); content.addView(type)
+        button("Добавить задачу") {
+            val title=titleInput.text.toString().trim()
+            val date=dateInput.text.toString().trim()
+            if(title.isBlank()) { Toast.makeText(this,"Введите название задачи",Toast.LENGTH_SHORT).show(); return@button }
+            if(!date.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) { Toast.makeText(this,"Дата должна быть в формате ГГГГ-ММ-ДД",Toast.LENGTH_SHORT).show(); return@button }
+            val all=tasksArray()
+            all.put(JSONObject().put("id",System.currentTimeMillis()).put("title",title).put("crop",cropInput.text.toString().trim())
+                .put("type",type.selectedItem.toString()).put("date",date).put("done",false))
+            prefs.edit().putString("care_tasks",all.toString()).apply()
+            showTasks()
+        }
+        content.addView(txt("Мои задачи",19f,true))
+        val all=tasksArray()
+        val entries=(0 until all.length()).mapNotNull { all.optJSONObject(it) }.sortedWith(compareBy<JSONObject> { it.optBoolean("done",false) }.thenBy { it.optString("date") })
+        if(entries.isEmpty()) content.addView(txt("Список пуст. Создайте первую задачу выше."))
+        entries.forEach { item ->
+            val done=item.optBoolean("done",false)
+            val name=item.optString("title","Задача")
+            val crop=item.optString("crop","")
+            val details=item.optString("date")+" · "+item.optString("type")+(if(crop.isNotBlank()) " · $crop" else "")
+            card((if(done) "✅ " else "🟢 ")+name,details+(if(done) "\nВыполнено" else ""))
+            if(!done) button("Отметить выполненной: $name") {
+                val current=tasksArray()
+                for(i in 0 until current.length()) {
+                    val row=current.optJSONObject(i) ?: continue
+                    if(row.optLong("id")==item.optLong("id")) { row.put("done",true); break }
+                }
+                prefs.edit().putString("care_tasks",current.toString()).apply()
+                showTasks()
+            } else button("Удалить из истории: $name") {
+                val current=tasksArray()
+                val filtered=JSONArray()
+                for(i in 0 until current.length()) {
+                    val row=current.optJSONObject(i) ?: continue
+                    if(row.optLong("id")!=item.optLong("id")) filtered.put(row)
+                }
+                prefs.edit().putString("care_tasks",filtered.toString()).apply()
+                showTasks()
+            }
+        }
     }
 
     private fun showCalendar() {
@@ -126,7 +350,9 @@ class MainActivity : Activity() {
     }
 
     private fun dateString(c:Calendar)=SimpleDateFormat("d MMMM yyyy",Locale("ru")).format(c.time)
-    private fun seasonalAdvice(c:Calendar):String = when(c.get(Calendar.MONTH)) {
+    private fun seasonalAdvice(c:Calendar):String {
+        val month = (c.get(Calendar.MONTH) + regionMonthOffset() + 12) % 12
+        return when(month) {
         Calendar.DECEMBER,Calendar.JANUARY -> "Планируйте сорта и закупку семян. Зимний посев требует подходящих условий и досветки."
         Calendar.FEBRUARY -> "В некоторых регионах начинают посев культур с длинным рассадным периодом."
         Calendar.MARCH -> "Планируйте рассаду. Обеспечьте свет, умеренный полив и подходящую температуру."
@@ -138,6 +364,21 @@ class MainActivity : Activity() {
         Calendar.SEPTEMBER -> "Собирайте урожай, готовьте грядки и учитывайте сроки подзимних посевов."
         Calendar.OCTOBER -> "Убирайте участок и готовьте почву. Подзимний посев зависит от местной погоды."
         else -> "Подготовьте участок к зиме и составьте план следующего сезона."
+        }
+    }
+
+    private fun regionMonthOffset():Int = when(prefs.getString("garden_zone","Центральный")) {
+        "Юг" -> 1
+        "Северо-Запад", "Урал", "Дальний Восток" -> -1
+        "Сибирь", "Север" -> -2
+        else -> 0
+    }
+
+    private fun regionalTodayAdvice():String {
+        val city = prefs.getString("garden_city","город не выбран") ?: "город не выбран"
+        val zone = prefs.getString("garden_zone","Центральный") ?: "Центральный"
+        return "Регион: $city ($zone). " + seasonalAdvice(Calendar.getInstance()) +
+            "\nСроки ориентировочные: проверяйте прогноз, температуру почвы и риск возвратных заморозков."
     }
 
     private fun lunarSummary(c:Calendar):String {
