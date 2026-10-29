@@ -767,7 +767,7 @@ class MainActivity : Activity() {
                         val savedForecast = prefs.getString("weather_summary", null)
                         if (!savedForecast.isNullOrBlank()) {
                             content.addView(txt("Не удалось обновить прогноз. Показаны последние сохранённые данные.", 15f, true))
-                            savedForecast.split("\\n\\n").forEachIndexed { index, part ->
+                            savedForecast.split("\n\n").forEachIndexed { index, part ->
                                 card(if (index == 0) "Последний сохранённый прогноз" else "Информация", part)
                             }
                         } else {
@@ -994,13 +994,10 @@ class MainActivity : Activity() {
     }
 
     private fun showOrtonDay(monthKey:String,dayNumber:Int) {
-        val cached=getOrtonMonth(monthKey)
-        val rating=cached?.optJSONObject("ratings")?.optString(dayNumber.toString(),"").orEmpty()
         val selected=selectedDate.clone() as Calendar
         selected.set(Calendar.DAY_OF_MONTH,dayNumber)
         val lunar=lunarSummary(selected)
-        val ratingText=if(rating.isBlank()) "Ортон не указал отдельную категорию для этого дня в общей сводке." else "Отметка Ортон: $rating."
-        val body=dateString(selected)+"\n"+ratingText+"\n"+lunar+"\nСверяйте лунный календарь с погодой и состоянием почвы."
+        val body=dateString(selected)+"\n"+lunar+"\nДля рекомендаций Ортон откройте первоисточник. Сверяйте советы с погодой и состоянием почвы."
         android.app.AlertDialog.Builder(this).setTitle("Рекомендации на день").setMessage(body)
             .setPositiveButton("Запланировать действие") { _,_ -> addTaskForDate(selected) }
             .setNeutralButton("Открыть Ортон") { _,_ -> openCalendarSource(ortonUrl(selected)) }
