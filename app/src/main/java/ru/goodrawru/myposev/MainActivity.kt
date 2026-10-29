@@ -1350,17 +1350,17 @@ class MainActivity : Activity() {
         baseLayout("Мой огород")
         content.addView(txt("Мои посадки",20f,true))
         content.addView(txt("Записывайте сорт, место выращивания и заметки. Данные сохраняются на устройстве.",14f))
-        val name=EditText(this).apply { hint="Культура (например, томат)"; setSingleLine(true) }
-        val variety=EditText(this).apply { hint="Сорт"; setSingleLine(true) }
-        val sowing=EditText(this).apply { hint="Дата посева (дд.мм.гггг)"; setText(SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(Date())); setSingleLine(true) }
-        val place=EditText(this).apply { hint="Место (теплица, грядка №1, балкон)"; setSingleLine(true) }
-        val notes=EditText(this).apply { hint="Заметки (необязательно) }
+        val name=EditText(this@MainActivity).apply { hint="Культура (например, томат)"; setSingleLine(true) }
+        val variety=EditText(this@MainActivity).apply { hint="Сорт"; setSingleLine(true) }
+        val sowing=EditText(this@MainActivity).apply { hint="Дата посева (дд.мм.гггг)"; setText(SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(Date())); setSingleLine(true) }
+        val place=EditText(this@MainActivity).apply { hint="Место (теплица, грядка №1, балкон)"; setSingleLine(true) }
+        val notes=EditText(this@MainActivity).apply { hint="Заметки (необязательно)"; minLines=2; maxLines=4 }
         content.addView(name); content.addView(variety); content.addView(sowing); content.addView(place); content.addView(notes)
         button("Добавить посадку") {
             val crop=name.text.toString().trim()
             val date=sowing.text.toString().trim()
-            if(crop.isBlank()) { Toast.makeText(this,"Введите название культуры",Toast.LENGTH_SHORT).show(); return@button }
-            if(parseTaskDate(date)==null) { Toast.makeText(this,"Введите дату в формате дд.мм.гггг",Toast.LENGTH_SHORT).show(); return@button }
+            if(crop.isBlank()) { Toast.makeText(this@MainActivity,"Введите название культуры",Toast.LENGTH_SHORT).show(); return@button }
+            if(parseTaskDate(date)==null) { Toast.makeText(this@MainActivity,"Введите дату в формате дд.мм.гггг",Toast.LENGTH_SHORT).show(); return@button }
             val records=try { JSONArray(prefs.getString("planting_records","[]")) } catch (_:Exception) { JSONArray() }
             records.put(JSONObject().put("id",System.currentTimeMillis()).put("crop",crop)
                 .put("variety",variety.text.toString().trim()).put("sowing",date)
@@ -1403,18 +1403,18 @@ class MainActivity : Activity() {
             legacy.forEach { card("🌿 $it","Запись из прежней версии дневника.") }
         }
         content.addView(txt("Журнал урожая",20f,true))
-        val harvestCrop=EditText(this).apply { hint="Что собрали?"; setSingleLine(true) }
-        val harvestAmount=EditText(this).apply { hint="Количество (например, 2,5 кг)"; setSingleLine(true) }
-        val harvestDate=EditText(this).apply { hint="Дата сбора"; setText(SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(Date())); setSingleLine(true) }
-        val harvestNotes=EditText(this).apply { hint="Примечание (необязательно)"; setSingleLine(true) }
+        val harvestCrop=EditText(this@MainActivity).apply { hint="Что собрали?"; setSingleLine(true) }
+        val harvestAmount=EditText(this@MainActivity).apply { hint="Количество (например, 2,5 кг)"; setSingleLine(true) }
+        val harvestDate=EditText(this@MainActivity).apply { hint="Дата сбора"; setText(SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(Date())); setSingleLine(true) }
+        val harvestNotes=EditText(this@MainActivity).apply { hint="Примечание (необязательно)"; setSingleLine(true) }
         content.addView(harvestCrop); content.addView(harvestAmount); content.addView(harvestDate); content.addView(harvestNotes)
         button("Записать урожай") {
             val crop=harvestCrop.text.toString().trim()
             val date=harvestDate.text.toString().trim()
             if(crop.isBlank() || harvestAmount.text.toString().trim().isBlank()) {
-                Toast.makeText(this,"Укажите культуру и количество",Toast.LENGTH_SHORT).show(); return@button
+                Toast.makeText(this@MainActivity,"Укажите культуру и количество",Toast.LENGTH_SHORT).show(); return@button
             }
-            if(parseTaskDate(date)==null) { Toast.makeText(this,"Проверьте дату сбора",Toast.LENGTH_SHORT).show(); return@button }
+            if(parseTaskDate(date)==null) { Toast.makeText(this@MainActivity,"Проверьте дату сбора",Toast.LENGTH_SHORT).show(); return@button }
             val list=try { JSONArray(prefs.getString("harvest_records","[]")) } catch (_:Exception) { JSONArray() }
             list.put(JSONObject().put("id",System.currentTimeMillis()).put("crop",crop)
                 .put("amount",harvestAmount.text.toString().trim()).put("date",date)
@@ -1430,13 +1430,13 @@ class MainActivity : Activity() {
             card("🧺 ${h.optString("crop","Урожай")}",desc)
         }
         button("Очистить дневник посадок") {
-            android.app.AlertDialog.Builder(this).setTitle("Очистить посадки?")
+            android.app.AlertDialog.Builder(this@MainActivity).setTitle("Очистить посадки?")
                 .setMessage("Удалятся подробные и старые записи о посадках. Журнал урожая останется.")
                 .setNegativeButton("Отмена",null)
                 .setPositiveButton("Очистить") { _,_ -> prefs.edit().remove("plantings").remove("planting_records").apply(); showDiary() }.show()
         }
         button("Очистить журнал урожая") {
-            android.app.AlertDialog.Builder(this).setTitle("Очистить журнал урожая?")
+            android.app.AlertDialog.Builder(this@MainActivity).setTitle("Очистить журнал урожая?")
                 .setMessage("Все записи о собранном урожае будут удалены.")
                 .setNegativeButton("Отмена",null)
                 .setPositiveButton("Очистить") { _,_ -> prefs.edit().remove("harvest_records").apply(); showDiary() }.show()
