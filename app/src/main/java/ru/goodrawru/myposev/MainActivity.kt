@@ -22,6 +22,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.WindowInsets
+import android.widget.GridLayout
 import android.widget.*
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -100,7 +101,8 @@ class MainActivity : Activity() {
             // Respect Android 15 edge-to-edge status-bar inset.
             setOnApplyWindowInsetsListener { view, insets ->
                 val topInset = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) insets.getInsets(WindowInsets.Type.statusBars()).top else insets.systemWindowInsetTop
-                view.setPadding(0, topInset, 0, 0)
+                val bottomInset = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) insets.getInsets(WindowInsets.Type.navigationBars()).bottom else 0
+                view.setPadding(0, topInset, 0, bottomInset)
                 insets
             }
         }
@@ -391,20 +393,63 @@ class MainActivity : Activity() {
 
     private fun showCalendar() {
         baseLayout("Календарь")
-        val dateText=txt("Выбранная дата: "+dateString(selectedDate),18f,true)
-        content.addView(dateText)
-        button("Выбрать день") {
-            DatePickerDialog(this,{_,year,month,day ->
-                selectedDate.set(year,month,day)
-                showCalendar()
-            },selectedDate.get(Calendar.YEAR),selectedDate.get(Calendar.MONTH),selectedDate.get(Calendar.DAY_OF_MONTH)).show()
+        val monthTitle = SimpleDateFormat("LLLL yyyy", Locale("ru")).format(selectedDate.time)
+        val monthKey = SimpleDateFormat("yyyy-MM", Locale.US).format(selectedDate.time)
+        content.addView(txt("Календарь Ортон · " + monthTitle.replaceFirstChar { it.uppercase(Locale("ru")) },19f,true))
+        content.addView(txt("После обновления нажимайте на день, чтобы посмотреть отметку календаря и запланировать работу.",14f))
+        button("🌱 Открыть статью Ортон за этот месяц") { openCalendarSource(ortonUrl(selectedDate)) }
+        button("🔄 Обновить календарь Ортон") { refreshOrtonCalendar(monthKey) }
+        val cached = getOrtonMonth(monthKey)
+        val status = if(cached == null) "Календарь ещё не загружен. Нажмите «Обновить календарь Ортон»." else
+            "Данные получены: " + cached.optString("checkedAt","дата неизвестна") + "\nИсточник: Ортон. Проверьте условия участка и прогноз погоды."
+        card("Состояние календаря",status)
+        val weekdays = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")
+        val header = GridLayout(this).apply { columnCount=7; rowCount=1 }
+        weekdays.forEach { day ->
+            header.addView(TextView(this).apply { text=day; gravity=Gravity.CENTER; textSize=12f; setTextColor(green); setPadding(0,6,0,6) },
+                GridLayout.LayoutParams(GridLayout.spec(0),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { width=0 })
         }
+        content.addView(header,LinearLayout.LayoutParams(-1,-2))
+        val grid = GridLayout(this).apply { columnCount=7; rowCount=6 }
+        val first = selectedDate.clone() as Calendar
+        first.set(Calendar.DAY_OF_MONTH,1)
+        val offset = (first.get(Calendar.DAY_OF_WEEK)+5)%7
+        val daysInMonth = first.getActualMaximum(Calendar.DAY_OF_MONTH)
+        for(cell in 0 until 42) {
+            val dayNumber = cell-offset+1
+            val lp = GridLayout.LayoutParams(GridLayout.spec(cell/7),GridLayout.spec(cell%7,1f)).apply {
+                width=0; height=48; setMargins(2,2,2,2)
+            }
+            if(dayNumber !in 1..daysInMonth) {
+                grid.addView(TextView(this),lp)
+            } else {
+                val rating = cached?.optJSONObject("ratings")?.optString(dayNumber.toString(),"") ?: ""
+                val isSelected = selectedDate.get(Calendar.DAY_OF_MONTH)==dayNumber
+                val label = when(rating) {
+                    "Лучший день" -> "★"; "Благоприятный" -> "•"
+                    "Нежелательный" -> "!"; "Неблагоприятный" -> "×"; else -> ""
+                }
+                val b = Button(this).apply {
+                    text = dayNumber.toString() + if(label.isNotBlank()) "\n"+label else ""
+                    textSize=12f; isAllCaps=false; minWidth=0; minHeight=0; setPadding(0,0,0,0)
+                    setTextColor(if(isSelected) Color.WHITE else Color.rgb(35,48,38))
+                    setBackgroundColor(if(isSelected) green else when(rating) {
+                        "Лучший день" -> Color.rgb(190,225,181)
+                        "Благоприятный" -> Color.rgb(222,239,215)
+                        "Нежелательный" -> Color.rgb(255,237,196)
+                        "Неблагоприятный" -> Color.rgb(250,215,210)
+                        else -> Color.WHITE
+                    })
+                    setOnClickListener { selectedDate.set(Calendar.DAY_OF_MONTH,dayNumber); showOrtonDay(monthKey,dayNumber) }
+                }
+                grid.addView(b,lp)
+            }
+        }
+        content.addView(grid,LinearLayout.LayoutParams(-1,-2))
+        card("Обозначения","★ самые благоприятные · • благоприятные · ! нежелательные · × самые неблагоприятные. Пустая отметка означает, что источник не указал отдельную категорию для этого дня.")
         val d=dateString(selectedDate)
         card("🌙 Лунная фаза",lunarSummary(selectedDate))
         card("🌱 Сезонные подсказки",seasonalAdvice(selectedDate))
-        card("📚 Календарь из источников","Сверяйте лунные советы с практическими рекомендациями. Данные статей не смешиваются автоматически: источники могут расходиться.")
-        button("🔄 Узнать / обновить календарь") { showCalendarSources() }
-        card("🕒 Последняя проверка источников",prefs.getString("calendar_sources_checked","Пока не проверялись") ?: "Пока не проверялись")
         card("📝 Заметка на дату",prefs.getString("note_"+d,"")?.ifBlank{"Заметок пока нет."} ?: "Заметок пока нет.")
         button("Добавить заметку") {
             val input=EditText(this).apply { hint="Например: посеял томаты" }
@@ -412,6 +457,100 @@ class MainActivity : Activity() {
                 .setNegativeButton("Отмена",null)
                 .setPositiveButton("Сохранить") { _,_ -> prefs.edit().putString("note_"+d,input.text.toString()).apply(); showCalendar() }.show()
         }
+    }
+
+    private fun ortonUrl(date:Calendar):String {
+        val slug = when(date.get(Calendar.MONTH)) {
+            Calendar.JANUARY -> "yanvar"; Calendar.FEBRUARY -> "fevral"; Calendar.MARCH -> "mart"
+            Calendar.APRIL -> "aprel"; Calendar.MAY -> "may"; Calendar.JUNE -> "iyun"
+            Calendar.JULY -> "iyul"; Calendar.AUGUST -> "avgust"; Calendar.SEPTEMBER -> "sentyabr"
+            Calendar.OCTOBER -> "oktyabr"; Calendar.NOVEMBER -> "noyabr"; else -> "dekabr"
+        }
+        return "https://orton.ru/kalendar-ogorodnika/" + slug + "/"
+    }
+
+    private fun getOrtonMonth(key:String):JSONObject? = try {
+        val all=JSONObject(prefs.getString("orton_calendar_cache","{}") ?: "{}")
+        all.optJSONObject(key)
+    } catch (_:Exception) { null }
+
+    private fun refreshOrtonCalendar(monthKey:String) {
+        Toast.makeText(this,"Загружаю календарь Ортон…",Toast.LENGTH_SHORT).show()
+        val target = selectedDate.clone() as Calendar
+        Thread {
+            try {
+                val connection=java.net.URL(ortonUrl(target)).openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout=12000; connection.readTimeout=12000
+                connection.setRequestProperty("User-Agent","Mozilla/5.0 (Android) MoiPosevnoy/1.0")
+                val html=connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                connection.disconnect()
+                val plain=html.replace(Regex("(?is)<script.*?</script>|<style.*?</style>")," ")
+                    .replace(Regex("(?s)<[^>]+>")," ")
+                    .replace("&nbsp;"," ").replace("&#8211;","–").replace("&ndash;","–")
+                    .replace("&#8212;","—").replace("&mdash;","—").replace("&amp;","&")
+                    .replace("&#39;","'").replace("&quot;","\"").replace(Regex("\\s+")," ")
+                val ratings=JSONObject()
+                fun collect(label:String, rating:String) {
+                    val pattern=Regex("(?i)"+Regex.escape(label)+"\\s*[-–—:]\\s*([0-9,\\s]+?)(?=\\s+(?:Самые благоприятные дни|Благоприятные дни|Нейтральные дни|Нежелательные дни|Самые неблагоприятные дни|Благоприятные посадочные дни|Благоприятные дни для|Неблагоприятные дни|Фазы луны|$))")
+                    val match=pattern.find(plain) ?: return
+                    Regex("\\d{1,2}").findAll(match.groupValues[1]).forEach { token ->
+                        val n=token.value.toIntOrNull() ?: return@forEach
+                        if(n in 1..31 && !ratings.has(n.toString())) ratings.put(n.toString(),rating)
+                    }
+                }
+                collect("Самые благоприятные дни","Лучший день")
+                collect("Благоприятные дни","Благоприятный")
+                collect("Нейтральные дни","Нейтральный")
+                collect("Нежелательные дни","Нежелательный")
+                collect("Самые неблагоприятные дни","Неблагоприятный")
+                val checked=SimpleDateFormat("d MMM yyyy, HH:mm",Locale("ru")).format(Date())
+                val result=JSONObject().put("checkedAt",checked).put("source","Ортон").put("ratings",ratings)
+                    .put("month",monthKey).put("sourceUrl",ortonUrl(target))
+                val all=JSONObject(prefs.getString("orton_calendar_cache","{}") ?: "{}")
+                all.put(monthKey,result)
+                prefs.edit().putString("orton_calendar_cache",all.toString()).putString("calendar_sources_checked",checked).apply()
+                runOnUiThread {
+                    Toast.makeText(this,"Календарь обновлён. Дней с отметками: "+ratings.length(),Toast.LENGTH_LONG).show()
+                    showCalendar()
+                }
+            } catch (_:Exception) {
+                runOnUiThread { Toast.makeText(this,"Не удалось загрузить календарь. Проверьте интернет; можно открыть статью Ортон вручную.",Toast.LENGTH_LONG).show() }
+            }
+        }.start()
+    }
+
+    private fun showOrtonDay(monthKey:String,dayNumber:Int) {
+        val cached=getOrtonMonth(monthKey)
+        val rating=cached?.optJSONObject("ratings")?.optString(dayNumber.toString(),"").orEmpty()
+        val selected=selectedDate.clone() as Calendar
+        selected.set(Calendar.DAY_OF_MONTH,dayNumber)
+        val lunar=lunarSummary(selected)
+        val ratingText=if(rating.isBlank()) "Ортон не указал отдельную категорию для этого дня в общей сводке." else "Отметка Ортон: $rating."
+        val body=dateString(selected)+"\n"+ratingText+"\n"+lunar+"\nСверяйте лунный календарь с погодой и состоянием почвы."
+        android.app.AlertDialog.Builder(this).setTitle("Рекомендации на день").setMessage(body)
+            .setPositiveButton("Запланировать действие") { _,_ -> addTaskForDate(selected) }
+            .setNeutralButton("Открыть Ортон") { _,_ -> openCalendarSource(ortonUrl(selected)) }
+            .setNegativeButton("Закрыть",null).show()
+    }
+
+    private fun addTaskForDate(date:Calendar) {
+        val wrap=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(24,8,24,0) }
+        val title=EditText(this).apply { hint="Например, проверить грядки"; setSingleLine(true) }
+        val crop=EditText(this).apply { hint="Культура или грядка (необязательно)" }
+        val types=listOf("Уход","Посев","Полив","Подкормка","Прополка","Пересадка","Защита растений","Сбор урожая")
+        val type=Spinner(this).apply { adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,types) }
+        val dateText=SimpleDateFormat("yyyy-MM-dd",Locale.US).format(date.time)
+        wrap.addView(title); wrap.addView(crop); wrap.addView(type)
+        android.app.AlertDialog.Builder(this).setTitle("Запланировать на "+dateString(date)).setView(wrap)
+            .setNegativeButton("Отмена",null).setPositiveButton("Сохранить") { _,_ ->
+                val name=title.text.toString().trim()
+                if(name.isBlank()) { Toast.makeText(this,"Введите название действия",Toast.LENGTH_SHORT).show(); return@setPositiveButton }
+                val all=tasksArray()
+                all.put(JSONObject().put("id",System.currentTimeMillis()).put("title",name).put("crop",crop.text.toString().trim())
+                    .put("type",type.selectedItem.toString()).put("date",dateText).put("done",false))
+                prefs.edit().putString("care_tasks",all.toString()).apply()
+                Toast.makeText(this,"Задача добавлена",Toast.LENGTH_SHORT).show()
+            }.show()
     }
 
     private fun showCalendarSources() {
