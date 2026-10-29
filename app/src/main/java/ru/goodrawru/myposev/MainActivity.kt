@@ -971,27 +971,29 @@ class MainActivity : Activity() {
         val weekdays = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")
         val header = GridLayout(this).apply { columnCount=7; rowCount=1 }
         weekdays.forEach { day ->
-            header.addView(TextView(this).apply { text=day; gravity=Gravity.CENTER; textSize=12f; setTextColor(green); setPadding(0,6,0,6) },
-                GridLayout.LayoutParams(GridLayout.spec(0),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { width=0 })
+            header.addView(TextView(this).apply {
+                text=day; gravity=Gravity.CENTER; textSize=12f; setTextColor(green)
+                setTypeface(null, android.graphics.Typeface.BOLD); setPadding(0,dp(6),0,dp(6))
+            }, GridLayout.LayoutParams(GridLayout.spec(0),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { width=0 })
         }
         content.addView(header,LinearLayout.LayoutParams(-1,-2))
-        val grid = GridLayout(this).apply { columnCount=7; rowCount=6 }
+        val grid = GridLayout(this).apply { columnCount=7; rowCount=6; useDefaultMargins=false }
         val first = selectedDate.clone() as Calendar
         first.set(Calendar.DAY_OF_MONTH,1)
         val offset = (first.get(Calendar.DAY_OF_WEEK)+5)%7
         val daysInMonth = first.getActualMaximum(Calendar.DAY_OF_MONTH)
+        val dayTasks = tasksArray()
         for(cell in 0 until 42) {
             val dayNumber = cell-offset+1
             val lp = GridLayout.LayoutParams(GridLayout.spec(cell/7),GridLayout.spec(cell%7,1f)).apply {
-                width=0; height=dp(48); setMargins(dp(2),dp(2),dp(2),dp(2))
+                width=0; height=dp(58); setMargins(dp(2),dp(2),dp(2),dp(2))
             }
             if(dayNumber !in 1..daysInMonth) {
-                grid.addView(TextView(this),lp)
+                grid.addView(TextView(this).apply { text=""; setBackgroundColor(Color.TRANSPARENT) },lp)
             } else {
                 val isSelected = selectedDate.get(Calendar.DAY_OF_MONTH)==dayNumber
                 val dateForCell = (first.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, dayNumber) }
                 val dateKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(dateForCell.time)
-                val dayTasks = tasksArray()
                 val taskTypes = mutableSetOf<String>()
                 for (taskIndex in 0 until dayTasks.length()) {
                     val task = dayTasks.optJSONObject(taskIndex) ?: continue
@@ -1000,27 +1002,68 @@ class MainActivity : Activity() {
                     }
                 }
                 val hasNote = !prefs.getString("note_" + dateString(dateForCell), "").isNullOrBlank()
-                val icons = buildString {
-                    if (taskTypes.any { it.contains("Посев", true) || it.contains("Пересадка", true) }) append("🌱")
-                    if (taskTypes.any { it.contains("Полив", true) }) append("💧")
-                    if (taskTypes.any { it.contains("Подкормка", true) }) append("🧪")
-                    if (taskTypes.any { it.contains("Прополка", true) || it.contains("Защита", true) || it == "Уход" }) append("🪴")
-                    if (taskTypes.any { it.contains("Сбор урожая", true) }) append("🧺")
-                    if (hasNote) append("📝")
-                    if (taskTypes.isNotEmpty() && isEmpty()) append("•")
+                val markers = mutableListOf<Pair<String,Int>>()
+                if (taskTypes.any { it.contains("Посев", true) || it.contains("Пересадка", true) })
+                    markers.add("●" to Color.rgb(42,145,67))
+                if (taskTypes.any { it.contains("Полив", true) })
+                    markers.add("●" to Color.rgb(45,135,220))
+                if (taskTypes.any { it.contains("Подкормка", true) })
+                    markers.add("●" to Color.rgb(180,110,30))
+                if (taskTypes.any { it.contains("Прополка", true) || it.contains("Защита", true) || it == "Уход" })
+                    markers.add("●" to Color.rgb(90,125,65))
+                if (taskTypes.any { it.contains("Сбор урожая", true) })
+                    markers.add("●" to Color.rgb(200,145,25))
+                if (hasNote) markers.add("●" to Color.rgb(135,85,175))
+                val cellView = LinearLayout(this).apply {
+                    orientation=LinearLayout.VERTICAL
+                    gravity=Gravity.CENTER
+                    setPadding(0,dp(3),0,dp(2))
+                    setBackground(roundedBackground(
+                        if(isSelected) green else if(markers.isNotEmpty()) Color.rgb(232,243,225) else Color.WHITE,
+                        8f,
+                        if(isSelected) green else Color.rgb(218,228,215)
+                    ))
+                    isClickable=true; isFocusable=true
+                    contentDescription = buildString {
+                        append("Число $dayNumber")
+                        if(taskTypes.isNotEmpty()) append(". Задачи: "+taskTypes.joinToString(", "))
+                        if(hasNote) append(". Есть заметка")
+                    }
+                    setOnClickListener {
+                        selectedDate.set(Calendar.DAY_OF_MONTH,dayNumber)
+                        showOrtonDay(monthKey,dayNumber)
+                    }
                 }
-                val b = Button(this).apply {
-                    text = dayNumber.toString() + if(icons.isNotBlank()) "\n"+icons else ""
-                    textSize=if(icons.length > 3) 10f else 12f; isAllCaps=false; minWidth=0; minHeight=0; setPadding(0,0,0,0)
+                cellView.addView(TextView(this).apply {
+                    text=dayNumber.toString()
+                    textSize=14f
+                    gravity=Gravity.CENTER
+                    setTypeface(null,if(isSelected) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
                     setTextColor(if(isSelected) Color.WHITE else Color.rgb(35,48,38))
-                    setBackgroundColor(if(isSelected) green else if (icons.isNotBlank()) Color.rgb(232,243,225) else Color.WHITE)
-                    setOnClickListener { selectedDate.set(Calendar.DAY_OF_MONTH,dayNumber); showOrtonDay(monthKey,dayNumber) }
+                },LinearLayout.LayoutParams(-1,0,1f))
+                if(markers.isNotEmpty()) {
+                    val markerRow = LinearLayout(this).apply {
+                        orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER
+                    }
+                    markers.take(5).forEach { marker ->
+                        markerRow.addView(TextView(this).apply {
+                            text=marker.first; textSize=8f; gravity=Gravity.CENTER
+                            setTextColor(if(isSelected) Color.WHITE else marker.second)
+                            setPadding(0,0,dp(1),0)
+                        })
+                    }
+                    if(markers.size>5) markerRow.addView(TextView(this).apply {
+                        text="+"; textSize=8f; setTextColor(if(isSelected) Color.WHITE else green)
+                    })
+                    cellView.addView(markerRow,LinearLayout.LayoutParams(-1,dp(12)))
+                } else {
+                    cellView.addView(TextView(this).apply { text=""; textSize=8f },LinearLayout.LayoutParams(-1,dp(12)))
                 }
-                grid.addView(b,lp)
+                grid.addView(cellView,lp)
             }
         }
         content.addView(grid,LinearLayout.LayoutParams(-1,-2))
-        card("Значки календаря","🌱 посев или пересадка · 💧 полив · 🧪 подкормка · 🪴 уход/прополка/защита · 🧺 сбор урожая · 📝 личная заметка. Значки появляются автоматически для дат, на которые вы добавили задачу или заметку. Благоприятность посевных дней не обозначается без проверенного источника.")
+        card("Отметки календаря","Цветные точки: зелёная — посев/пересадка; синяя — полив; коричневая — подкормка; оливковая — уход/прополка/защита; жёлтая — сбор урожая; фиолетовая — личная заметка. Точки появляются для задач и заметок, добавленных на конкретную дату. Рекомендации благоприятных дней Ортон не выдумываются: они открываются на сайте первоисточника.")
         val d=dateString(selectedDate)
         card("🌙 Лунная фаза",lunarSummary(selectedDate))
         card("🌱 Сезонные подсказки",seasonalAdvice(selectedDate))
