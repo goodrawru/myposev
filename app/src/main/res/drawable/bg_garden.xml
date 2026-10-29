@@ -1,19 +1,48 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">
-            <gradient android:angle="135" android:startColor="#D4E9CB" android:centerColor="#F2F7E9" android:endColor="#BBD9AD"/>
+            <gradient
+                android:angle="135"
+                android:startColor="#DCEFD2"
+                android:centerColor="#F7F9EE"
+                android:endColor="#D2E8C7"/>
         </shape>
     </item>
-    <item android:gravity="right|top">
+    <!-- Soft garden-light circles, intentionally very low contrast behind cards. -->
+    <item android:gravity="right|top" android:top="-36dp" android:right="-48dp">
+        <shape android:shape="oval">
+            <size android:width="280dp" android:height="280dp"/>
+            <solid android:color="#1D70A95A"/>
+        </shape>
+    </item>
+    <item android:gravity="left|bottom" android:left="-64dp" android:bottom="-24dp">
         <shape android:shape="oval">
             <size android:width="250dp" android:height="250dp"/>
-            <solid android:color="#2582B96B"/>
+            <solid android:color="#1C5F9D50"/>
         </shape>
     </item>
-    <item android:gravity="left|bottom">
-        <shape android:shape="oval">
-            <size android:width="220dp" android:height="220dp"/>
-            <solid android:color="#2682A96A"/>
-        </shape>
+    <item android:gravity="right|center_vertical" android:right="-24dp">
+        <rotate android:fromDegrees="-35" android:toDegrees="-35" android:pivotX="50%" android:pivotY="50%">
+            <shape android:shape="oval">
+                <size android:width="54dp" android:height="116dp"/>
+                <solid android:color="#1475A65D"/>
+            </shape>
+        </rotate>
+    </item>
+    <item android:gravity="right|center_vertical" android:right="14dp">
+        <rotate android:fromDegrees="28" android:toDegrees="28" android:pivotX="50%" android:pivotY="50%">
+            <shape android:shape="oval">
+                <size android:width="36dp" android:height="82dp"/>
+                <solid android:color="#1275A65D"/>
+            </shape>
+        </rotate>
+    </item>
+    <item android:gravity="left|center_vertical" android:left="-20dp">
+        <rotate android:fromDegrees="32" android:toDegrees="32" android:pivotX="50%" android:pivotY="50%">
+            <shape android:shape="oval">
+                <size android:width="42dp" android:height="96dp"/>
+                <solid android:color="#1475A65D"/>
+            </shape>
+        </rotate>
     </item>
 </layer-list>
