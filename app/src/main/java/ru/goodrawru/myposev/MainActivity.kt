@@ -930,7 +930,7 @@ class MainActivity : Activity() {
             if(dayNumber !in 1..daysInMonth) {
                 grid.addView(TextView(this),lp)
             } else {
-                val rating = cached?.optJSONObject("ratings")?.optString(dayNumber.toString(),"") ?: ""
+                val rating = ""
                 val isSelected = selectedDate.get(Calendar.DAY_OF_MONTH)==dayNumber
                 val label = when(rating) {
                     "Лучший день" -> "★"; "Благоприятный" -> "•"
