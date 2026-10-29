@@ -50,7 +50,6 @@ class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("moi_posevnoy", Context.MODE_PRIVATE) }
     private lateinit var content: LinearLayout
     private var selectedDate = Calendar.getInstance()
-    private val ortonRefreshInProgress = mutableSetOf<String>()
     private var musicController: MediaController? = null
     private var musicControllerFuture: ListenableFuture<MediaController>? = null
     private var musicStatusView: TextView? = null
@@ -904,7 +903,7 @@ class MainActivity : Activity() {
             .setTitle("Конфиденциальность")
             .setMessage("Приложение не требует учётной записи и не содержит рекламы или аналитических трекеров. Задачи, заметки и выбранный город хранятся локально на устройстве. Если вы запрашиваете прогноз, координаты выбранного места передаются сервису погоды MET Norway для получения прогноза. При открытии календаря Ортон или Яндекс Погоды соответствующий сайт открывается отдельно в браузере. Выбранные аудиофайлы воспроизводятся с устройства и не отправляются разработчику.\n\nПолная политика конфиденциальности доступна в репозитории проекта.")
             .setPositiveButton("Открыть политику") { _, _ ->
-                openCalendarSource("https://github.com/goodrawru/myposev/blob/rustore/PRIVACY_POLICY.md")
+                openExternalLink("https://github.com/goodrawru/myposev/blob/rustore/PRIVACY_POLICY.md")
             }
             .setNegativeButton("Закрыть", null)
             .show()
@@ -1235,7 +1234,7 @@ class MainActivity : Activity() {
         button("Назад к календарю") { showCalendar() }
     }
 
-    private fun openCalendarSource(url:String) {
+    private fun openExternalLink(url:String) {
         try { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
         catch (_:Exception) { Toast.makeText(this,"Не удалось открыть браузер.",Toast.LENGTH_LONG).show() }
     }
@@ -1298,8 +1297,15 @@ class MainActivity : Activity() {
             "укроп" in n -> R.drawable.plant_dill
             "салат" in n -> R.drawable.plant_lettuce
             "капуста" in n -> R.drawable.plant_cabbage
-            "клубника" in n -> R.drawable.plant_strawberry
-            "бархатц" in n -> R.drawable.plant_flower
+            "клубник" in n || "земляник" in n -> R.drawable.plant_strawberry
+            "бархатц" in n || "цвет" in n -> R.drawable.plant_flower
+            "тыкв" in n || "кабач" in n -> R.drawable.plant_pumpkin
+            "свёкл" in n || "свекл" in n -> R.drawable.plant_radish
+            "лук" in n || "чеснок" in n -> R.drawable.plant_onion
+            "горох" in n || "фасол" in n -> R.drawable.plant_pea
+            "базилик" in n || "петруш" in n -> R.drawable.plant_herb
+            "малин" in n || "смородин" in n -> R.drawable.plant_berry
+            "яблон" in n -> R.drawable.plant_tree
             else -> R.drawable.plant_generic
         }
     }
