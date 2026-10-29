@@ -898,7 +898,7 @@ class MainActivity : Activity() {
         val monthTitle = SimpleDateFormat("LLLL yyyy", Locale("ru")).format(selectedDate.time)
         val monthKey = SimpleDateFormat("yyyy-MM", Locale.US).format(selectedDate.time)
         content.addView(txt("Календарь Ортон · " + monthTitle.replaceFirstChar { it.uppercase(Locale("ru")) },19f,true))
-        content.addView(txt("После обновления нажимайте на день, чтобы посмотреть отметку календаря и запланировать работу.",14f))
+        content.addView(txt("Выбирайте день, чтобы посмотреть фазу Луны и запланировать работу. Рекомендации Ортон открываются отдельно на сайте источника.",14f))
         val monthNav=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
         monthNav.addView(Button(this).apply { text="‹"; contentDescription="Предыдущий месяц"; setOnClickListener { selectedDate.add(Calendar.MONTH,-1); showCalendar() } },
             LinearLayout.LayoutParams(0,-2,1f))
@@ -907,11 +907,10 @@ class MainActivity : Activity() {
         monthNav.addView(Button(this).apply { text="›"; contentDescription="Следующий месяц"; setOnClickListener { selectedDate.add(Calendar.MONTH,1); showCalendar() } },
             LinearLayout.LayoutParams(0,-2,1f))
         content.addView(monthNav)
-        button("🌱 Открыть статью Ортон за этот месяц") { openCalendarSource(ortonUrl(selectedDate)) }
-        button("Открыть календарь Ортон за этот месяц") { openCalendarSource(ortonUrl(selectedDate)) }
+        button("🌱 Открыть календарь Ортон за этот месяц") { openCalendarSource(ortonUrl(selectedDate)) }
         card("Календарь и рекомендации",
             "Календарная сетка, фазы Луны, задачи и личные записи работают на устройстве. Материалы Ортон открываются на сайте источника; приложение не копирует и не распространяет его статьи или отметки.")
-                val weekdays = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")
+        val weekdays = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")
         val header = GridLayout(this).apply { columnCount=7; rowCount=1 }
         weekdays.forEach { day ->
             header.addView(TextView(this).apply { text=day; gravity=Gravity.CENTER; textSize=12f; setTextColor(green); setPadding(0,6,0,6) },
