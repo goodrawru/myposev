@@ -900,10 +900,23 @@ class MainActivity : Activity() {
 
     private fun showTasks() {
         baseLayout("Задачи по уходу")
-        content.addView(txt("Планируйте полив, посев, подкормку, прополку и сбор урожая. Отмечайте выполненное — оно останется в истории.",14f))
-        val titleInput=EditText(this).apply { hint="Задача (например, полить томаты)" }
+        content.addView(txt("Планируйте посев, пересадку, полив и другие работы. Для посева и пересадки приложение покажет, сколько дней прошло или осталось.",14f))
+        val titleInput=EditText(this).apply { hint="Задача (например, посадить томаты)" }
         val cropInput=EditText(this).apply { hint="Культура или грядка (необязательно)" }
-        val dateInput=EditText(this).apply { hint="Дата ГГГГ-ММ-ДД"; setSingleLine(true); setText(SimpleDateFormat("yyyy-MM-dd",Locale.US).format(Date())) }
+        val dateInput=EditText(this).apply {
+            hint="Дата (дд.мм.гггг)"
+            setSingleLine(true)
+            isFocusable=false
+            isClickable=true
+            setText(SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(Date()))
+            setOnClickListener {
+                val initial = parseTaskDate(text.toString()) ?: Calendar.getInstance()
+                DatePickerDialog(this@MainActivity, { _, year, month, day ->
+                    val picked=Calendar.getInstance().apply { set(year,month,day,0,0,0); set(Calendar.MILLISECOND,0) }
+                    setText(SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(picked.time))
+                },initial.get(Calendar.YEAR),initial.get(Calendar.MONTH),initial.get(Calendar.DAY_OF_MONTH)).show()
+            }
+        }
         val type=Spinner(this).apply {
             adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,
                 listOf("Уход","Посев","Полив","Подкормка","Прополка","Пересадка","Защита растений","Сбор урожая"))
@@ -911,12 +924,13 @@ class MainActivity : Activity() {
         content.addView(titleInput); content.addView(cropInput); content.addView(dateInput); content.addView(type)
         button("Добавить задачу") {
             val title=titleInput.text.toString().trim()
-            val date=dateInput.text.toString().trim()
+            val date=parseTaskDate(dateInput.text.toString().trim())
             if(title.isBlank()) { Toast.makeText(this,"Введите название задачи",Toast.LENGTH_SHORT).show(); return@button }
-            if(!date.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) { Toast.makeText(this,"Дата должна быть в формате ГГГГ-ММ-ДД",Toast.LENGTH_SHORT).show(); return@button }
+            if(date==null) { Toast.makeText(this,"Выберите дату в формате дд.мм.гггг",Toast.LENGTH_SHORT).show(); return@button }
+            val storedDate=SimpleDateFormat("yyyy-MM-dd",Locale.US).format(date.time)
             val all=tasksArray()
             all.put(JSONObject().put("id",System.currentTimeMillis()).put("title",title).put("crop",cropInput.text.toString().trim())
-                .put("type",type.selectedItem.toString()).put("date",date).put("done",false))
+                .put("type",type.selectedItem.toString()).put("date",storedDate).put("done",false))
             prefs.edit().putString("care_tasks",all.toString()).apply()
             showTasks()
         }
@@ -928,8 +942,12 @@ class MainActivity : Activity() {
             val done=item.optBoolean("done",false)
             val name=item.optString("title","Задача")
             val crop=item.optString("crop","")
-            val details=item.optString("date")+" · "+item.optString("type")+(if(crop.isNotBlank()) " · $crop" else "")
-            card((if(done) "✅ " else "🟢 ")+name,details+(if(done) "\nВыполнено" else ""))
+            val typeName=item.optString("type","Уход")
+            val displayDate=formatTaskDate(item.optString("date"))
+            val details=displayDate+" · "+typeName+(if(crop.isNotBlank()) " · $crop" else "")
+            val timing=if(typeName=="Посев" || typeName=="Пересадка") taskTiming(item.optString("date"),typeName) else ""
+            card((if(done) "✅ " else "🟢 ")+name,
+                details+(if(timing.isNotBlank()) "\n"+timing else "")+(if(done) "\nВыполнено" else ""))
             if(!done) button("Отметить выполненной: $name") {
                 val current=tasksArray()
                 for(i in 0 until current.length()) {
@@ -948,6 +966,48 @@ class MainActivity : Activity() {
                 prefs.edit().putString("care_tasks",filtered.toString()).apply()
                 showTasks()
             }
+        }
+    }
+
+    private fun parseTaskDate(value:String):Calendar? {
+        val patterns=listOf("dd.MM.yyyy","yyyy-MM-dd")
+        for(pattern in patterns) {
+            try {
+                val format=SimpleDateFormat(pattern,Locale.US).apply { isLenient=false }
+                val parsed=format.parse(value) ?: continue
+                val result=Calendar.getInstance().apply { time=parsed; set(Calendar.HOUR_OF_DAY,0); set(Calendar.MINUTE,0); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0) }
+                if(format.format(parsed)==value) return result
+            } catch (_:Exception) { }
+        }
+        return null
+    }
+
+    private fun formatTaskDate(value:String):String {
+        val date=parseTaskDate(value) ?: return value
+        return SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(date.time)
+    }
+
+    private fun taskTiming(value:String,typeName:String):String {
+        val target=parseTaskDate(value) ?: return ""
+        val today=Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY,0); set(Calendar.MINUTE,0); set(Calendar.SECOND,0); set(Calendar.MILLISECOND,0) }
+        val days=((target.timeInMillis-today.timeInMillis)/86400000L).toInt()
+        val noun=when(days.toString().takeLast(1)) {
+            "1" -> if(days !in 11..14) "день" else "дней"
+            "2","3","4" -> if(days !in 12..14) "дня" else "дней"
+            else -> "дней"
+        }
+        return when {
+            days>0 -> "До даты: $days $noun"
+            days<0 -> {
+                val passed=-days
+                val passedNoun=when(passed.toString().takeLast(1)) {
+                    "1" -> if(passed !in 11..14) "день" else "дней"
+                    "2","3","4" -> if(passed !in 12..14) "дня" else "дней"
+                    else -> "дней"
+                }
+                "С даты посева/пересадки прошло $passed $passedNoun"
+            }
+            else -> if(typeName=="Посев") "Посев сегодня" else "Пересадка сегодня"
         }
     }
 
