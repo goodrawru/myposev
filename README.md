@@ -48,7 +48,7 @@ Kotlin, Android SDK, Gradle, GitHub Actions, SharedPreferences, Open-Meteo API.
 
 ## Скачать APK
 
-После каждого успешного запуска GitHub Actions файл `app-debug.apk` автоматически прикрепляется к отдельному тестовому релизу в разделе [Releases](https://github.com/goodrawru/myposev/releases). Откройте самый новый релиз с названием «Мой Посевной — APK», затем скачайте `app-debug.apk) из вложений.
+После каждого успешного запуска GitHub Actions файл `app-debug.apk` автоматически прикрепляется к отдельному тестовому релизу в разделе [Releases](https://github.com/goodrawru/myposev/releases). Откройте самый новый релиз с названием «Мой Посевной — APK», затем скачайте файл `app-debug.apk` из вложений.
 
 Дополнительно APK сохраняется как артефакт GitHub Actions на 90 дней. Если сборка завершается ошибкой, релиз не публикуется.
 
