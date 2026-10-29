@@ -1017,167 +1017,56 @@ class MainActivity : Activity() {
         }
     }
     private fun showCalendar() {
-        baseLayout("Календарь")
-        val monthTitle = SimpleDateFormat("LLLL yyyy", Locale("ru")).format(selectedDate.time)
-        val monthKey = SimpleDateFormat("yyyy-MM", Locale.US).format(selectedDate.time)
-        content.addView(txt("Календарь Ортон · " + monthTitle.replaceFirstChar { it.uppercase(Locale("ru")) },19f,true))
-        content.addView(txt("Выбирайте день, чтобы посмотреть фазу Луны и запланировать работу. Рекомендации Ортон открываются отдельно на сайте источника.",14f))
-        val monthNav=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
-        monthNav.addView(Button(this).apply { text="‹"; contentDescription="Предыдущий месяц"; setOnClickListener { selectedDate.add(Calendar.MONTH,-1); showCalendar() } },
-            LinearLayout.LayoutParams(0,-2,1f))
-        monthNav.addView(Button(this).apply { text="Сегодня"; isAllCaps=false; setOnClickListener { selectedDate=Calendar.getInstance(); showCalendar() } },
-            LinearLayout.LayoutParams(0,-2,2f))
-        monthNav.addView(Button(this).apply { text="›"; contentDescription="Следующий месяц"; setOnClickListener { selectedDate.add(Calendar.MONTH,1); showCalendar() } },
-            LinearLayout.LayoutParams(0,-2,1f))
-        content.addView(monthNav)
-        button("🌱 Открыть календарь Ортон за этот месяц") { openCalendarSource(ortonUrl(selectedDate)) }
-        card("Календарь и рекомендации",
-            "Календарная сетка, фазы Луны, задачи и личные записи работают на устройстве. Материалы Ортон открываются на сайте источника; приложение не копирует и не распространяет его статьи или отметки.")
+        baseLayout("Лунный посевной календарь")
+        val monthTitle = SimpleDateFormat("LLLL yyyy", Locale("ru")).format(selectedDate.time).replaceFirstChar { it.uppercase(Locale("ru")) }
+        content.addView(txt("Посевной календарь · $monthTitle", 21f, true))
+        content.addView(txt("Выберите дату, чтобы увидеть фазу Луны, сезонные работы, задачи и заметки. Лунные подсказки — традиционный ориентир; учитывайте погоду и состояние почвы.", 14f))
+        val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        listOf("‹" to -1, "Сегодня" to 0, "›" to 1).forEach { (label, delta) ->
+            controls.addView(Button(this).apply { text = label; isAllCaps = false; setOnClickListener { if (delta == 0) selectedDate = Calendar.getInstance() else selectedDate.add(Calendar.MONTH, delta); showCalendar() } }, LinearLayout.LayoutParams(0, -2, if (delta == 0) 2f else 1f))
+        }
+        controls.addView(Button(this).apply { text = "Год −"; isAllCaps = false; setOnClickListener { selectedDate.add(Calendar.YEAR, -1); showCalendar() } }, LinearLayout.LayoutParams(0, -2, 1f))
+        controls.addView(Button(this).apply { text = "Год +"; isAllCaps = false; setOnClickListener { selectedDate.add(Calendar.YEAR, 1); showCalendar() } }, LinearLayout.LayoutParams(0, -2, 1f))
+        content.addView(controls)
         val weekdays = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")
-        val header = GridLayout(this).apply { columnCount=7; rowCount=1 }
-        weekdays.forEach { day ->
-            header.addView(TextView(this).apply {
-                text=day; gravity=Gravity.CENTER; textSize=12f; setTextColor(green)
-                setTypeface(null, android.graphics.Typeface.BOLD); setPadding(0,dp(6),0,dp(6))
-            }, GridLayout.LayoutParams(GridLayout.spec(0),GridLayout.spec(GridLayout.UNDEFINED,1f)).apply { width=0 })
+        val header = GridLayout(this).apply { columnCount = 7; rowCount = 1 }
+        weekdays.forEach { day -> header.addView(TextView(this).apply { text = day; gravity = Gravity.CENTER; textSize = 12f; setTextColor(if (day == "Сб" || day == "Вс") Color.rgb(180,75,55) else green); setTypeface(null, android.graphics.Typeface.BOLD); setPadding(0, dp(6), 0, dp(6)) }, GridLayout.LayoutParams(GridLayout.spec(0), GridLayout.spec(GridLayout.UNDEFINED, 1f)).apply { width = 0 }) }
+        content.addView(header)
+        val grid = GridLayout(this).apply { columnCount = 7; rowCount = 6; useDefaultMargins = false }
+        val first = selectedDate.clone() as Calendar; first.set(Calendar.DAY_OF_MONTH, 1)
+        val offset = (first.get(Calendar.DAY_OF_WEEK) + 5) % 7
+        val today = Calendar.getInstance()
+        val tasks = tasksArray()
+        for (cell in 0 until 42) {
+            val number = cell - offset + 1
+            val lp = GridLayout.LayoutParams(GridLayout.spec(cell / 7), GridLayout.spec(cell % 7, 1f)).apply { width = 0; height = dp(60); setMargins(dp(2), dp(2), dp(2), dp(2)) }
+            if (number !in 1..first.getActualMaximum(Calendar.DAY_OF_MONTH)) { grid.addView(TextView(this), lp); continue }
+            val day = (first.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, number) }
+            val key = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(day.time)
+            val isToday = day.get(Calendar.YEAR) == today.get(Calendar.YEAR) && day.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)
+            val note = !prefs.getString("note_" + dateString(day), "").isNullOrBlank()
+            var count = 0
+            for (i in 0 until tasks.length()) { val task = tasks.optJSONObject(i) ?: continue; if (task.optString("date") == key && !task.optBoolean("done", false)) count++ }
+            val cellView = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(dp(1), dp(3), dp(1), dp(2)); background = roundedBackground(if (isToday) green else if (count > 0 || note) Color.rgb(226,241,219) else Color.WHITE, 8f, if (isToday) green else Color.rgb(216,228,211)); isClickable = true; isFocusable = true; setOnClickListener { selectedDate = day.clone() as Calendar; showCalendarDay(selectedDate) } }
+            cellView.addView(TextView(this).apply { text = number.toString(); textSize = 15f; gravity = Gravity.CENTER; setTextColor(if (isToday) Color.WHITE else Color.rgb(35,48,38)); setTypeface(null, if (isToday) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL) }, LinearLayout.LayoutParams(-1, 0, 1f))
+            cellView.addView(TextView(this).apply { text = (if (count > 0) "● $count" else "") + if (note) " ◆" else ""; textSize = 9f; gravity = Gravity.CENTER; setTextColor(if (isToday) Color.WHITE else green) }, LinearLayout.LayoutParams(-1, dp(14)))
+            grid.addView(cellView, lp)
         }
-        content.addView(header,LinearLayout.LayoutParams(-1,-2))
-        val grid = GridLayout(this).apply { columnCount=7; rowCount=6; useDefaultMargins=false }
-        val first = selectedDate.clone() as Calendar
-        first.set(Calendar.DAY_OF_MONTH,1)
-        val offset = (first.get(Calendar.DAY_OF_WEEK)+5)%7
-        val daysInMonth = first.getActualMaximum(Calendar.DAY_OF_MONTH)
-        val dayTasks = tasksArray()
-        for(cell in 0 until 42) {
-            val dayNumber = cell-offset+1
-            val lp = GridLayout.LayoutParams(GridLayout.spec(cell/7),GridLayout.spec(cell%7,1f)).apply {
-                width=0; height=dp(58); setMargins(dp(2),dp(2),dp(2),dp(2))
-            }
-            if(dayNumber !in 1..daysInMonth) {
-                grid.addView(TextView(this).apply { text=""; setBackgroundColor(Color.TRANSPARENT) },lp)
-            } else {
-                val isSelected = selectedDate.get(Calendar.DAY_OF_MONTH)==dayNumber
-                val dateForCell = (first.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, dayNumber) }
-                val dateKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(dateForCell.time)
-                val taskTypes = mutableSetOf<String>()
-                for (taskIndex in 0 until dayTasks.length()) {
-                    val task = dayTasks.optJSONObject(taskIndex) ?: continue
-                    if (task.optString("date") == dateKey && !task.optBoolean("done", false)) {
-                        taskTypes.add(task.optString("type", "Уход"))
-                    }
-                }
-                val hasNote = !prefs.getString("note_" + dateString(dateForCell), "").isNullOrBlank()
-                val markers = mutableListOf<Pair<String,Int>>()
-                if (taskTypes.any { it.contains("Посев", true) || it.contains("Пересадка", true) })
-                    markers.add("●" to Color.rgb(42,145,67))
-                if (taskTypes.any { it.contains("Полив", true) })
-                    markers.add("●" to Color.rgb(45,135,220))
-                if (taskTypes.any { it.contains("Подкормка", true) })
-                    markers.add("●" to Color.rgb(180,110,30))
-                if (taskTypes.any { it.contains("Прополка", true) || it.contains("Защита", true) || it == "Уход" })
-                    markers.add("●" to Color.rgb(90,125,65))
-                if (taskTypes.any { it.contains("Сбор урожая", true) })
-                    markers.add("●" to Color.rgb(200,145,25))
-                if (hasNote) markers.add("●" to Color.rgb(135,85,175))
-                val cellView = LinearLayout(this).apply {
-                    orientation=LinearLayout.VERTICAL
-                    gravity=Gravity.CENTER
-                    setPadding(0,dp(3),0,dp(2))
-                    setBackground(roundedBackground(
-                        if(isSelected) green else if(markers.isNotEmpty()) Color.rgb(232,243,225) else Color.WHITE,
-                        8f,
-                        if(isSelected) green else Color.rgb(218,228,215)
-                    ))
-                    isClickable=true; isFocusable=true
-                    contentDescription = buildString {
-                        append("Число $dayNumber")
-                        if(taskTypes.isNotEmpty()) append(". Задачи: "+taskTypes.joinToString(", "))
-                        if(hasNote) append(". Есть заметка")
-                    }
-                    setOnClickListener {
-                        selectedDate.set(Calendar.DAY_OF_MONTH,dayNumber)
-                        showOrtonDay(monthKey,dayNumber)
-                    }
-                }
-                cellView.addView(TextView(this).apply {
-                    text=dayNumber.toString()
-                    textSize=14f
-                    gravity=Gravity.CENTER
-                    setTypeface(null,if(isSelected) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
-                    setTextColor(if(isSelected) Color.WHITE else Color.rgb(35,48,38))
-                },LinearLayout.LayoutParams(-1,0,1f))
-                if(markers.isNotEmpty()) {
-                    val markerRow = LinearLayout(this).apply {
-                        orientation=LinearLayout.HORIZONTAL; gravity=Gravity.CENTER
-                    }
-                    markers.take(5).forEach { marker ->
-                        markerRow.addView(TextView(this).apply {
-                            text=marker.first; textSize=8f; gravity=Gravity.CENTER
-                            setTextColor(if(isSelected) Color.WHITE else marker.second)
-                            setPadding(0,0,dp(1),0)
-                        })
-                    }
-                    if(markers.size>5) markerRow.addView(TextView(this).apply {
-                        text="+"; textSize=8f; setTextColor(if(isSelected) Color.WHITE else green)
-                    })
-                    cellView.addView(markerRow,LinearLayout.LayoutParams(-1,dp(12)))
-                } else {
-                    cellView.addView(TextView(this).apply { text=""; textSize=8f },LinearLayout.LayoutParams(-1,dp(12)))
-                }
-                grid.addView(cellView,lp)
-            }
-        }
-        content.addView(grid,LinearLayout.LayoutParams(-1,-2))
-        card("Отметки календаря","Цветные точки: зелёная — посев/пересадка; синяя — полив; коричневая — подкормка; оливковая — уход/прополка/защита; жёлтая — сбор урожая; фиолетовая — личная заметка. Точки появляются для задач и заметок, добавленных на конкретную дату. Рекомендации благоприятных дней Ортон не выдумываются: они открываются на сайте первоисточника.")
-        val d=dateString(selectedDate)
-        card("🌙 Лунная фаза",lunarSummary(selectedDate))
-        card("🌱 Сезонные подсказки",seasonalAdvice(selectedDate))
-        card("📝 Заметка на дату",prefs.getString("note_"+d,"")?.ifBlank{"Заметок пока нет."} ?: "Заметок пока нет.")
-        button("Добавить заметку") {
-            val input=EditText(this).apply { hint="Например: посеял томаты" }
-            android.app.AlertDialog.Builder(this).setTitle("Заметка на "+d).setView(input)
-                .setNegativeButton("Отмена",null)
-                .setPositiveButton("Сохранить") { _,_ -> prefs.edit().putString("note_"+d,input.text.toString()).apply(); showCalendar() }.show()
-        }
+        content.addView(grid, LinearLayout.LayoutParams(-1, -2))
+        card("Фаза Луны", lunarSummary(selectedDate))
+        card("Что делать в этом месяце", seasonalAdvice(selectedDate))
+        button("Подробности выбранного дня") { showCalendarDay(selectedDate) }
+        button("Добавить заметку") { val key = dateString(selectedDate); val input = EditText(this).apply { hint = "Заметка на выбранную дату"; setText(prefs.getString("note_" + key, "")) }; android.app.AlertDialog.Builder(this).setTitle(key).setView(input).setNegativeButton("Отмена", null).setPositiveButton("Сохранить") { _, _ -> prefs.edit().putString("note_" + key, input.text.toString().trim()).apply(); showCalendar() }.show() }
     }
 
-    private fun ortonUrl(date:Calendar):String {
-        val slug = when(date.get(Calendar.MONTH)) {
-            Calendar.JANUARY -> "yanvar"; Calendar.FEBRUARY -> "fevral"; Calendar.MARCH -> "mart"
-            Calendar.APRIL -> "aprel"; Calendar.MAY -> "may"; Calendar.JUNE -> "iyun"
-            Calendar.JULY -> "iyul"; Calendar.AUGUST -> "avgust"; Calendar.SEPTEMBER -> "sentyabr"
-            Calendar.OCTOBER -> "oktyabr"; Calendar.NOVEMBER -> "noyabr"; else -> "dekabr"
-        }
-        return "https://orton.ru/kalendar-ogorodnika/" + slug + "/"
-    }
-
-    private fun getOrtonMonth(key:String):JSONObject? = try {
-        val all=JSONObject(prefs.getString("orton_calendar_cache","{}") ?: "{}")
-        all.optJSONObject(key)
-    } catch (_:Exception) { null }
-
-    private fun refreshOrtonCalendar(monthKey:String, automatic:Boolean = false) {
-        val target = try {
-            val parsed = SimpleDateFormat("yyyy-MM", Locale.US).apply { isLenient = false }.parse(monthKey)
-                ?: throw IllegalArgumentException("Неверный месяц")
-            Calendar.getInstance().apply { time = parsed; set(Calendar.DAY_OF_MONTH, 1) }
-        } catch (_: Exception) {
-            Toast.makeText(this, "Не удалось определить месяц календаря.", Toast.LENGTH_LONG).show()
-            return
-        }
-        // RuStore edition opens the source page instead of scraping or redistributing its content.
-        openCalendarSource(ortonUrl(target))
-    }
-
-    private fun showOrtonDay(monthKey:String,dayNumber:Int) {
-        val selected=selectedDate.clone() as Calendar
-        selected.set(Calendar.DAY_OF_MONTH,dayNumber)
-        val lunar=lunarSummary(selected)
-        val body=dateString(selected)+"\n"+lunar+"\nДля рекомендаций Ортон откройте первоисточник. Сверяйте советы с погодой и состоянием почвы."
-        android.app.AlertDialog.Builder(this).setTitle("Рекомендации на день").setMessage(body)
-            .setPositiveButton("Запланировать действие") { _,_ -> addTaskForDate(selected) }
-            .setNeutralButton("Открыть Ортон") { _,_ -> openCalendarSource(ortonUrl(selected)) }
-            .setNegativeButton("Закрыть",null).show()
+    private fun showCalendarDay(date: Calendar) {
+        val day = date.clone() as Calendar
+        val key = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(day.time)
+        val tasks = tasksArray(); val lines = mutableListOf<String>()
+        for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; if (item.optString("date") == key) lines.add((if (item.optBoolean("done", false)) "✓ " else "• ") + item.optString("title", "Задача") + " — " + item.optString("type", "Уход")) }
+        val note = prefs.getString("note_" + dateString(day), "").orEmpty()
+        val body = dateString(day) + "\\n\\n" + lunarSummary(day) + "\\n\\n" + seasonalAdvice(day) + "\\n\\nЗадачи:\\n" + (if (lines.isEmpty()) "На эту дату задач нет." else lines.joinToString("\\n")) + "\\n\\nЗаметка: " + if (note.isBlank()) "нет" else note
+        android.app.AlertDialog.Builder(this).setTitle("Календарь на день").setMessage(body).setPositiveButton("Добавить задачу") { _, _ -> addTaskForDate(day) }.setNegativeButton("Закрыть", null).show()
     }
 
     private fun addTaskForDate(date:Calendar) {
