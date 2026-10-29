@@ -347,7 +347,7 @@ class MainActivity : Activity() {
             setPadding(0, dp(4), 0, 0)
         })
         radioGrid.addView(lastStation, GridLayout.LayoutParams(
-            GridLayout.spec(2), GridLayout.spec(0, 2)
+            GridLayout.spec(3), GridLayout.spec(0, 2)
         ).apply {
             width = 0
             height = dp(82)
