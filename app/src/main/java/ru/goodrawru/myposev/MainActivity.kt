@@ -590,7 +590,7 @@ class MainActivity : Activity() {
         card("📍 Место вашего огорода","$city · $region\nКлиматическая зона: $zone\nНажмите, чтобы изменить место.",{showLocationSettings()})
         card("🌿 План на сегодня",regionalTodayAdvice())
         card("🧤 Задачи по уходу",todayTasksSummary(),{showTasks()})
-        card("🌦️ Погода на 5 дней","Сначала откройте Яндекс Погоду, затем нажмите «Назад», чтобы увидеть прогноз на 5 дней.",{loadWeather()})
+        card("🌦️ Погода на 5 дней","Прогноз на ближайшие 5 дней: температура, осадки и предупреждение о заморозках. Яндекс Погода доступна отдельной кнопкой внизу.",{loadWeather()})
         card("🪴 Полезный принцип","Посевные сроки — ориентир, а не гарантия. Сверяйте рекомендации с прогнозом заморозков, температурой почвы и условиями конкретной грядки.")
         card("🌙 Лунный календарь",lunarSummary(Calendar.getInstance()),{showCalendar()})
         card("📅 Выбрать дату","Откройте календарь, чтобы посмотреть сезонные подсказки и заметки.",{showCalendar()})
@@ -734,7 +734,7 @@ class MainActivity : Activity() {
         }
         weatherLatitude = lat
         weatherLongitude = lon
-        showYandexWeather(lat, lon)
+        loadWeatherForecast(lat, lon)
     }
 
     override fun onBackPressed() {
