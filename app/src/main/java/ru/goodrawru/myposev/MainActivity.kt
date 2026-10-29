@@ -988,30 +988,39 @@ class MainActivity : Activity() {
             if(dayNumber !in 1..daysInMonth) {
                 grid.addView(TextView(this),lp)
             } else {
-                val rating = ""
                 val isSelected = selectedDate.get(Calendar.DAY_OF_MONTH)==dayNumber
-                val label = when(rating) {
-                    "Лучший день" -> "★"; "Благоприятный" -> "•"
-                    "Нежелательный" -> "!"; "Неблагоприятный" -> "×"; else -> ""
+                val dateForCell = (first.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, dayNumber) }
+                val dateKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(dateForCell.time)
+                val dayTasks = tasksArray()
+                val taskTypes = mutableSetOf<String>()
+                for (taskIndex in 0 until dayTasks.length()) {
+                    val task = dayTasks.optJSONObject(taskIndex) ?: continue
+                    if (task.optString("date") == dateKey && !task.optBoolean("done", false)) {
+                        taskTypes.add(task.optString("type", "Уход"))
+                    }
+                }
+                val hasNote = !prefs.getString("note_" + dateString(dateForCell), "").isNullOrBlank()
+                val icons = buildString {
+                    if (taskTypes.any { it.contains("Посев", true) || it.contains("Пересадка", true) }) append("🌱")
+                    if (taskTypes.any { it.contains("Полив", true) }) append("💧")
+                    if (taskTypes.any { it.contains("Подкормка", true) }) append("🧪")
+                    if (taskTypes.any { it.contains("Прополка", true) || it.contains("Защита", true) || it == "Уход" }) append("🪴")
+                    if (taskTypes.any { it.contains("Сбор урожая", true) }) append("🧺")
+                    if (hasNote) append("📝")
+                    if (taskTypes.isNotEmpty() && isEmpty()) append("•")
                 }
                 val b = Button(this).apply {
-                    text = dayNumber.toString() + if(label.isNotBlank()) "\n"+label else ""
-                    textSize=12f; isAllCaps=false; minWidth=0; minHeight=0; setPadding(0,0,0,0)
+                    text = dayNumber.toString() + if(icons.isNotBlank()) "\n"+icons else ""
+                    textSize=if(icons.length > 3) 10f else 12f; isAllCaps=false; minWidth=0; minHeight=0; setPadding(0,0,0,0)
                     setTextColor(if(isSelected) Color.WHITE else Color.rgb(35,48,38))
-                    setBackgroundColor(if(isSelected) green else when(rating) {
-                        "Лучший день" -> Color.rgb(190,225,181)
-                        "Благоприятный" -> Color.rgb(222,239,215)
-                        "Нежелательный" -> Color.rgb(255,237,196)
-                        "Неблагоприятный" -> Color.rgb(250,215,210)
-                        else -> Color.WHITE
-                    })
+                    setBackgroundColor(if(isSelected) green else if (icons.isNotBlank()) Color.rgb(232,243,225) else Color.WHITE)
                     setOnClickListener { selectedDate.set(Calendar.DAY_OF_MONTH,dayNumber); showOrtonDay(monthKey,dayNumber) }
                 }
                 grid.addView(b,lp)
             }
         }
         content.addView(grid,LinearLayout.LayoutParams(-1,-2))
-        card("Обозначения","★ самые благоприятные · • благоприятные · ! нежелательные · × самые неблагоприятные. Пустая отметка означает, что источник не указал отдельную категорию для этого дня.")
+        card("Значки календаря","🌱 посев или пересадка · 💧 полив · 🧪 подкормка · 🪴 уход/прополка/защита · 🧺 сбор урожая · 📝 личная заметка. Значки появляются автоматически для дат, на которые вы добавили задачу или заметку. Благоприятность посевных дней не обозначается без проверенного источника.")
         val d=dateString(selectedDate)
         card("🌙 Лунная фаза",lunarSummary(selectedDate))
         card("🌱 Сезонные подсказки",seasonalAdvice(selectedDate))
