@@ -145,7 +145,7 @@ class MainActivity : Activity() {
     private fun baseLayout(title:String) {
         val root = LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL
-            setBackgroundColor(pale)
+            background = getDrawable(R.drawable.bg_garden)
             // Respect Android 15 edge-to-edge status-bar inset.
             setOnApplyWindowInsetsListener { view, insets ->
                 val topInset = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) insets.getInsets(WindowInsets.Type.statusBars()).top else insets.systemWindowInsetTop
