@@ -1048,7 +1048,7 @@ class MainActivity : Activity() {
             refreshOrtonCalendar(monthKey, automatic = true)
         }
         val status = if(cached == null) "Загружаем календарь Ортон автоматически. Если сеть недоступна, можно открыть статью вручную." else {
-            val age = if (stale) "\\nДанные устарели — выполняется проверка обновления." else ""
+            val age = if (stale) "\nДанные устарели — выполняется проверка обновления." else ""
             "Данные получены: " + cached.optString("checkedAt","дата неизвестна") + age + "\\nИсточник: Ортон. Проверьте условия участка и прогноз погоды."
         }
         card("Состояние календаря",status)
