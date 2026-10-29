@@ -421,7 +421,23 @@ class MainActivity : Activity() {
         card("🌙 Яндекс Погода","Лунный посевной календарь и сезонные рекомендации. Откроется статья в браузере; ссылка на октябрь 2026 года приведена как пример.")
         button("Открыть календарь Яндекс Погоды") { openCalendarSource("https://yandex.ru/pogoda/ru/blog/lunnyj-posevnoj-kalendar-oktyabr-2026") }
         card("🌱 Ортон","Календарь огородника по месяцам. Выберите нужный месяц на сайте и сравните рекомендации с погодой своего региона.")
-        button("Открыть календарь Ортон") { openCalendarSource("https://orton.ru/kalendar-ogorodnika/oktyabr/") }
+        button("Открыть календарь Ортон · " + month.substringBefore(" ").lowercase(Locale("ru"))) {
+            val slug = when (selectedDate.get(Calendar.MONTH)) {
+                Calendar.JANUARY -> "yanvar"
+                Calendar.FEBRUARY -> "fevral"
+                Calendar.MARCH -> "mart"
+                Calendar.APRIL -> "aprel"
+                Calendar.MAY -> "may"
+                Calendar.JUNE -> "iyun"
+                Calendar.JULY -> "iyul"
+                Calendar.AUGUST -> "avgust"
+                Calendar.SEPTEMBER -> "sentyabr"
+                Calendar.OCTOBER -> "oktyabr"
+                Calendar.NOVEMBER -> "noyabr"
+                else -> "dekabr"
+            }
+            openCalendarSource("https://orton.ru/kalendar-ogorodnika/" + slug + "/")
+        }
         card("Как обновляются данные","Приложение пока не копирует статьи автоматически: структура сайтов может меняться, а даты разных источников иногда расходятся. Кнопки открывают первоисточники для проверки. Можно сохранить дату проверки; личные заметки и задачи не затрагиваются.")
         button("Отметить, что источники проверены") {
             val stamp = SimpleDateFormat("d MMM yyyy, HH:mm", Locale("ru")).format(Date())
