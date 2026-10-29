@@ -1275,6 +1275,23 @@ class MainActivity : Activity() {
         return "$phase. Фаза вычислена приближённо. Лунные советы — традиционная практика и не заменяют агрономические рекомендации."
     }
 
+    private fun plantIllustration(name:String): Int {
+        val n=name.lowercase(Locale.ROOT)
+        return when {
+            "томат" in n -> R.drawable.plant_tomato
+            "перец" in n -> R.drawable.plant_pepper
+            "огурец" in n -> R.drawable.plant_cucumber
+            "морковь" in n -> R.drawable.plant_carrot
+            "редис" in n -> R.drawable.plant_radish
+            "укроп" in n -> R.drawable.plant_dill
+            "салат" in n -> R.drawable.plant_lettuce
+            "капуста" in n -> R.drawable.plant_cabbage
+            "клубника" in n -> R.drawable.plant_strawberry
+            "бархатц" in n -> R.drawable.plant_flower
+            else -> R.drawable.plant_generic
+        }
+    }
+
     private fun showPlants(query:String) {
         baseLayout("Каталог культур")
         val search=EditText(this).apply { hint="Найти культуру или группу"; setSingleLine(true); setText(query) }
@@ -1285,12 +1302,26 @@ class MainActivity : Activity() {
             results.removeAllViews()
             plants.filter { it.name.contains(filter,true) || it.group.contains(filter,true) }.forEach { p ->
                 val box=LinearLayout(this).apply {
-                    orientation=LinearLayout.VERTICAL; setPadding(12,8,12,10); setBackgroundColor(Color.WHITE)
-                    addView(txt(p.name,18f,true)); addView(txt(p.group,13f))
+                    orientation=LinearLayout.HORIZONTAL; setPadding(10,10,10,12)
+                    background=roundedBackground(Color.WHITE, dp(16))
+                    elevation=dp(2).toFloat()
+                }
+                val icon=ImageView(this).apply {
+                    setImageResource(plantIllustration(p.name))
+                    scaleType=ImageView.ScaleType.CENTER_INSIDE
+                    setPadding(dp(4),dp(4),dp(4),dp(4))
+                    background=roundedBackground(Color.rgb(239,246,235), dp(12))
+                }
+                box.addView(icon, LinearLayout.LayoutParams(dp(88),dp(100)).apply { marginEnd=dp(12) })
+                val details=LinearLayout(this).apply {
+                    orientation=LinearLayout.VERTICAL
+                    addView(txt(p.name,18f,true))
+                    addView(txt(p.group,13f))
                     addView(txt("Посев: "+p.sowing,14f))
                     addView(txt("Глубина: "+p.depth+" · Всходы: "+p.sprouts,13f))
                     addView(txt(p.advice,14f))
                 }
+                box.addView(details, LinearLayout.LayoutParams(0,-2,1f))
                 results.addView(box,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=12 })
             }
             if(results.childCount==0) results.addView(txt("Ничего не найдено. Попробуйте другое название."))
