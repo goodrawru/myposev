@@ -5,12 +5,13 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+# Не отменяем уже начатую сборку новым коммитом: каждый запуск должен закончиться.
 concurrency:
   group: android-apk-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -44,3 +45,21 @@ jobs:
           name: moi-posevnoy-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 90
+
+      # Публикуем APK только после успешной сборки.
+      - name: Publish APK to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Мой Посевной — APK #${{ github.run_number }}
+          body: |
+            Автоматическая debug-сборка приложения «Мой Посевной».
+            Коммит: ${{ github.sha }}
+
+            Для установки скачайте APK-файл во вложениях этого релиза.
+            Это тестовая debug-сборка, не подписанная ключом Google Play.
+          files: app/build/outputs/apk/debug/app-debug.apk
+          prerelease: true
+          make_latest: false
+          fail_on_unmatched_files: true
