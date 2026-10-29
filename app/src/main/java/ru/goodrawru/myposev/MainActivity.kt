@@ -1065,17 +1065,7 @@ class MainActivity : Activity() {
         val tasks = tasksArray(); val lines = mutableListOf<String>()
         for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; if (item.optString("date") == key) lines.add((if (item.optBoolean("done", false)) "✓ " else "• ") + item.optString("title", "Задача") + " — " + item.optString("type", "Уход")) }
         val note = prefs.getString("note_" + dateString(day), "").orEmpty()
-        val body = dateString(day) + "
-
-" + lunarSummary(day) + "
-
-" + seasonalAdvice(day) + "
-
-Задачи:
-" + (if (lines.isEmpty()) "На эту дату задач нет." else lines.joinToString("
-")) + "
-
-Заметка: " + if (note.isBlank()) "нет" else note
+        val body = dateString(day) + "\n\n" + lunarSummary(day) + "\n\n" + seasonalAdvice(day) + "\n\nЗадачи:\n" + (if (lines.isEmpty()) "На эту дату задач нет." else lines.joinToString("\n")) + "\n\nЗаметка: " + if (note.isBlank()) "нет" else note
         android.app.AlertDialog.Builder(this).setTitle("Календарь на день").setMessage(body).setPositiveButton("Добавить задачу") { _, _ -> addTaskForDate(day) }.setNegativeButton("Закрыть", null).show()
     }
 
