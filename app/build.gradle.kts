@@ -18,3 +18,10 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 }
+
+dependencies {
+    // Media3 stable release: ExoPlayer + Android media session/notification controls.
+    val media3Version = "1.11.1"
+    implementation("androidx.media3:media3-exoplayer:$media3Version")
+    implementation("androidx.media3:media3-session:$media3Version")
+}
