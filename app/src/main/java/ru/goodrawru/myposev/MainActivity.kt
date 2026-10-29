@@ -142,6 +142,8 @@ class MainActivity : Activity() {
         card("📍 Место вашего огорода","$city · $region\nКлиматическая зона: $zone\nНажмите, чтобы изменить место.",{showLocationSettings()})
         card("🌿 План на сегодня",regionalTodayAdvice())
         card("🧤 Задачи по уходу",todayTasksSummary(),{showTasks()})
+        card("🌦️ Погода на 3 дня",prefs.getString("weather_summary","Нажмите, чтобы получить прогноз для выбранного места.") ?: "Прогноз пока не загружен.",{loadWeather()})
+        card("🪴 Полезный принцип","Посевные сроки — ориентир, а не гарантия. Сверяйте рекомендации с прогнозом заморозков, температурой почвы и условиями конкретной грядки.")
         card("🌙 Лунный календарь",lunarSummary(Calendar.getInstance()),{showCalendar()})
         card("📅 Выбрать дату","Откройте календарь, чтобы посмотреть сезонные подсказки и заметки.",{showCalendar()})
         card("🌱 Каталог культур","Овощи, зелень, ягоды и цветы — сроки, глубина посева и советы.",{showPlants("")})
@@ -274,6 +276,54 @@ class MainActivity : Activity() {
         return if(total==0) "Задач пока нет. Добавьте полив, подкормку или другую работу." else "Открытых задач: $total. Сегодня или просрочено: $due."
     }
 
+    private fun loadWeather() {
+        val lat=prefs.getString("garden_lat",null)?.toDoubleOrNull()
+        val lon=prefs.getString("garden_lon",null)?.toDoubleOrNull()
+        if(lat==null || lon==null) {
+            Toast.makeText(this,"Сначала выберите город или определите местоположение.",Toast.LENGTH_LONG).show()
+            showLocationSettings()
+            return
+        }
+        Toast.makeText(this,"Загружаю прогноз погоды…",Toast.LENGTH_SHORT).show()
+        Thread {
+            try {
+                val url="https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&daily=temperature_2m_min,temperature_2m_max,precipitation_probability_max&forecast_days=3&timezone=auto"
+                val connection=java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout=9000
+                connection.readTimeout=9000
+                connection.requestMethod="GET"
+                val body=connection.inputStream.bufferedReader().use { it.readText() }
+                connection.disconnect()
+                val daily=JSONObject(body).getJSONObject("daily")
+                val dates=daily.getJSONArray("time")
+                val mins=daily.getJSONArray("temperature_2m_min")
+                val maxs=daily.getJSONArray("temperature_2m_max")
+                val rain=daily.getJSONArray("precipitation_probability_max")
+                val lines=mutableListOf<String>()
+                var frost=false
+                for(i in 0 until dates.length()) {
+                    val min=mins.optDouble(i,Double.NaN)
+                    val max=maxs.optDouble(i,Double.NaN)
+                    val rainChance=rain.optInt(i,-1)
+                    val date=dates.optString(i).takeLast(5).replace("-",".")
+                    if(min.isFinite() && min<=0.0) frost=true
+                    val minText=if(min.isFinite()) String.format(Locale.US,"%.0f",min) else "?"
+                    val maxText=if(max.isFinite()) String.format(Locale.US,"%.0f",max) else "?"
+                    val rainText=if(rainChance>=0) "; осадки до $rainChance%" else ""
+                    lines.add("$date: $minText…$maxText °C$rainText")
+                }
+                val warning=if(frost) "\\n⚠️ Возможен заморозок: защитите теплолюбивую рассаду." else "\\nСверяйте прогноз с условиями именно вашего участка."
+                val summary=lines.joinToString("\\n")+warning+"\\nИсточник: Open-Meteo. Координаты передаются сервису только при запросе прогноза."
+                prefs.edit().putString("weather_summary",summary).apply()
+                runOnUiThread { showHome() }
+            } catch (_:Exception) {
+                runOnUiThread {
+                    Toast.makeText(this,"Не удалось загрузить прогноз. Проверьте интернет.",Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
+    }
+
     private fun showTasks() {
         baseLayout("Задачи по уходу")
         content.addView(txt("Планируйте полив, посев, подкормку, прополку и сбор урожая. Отмечайте выполненное — оно останется в истории.",14f))
@@ -351,7 +401,9 @@ class MainActivity : Activity() {
 
     private fun dateString(c:Calendar)=SimpleDateFormat("d MMMM yyyy",Locale("ru")).format(c.time)
     private fun seasonalAdvice(c:Calendar):String {
-        val month = (c.get(Calendar.MONTH) + regionMonthOffset() + 12) % 12
+        val actualMonth = c.get(Calendar.MONTH)
+        val month = if(actualMonth in Calendar.FEBRUARY..Calendar.SEPTEMBER)
+            (actualMonth + regionMonthOffset() + 12) % 12 else actualMonth
         return when(month) {
         Calendar.DECEMBER,Calendar.JANUARY -> "Планируйте сорта и закупку семян. Зимний посев требует подходящих условий и досветки."
         Calendar.FEBRUARY -> "В некоторых регионах начинают посев культур с длинным рассадным периодом."
