@@ -438,6 +438,7 @@ class MainActivity : Activity() {
         card("📍 Место вашего огорода","$city · $region\nКлиматическая зона: $zone\nНажмите, чтобы изменить место.",{showLocationSettings()})
         card("🌿 План на сегодня",regionalTodayAdvice())
         card("🧤 Задачи по уходу",todayTasksSummary(),{showTasks()})
+        button("🌱 О программе") { showAbout() }
         button("Политика конфиденциальности") { showPrivacyPolicy() }
         card("🌦️ Погода на 5 дней","Прогноз на ближайшие 5 дней: температура, осадки и предупреждение о заморозках. Яндекс Погода доступна отдельной кнопкой внизу.",{loadWeather()})
         card("🪴 Полезный принцип","Посевные сроки — ориентир, а не гарантия. Сверяйте рекомендации с прогнозом заморозков, температурой почвы и условиями конкретной грядки.")
@@ -446,6 +447,63 @@ class MainActivity : Activity() {
         card("🌱 Каталог культур","Овощи, зелень, ягоды и цветы — сроки, глубина посева и советы.",{showPlants("")})
         card("🔔 Напоминания","Ежедневное локальное напоминание запланировано на 09:00.")
         card("ℹ️ Важно","Это стартовая база. Универсальных дат посева для всей России не существует.")
+    }
+
+
+    private fun showAbout() {
+        baseLayout("О программе")
+        content.setPadding(dp(18), dp(16), dp(18), dp(30))
+
+        val hero = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(18), dp(18), dp(18), dp(18))
+            background = roundedBackground(Color.WHITE, 22f, Color.rgb(213, 229, 207))
+        }
+        val logo = ImageView(this).apply {
+            setImageResource(R.drawable.ic_launcher_foreground)
+            contentDescription = "Иконка Мой Посевной"
+            scaleType = ImageView.ScaleType.FIT_CENTER
+        }
+        hero.addView(logo, LinearLayout.LayoutParams(dp(124), dp(124)))
+        hero.addView(TextView(this).apply {
+            text = "Мой Посевной"
+            textSize = 27f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(green)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, dp(3))
+        })
+        hero.addView(TextView(this).apply {
+            text = "Ваш помощник в саду и огороде"
+            textSize = 15f
+            setTextColor(Color.rgb(79, 99, 79))
+            gravity = Gravity.CENTER
+        })
+        content.addView(hero, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(14) })
+
+        card("🌱 Всё для заботы об урожае",
+            "Календарь садово-огородных работ, лунные фазы, каталог культур, планирование задач и личные заметки — полезные инструменты в одном месте. Планируйте сезон, отмечайте важные дела и уделяйте больше внимания растениям.")
+        card("📵 Без рекламы",
+            "В приложении нет рекламы: никаких баннеров, внезапных роликов и рекламных пауз. Просто пользуйтесь инструментами и занимайтесь своим садом и огородом.")
+        card("☕ Поддержать разработку",
+            "Если приложение оказалось полезным, вы можете добровольно поблагодарить разработчика небольшим донатом. Это именно благодарность, а не покупка: донат не открывает новые функции, не снимает ограничения и не даёт дополнительных преимуществ. Все возможности приложения остаются доступными без оплаты. Не хотите или не можете поддержать — просто пользуйтесь приложением, никаких обязательств нет.")
+        button("☕ Поблагодарить разработчика") {
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://tips.tips/000490423")))
+            } catch (_: Exception) {
+                Toast.makeText(this, "Не удалось открыть страницу поддержки", Toast.LENGTH_LONG).show()
+            }
+        }
+        button("Политика конфиденциальности") { showPrivacyPolicy() }
+        button("← На главный экран") { showHome() }
+        content.addView(TextView(this).apply {
+            text = "Спасибо, что выбрали «Мой Посевной». Пусть ваши труды дают добрые всходы, а урожай радует каждый год!\n\nВерсия 1.1.0"
+            textSize = 13f
+            setTextColor(Color.rgb(93, 108, 91))
+            gravity = Gravity.CENTER
+            setPadding(dp(8), dp(14), dp(8), dp(4))
+        })
     }
 
     private fun showLocationSettings() {
