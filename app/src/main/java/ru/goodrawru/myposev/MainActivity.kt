@@ -177,7 +177,7 @@ class MainActivity : Activity() {
         val nav = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; setBackgroundColor(Color.WHITE) }
         listOf("Сегодня","Календарь","Культуры","Задачи","Огород").forEach { label ->
             nav.addView(Button(this).apply {
-                text=label; textSize=9f; isAllCaps=false; minWidth=0; setPadding(2,4,2,4)
+                text=label; textSize=10f; isAllCaps=false; minWidth=0; minHeight=dp(44); setPadding(dp(2),dp(5),dp(2),dp(5))
                 setOnClickListener { when(label) {
                     "Сегодня" -> showHome()
                     "Календарь" -> showCalendar()
@@ -195,14 +195,67 @@ class MainActivity : Activity() {
         setContentView(root)
     }
 
+    private data class RadioStation(val name: String, val genre: String, val url: String)
+
+    private val zaycevStations = listOf(
+        RadioStation("Pop", "Поп-хиты", "https://abs.zaycev.fm/pop256k"),
+        RadioStation("Club", "Клубная музыка", "https://abs.zaycev.fm/club256k"),
+        RadioStation("NewRock", "Новый рок", "https://abs.zaycev.fm/rock256k"),
+        RadioStation("Disco", "Диско", "https://abs.zaycev.fm/disco256k"),
+        RadioStation("Metal", "Метал", "https://abs.zaycev.fm/metal256k")
+    )
+
     private fun showImmersionPlayer() {
         baseLayout("Музыка и радио")
-        content.addView(txt("Музыкальный плеер", 23f, true))
-        content.addView(txt("Слушайте файлы с телефона или добавьте прямую ссылку на аудиопоток. Плеер работает в фоне и показывает системные кнопки управления.", 14f))
-        val nowPlaying = txt("Подключение к плееру…", 18f, true)
+        content.setPadding(dp(14), dp(14), dp(14), dp(28))
+
+        val intro = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(18), dp(18), dp(18))
+            background = roundedBackground(Color.rgb(31, 76, 49), 22f)
+        }
+        intro.addView(TextView(this).apply {
+            text = "🎧  Время музыки"
+            textSize = 24f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.WHITE)
+        })
+        intro.addView(TextView(this).apply {
+            text = "Радио Zaycev.FM и ваша музыка — в одном плеере"
+            textSize = 14f
+            setTextColor(Color.rgb(226, 240, 225))
+            setPadding(0, dp(6), 0, 0)
+        })
+        content.addView(intro, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(14) })
+
+        val nowCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = roundedBackground(Color.WHITE, 18f, Color.rgb(220, 230, 218))
+        }
+        nowCard.addView(TextView(this).apply {
+            text = "СЕЙЧАС ИГРАЕТ"
+            textSize = 11f
+            letterSpacing = 0.08f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(75, 112, 79))
+        })
+        val nowPlaying = TextView(this).apply {
+            text = "Подключение к плееру…"
+            textSize = 18f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(35, 48, 38))
+            setPadding(0, dp(5), 0, dp(3))
+        }
         musicStatusView = nowPlaying
-        card("🎵 Сейчас играет", "Название трека и состояние воспроизведения появятся здесь.")
-        content.addView(nowPlaying)
+        nowCard.addView(nowPlaying)
+        nowCard.addView(TextView(this).apply {
+            text = "Воспроизведение продолжится при сворачивании приложения"
+            textSize = 12f
+            setTextColor(Color.rgb(105, 115, 103))
+        })
+        content.addView(nowCard, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+
         val progress = SeekBar(this).apply {
             max = 1000
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -221,41 +274,155 @@ class MainActivity : Activity() {
         }
         musicProgress = progress
         content.addView(progress)
+
         content.addView(LinearLayout(this).apply {
             gravity = Gravity.CENTER
             orientation = LinearLayout.HORIZONTAL
-            addView(Button(this@MainActivity).apply { text = "⏮"; contentDescription = "Предыдущий трек"; setOnClickListener { musicController?.seekToPreviousMediaItem() } })
-            addView(Button(this@MainActivity).apply { text = "▶ / ⏸"; contentDescription = "Воспроизвести или поставить на паузу"; setOnClickListener {
+            addView(playerControlButton("⏮", "Предыдущий трек") { musicController?.seekToPreviousMediaItem() })
+            addView(playerControlButton("▶  /  ⏸", "Воспроизвести или приостановить") {
                 val player = musicController
                 if (player == null) Toast.makeText(this@MainActivity, "Плеер ещё подключается", Toast.LENGTH_SHORT).show()
-                else if (player.isPlaying) player.pause() else { if (player.mediaItemCount == 0) chooseLocalAudio() else player.play() }
-            } })
-            addView(Button(this@MainActivity).apply { text = "⏭"; contentDescription = "Следующий трек"; setOnClickListener { musicController?.seekToNextMediaItem() } })
+                else if (player.isPlaying) player.pause()
+                else if (player.mediaItemCount == 0) chooseLocalAudio()
+                else player.play()
+            })
+            addView(playerControlButton("⏭", "Следующий трек") { musicController?.seekToNextMediaItem() })
+        }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(14) })
+
+        content.addView(sectionHeading("Радио Zaycev.FM", "Выберите станцию — музыка начнёт играть здесь же"))
+        val radioGrid = GridLayout(this).apply {
+            columnCount = 2
+            alignmentMode = GridLayout.ALIGN_BOUNDS
+            useDefaultMargins = false
+        }
+        zaycevStations.forEachIndexed { index, station ->
+            val stationCard = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(dp(13), dp(14), dp(10), dp(14))
+                background = roundedBackground(Color.WHITE, 16f, Color.rgb(220, 230, 218))
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { playRadio(station) }
+            }
+            stationCard.addView(TextView(this).apply {
+                text = "📻  " + station.name
+                textSize = 17f
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                setTextColor(Color.rgb(36, 77, 48))
+            })
+            stationCard.addView(TextView(this).apply {
+                text = station.genre
+                textSize = 12f
+                setTextColor(Color.rgb(105, 115, 103))
+                setPadding(0, dp(4), 0, 0)
+            })
+            val lp = GridLayout.LayoutParams(
+                GridLayout.spec(index / 2),
+                GridLayout.spec(index % 2, 1f)
+            ).apply {
+                width = 0
+                height = dp(94)
+                setMargins(dp(3), dp(3), dp(3), dp(7))
+            }
+            radioGrid.addView(stationCard, lp)
+        }
+        val lastStation = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(13), dp(14), dp(10), dp(14))
+            background = roundedBackground(Color.rgb(234, 243, 230), 16f, Color.rgb(203, 220, 198))
+            setOnClickListener { chooseLocalAudio() }
+        }
+        lastStation.addView(TextView(this).apply {
+            text = "🎵  Моя музыка"
+            textSize = 17f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(36, 77, 48))
         })
-        button("＋ Выбрать музыку на телефоне") { chooseLocalAudio() }
-        button("＋ Добавить прямую ссылку на аудио") { showStreamUrlDialog() }
-        button("Очистить очередь") {
+        lastStation.addView(TextView(this).apply {
+            text = "Файлы с телефона"
+            textSize = 12f
+            setTextColor(Color.rgb(105, 115, 103))
+            setPadding(0, dp(4), 0, 0)
+        })
+        radioGrid.addView(lastStation, GridLayout.LayoutParams(
+            GridLayout.spec(2), GridLayout.spec(0, 2)
+        ).apply {
+            width = 0
+            height = dp(82)
+            setMargins(dp(3), dp(3), dp(3), dp(7))
+        })
+        content.addView(radioGrid, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(10) })
+        content.addView(TextView(this).apply {
+            text = "Потоки добавлены по опубликованным адресам Zaycev.FM. Доступность конкретной станции зависит от работы источника и сети."
+            textSize = 12f
+            setTextColor(Color.rgb(103, 112, 101))
+            setPadding(dp(4), dp(2), dp(4), dp(10))
+        })
+
+        content.addView(sectionHeading("Музыка с телефона", "Можно выбрать один или несколько аудиофайлов"))
+        button("＋  Выбрать аудиофайлы") { chooseLocalAudio() }
+        button("Очистить очередь воспроизведения") {
             musicController?.clearMediaItems()
             updateMusicStatus()
         }
-        content.addView(txt("Онлайн-источники", 20f, true))
-        card("📻 Радио Дача", "Открыть официальный онлайн-плеер радиостанции. Поток не извлекается и не ретранслируется приложением.") {
-            openMusicSource("https://www.radiodacha.ru/player/", "Радио Дача")
-        }
-        button("Открыть Радио Дача в браузере") { openMusicSource("https://www.radiodacha.ru/player/", "Радио Дача") }
-        card("🎶 Zvukogram", "Каталог музыки. Проверяйте лицензию и условия конкретной записи перед скачиванием или использованием.") {
-            openMusicSource("https://zvukogram.com/category/veselaya-muzyika/", "Zvukogram")
-        }
-        button("Открыть Zvukogram") { openMusicSource("https://zvukogram.com/category/veselaya-muzyika/", "Zvukogram") }
-        card("☀️ Chosic", "Каталог бесплатной музыки. Условия и требования к указанию автора зависят от трека.") {
-            openMusicSource("https://www.chosic.com/free-music/happy/", "Chosic")
-        }
-        button("Открыть Chosic") { openMusicSource("https://www.chosic.com/free-music/happy/", "Chosic") }
-        button("На главный экран") { showHome() }
+        button("←  На главный экран") { showHome() }
+
         updateMusicStatus()
         musicHandler.removeCallbacks(musicProgressTask)
         musicHandler.post(musicProgressTask)
     }
+
+    private fun playRadio(station: RadioStation) {
+        val player = musicController
+        if (player == null) {
+            Toast.makeText(this, "Плеер ещё подключается. Попробуйте ещё раз через секунду.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val item = MediaItem.Builder()
+            .setUri(station.url)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle("Zaycev.FM · ${station.name}")
+                    .setArtist(station.genre)
+                    .build()
+            )
+            .build()
+        player.setMediaItem(item)
+        player.prepare()
+        player.play()
+        updateMusicStatus()
+    }
+
+    private fun playerControlButton(label: String, description: String, action: () -> Unit): Button =
+        Button(this).apply {
+            text = label
+            contentDescription = description
+            isAllCaps = false
+            minWidth = 0
+            minHeight = dp(48)
+            setPadding(dp(12), dp(5), dp(12), dp(5))
+            setOnClickListener { action() }
+        }
+
+    private fun sectionHeading(title: String, subtitle: String): LinearLayout =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(2), dp(10), dp(2), dp(8))
+            addView(TextView(this@MainActivity).apply {
+                text = title
+                textSize = 20f
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                setTextColor(Color.rgb(35, 65, 42))
+            })
+            addView(TextView(this@MainActivity).apply {
+                text = subtitle
+                textSize = 13f
+                setTextColor(Color.rgb(103, 112, 101))
+                setPadding(0, dp(3), 0, 0)
+            })
+        }
 
     private fun connectMusicController() {
         val token = SessionToken(this, ComponentName(this, MusicPlaybackService::class.java))
@@ -321,47 +488,16 @@ class MainActivity : Activity() {
         } catch (_: Exception) { null } finally { cursor?.close() }
     }
 
-    private fun showStreamUrlDialog() {
-        val input = EditText(this).apply {
-            hint = "https://…/stream.mp3"
-            setSingleLine(true)
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
-        }
-        android.app.AlertDialog.Builder(this)
-            .setTitle("Прямая ссылка на аудио")
-            .setMessage("Вставьте прямую ссылку на разрешённый аудиофайл или поток (MP3/AAC/HLS). Обычная ссылка на страницу сайта не подойдёт.")
-            .setView(input)
-            .setNegativeButton("Отмена", null)
-            .setPositiveButton("Добавить") { _, _ ->
-                val raw = input.text.toString().trim()
-                val uri = try { Uri.parse(raw) } catch (_: Exception) { null }
-                if (uri == null || (uri.scheme != "https" && uri.scheme != "http") || uri.host.isNullOrBlank()) {
-                    Toast.makeText(this, "Введите корректную ссылку http:// или https://", Toast.LENGTH_LONG).show()
-                    return@setPositiveButton
-                }
-                val player = musicController
-                if (player == null) {
-                    Toast.makeText(this, "Плеер ещё подключается", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
-                val title = uri.host ?: "Интернет-аудио"
-                val item = MediaItem.Builder().setUri(uri).setMediaMetadata(MediaMetadata.Builder().setTitle(title).build()).build()
-                if (player.mediaItemCount == 0) {
-                    player.setMediaItem(item)
-                    player.prepare()
-                    player.play()
-                } else player.addMediaItem(item)
-                updateMusicStatus()
-            }.show()
-    }
-
     private fun updateMusicStatus() {
         val player = musicController ?: run {
             musicStatusView?.text = "Подключение к плееру…"
             return
         }
-        val title = player.currentMediaItem?.mediaMetadata?.title?.toString()?.takeIf { it.isNotBlank() }
-            ?: if (player.mediaItemCount == 0) "Очередь пуста — добавьте аудиофайл или поток" else "Аудио"
+        val liveTitle = player.mediaMetadata.title?.toString()?.takeIf { it.isNotBlank() }
+        val itemTitle = player.currentMediaItem?.mediaMetadata?.title?.toString()?.takeIf { it.isNotBlank() }
+        val title = liveTitle?.takeUnless { it == "MediaMetadata" }
+            ?: itemTitle
+            ?: if (player.mediaItemCount == 0) "Выберите радио или аудиофайл" else "Аудио"
         val state = when {
             player.playerError != null -> "Ошибка воспроизведения"
             player.isPlaying -> "▶ Воспроизводится"
@@ -392,19 +528,51 @@ class MainActivity : Activity() {
 
     private fun dp(value:Int):Int = (value * resources.displayMetrics.density).toInt()
 
+    private fun roundedBackground(color: Int, radius: Float, strokeColor: Int? = null): android.graphics.drawable.Drawable {
+        val shape = android.graphics.drawable.GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(radius.toInt()).toFloat()
+            if (strokeColor != null) setStroke(dp(1), strokeColor)
+        }
+        return shape
+    }
+
     private fun txt(value:String,size:Float=16f,bold:Boolean=false)=TextView(this).apply {
         text=value; textSize=size; setTextColor(Color.rgb(35,48,38))
         if(bold) setTypeface(null,android.graphics.Typeface.BOLD)
-        setPadding(0,7,0,7)
+        setPadding(0,dp(7),0,dp(7))
     }
     private fun button(label:String, action:()->Unit) {
-        content.addView(Button(this).apply { text=label; isAllCaps=false; setOnClickListener { action() } })
+        val b = Button(this).apply {
+            text=label
+            isAllCaps=false
+            textSize=14f
+            minHeight=dp(48)
+            setPadding(dp(14),dp(8),dp(14),dp(8))
+            setTextColor(Color.rgb(34,76,45))
+            background=roundedBackground(Color.WHITE,14f,Color.rgb(207,222,202))
+            setOnClickListener { action() }
+        }
+        content.addView(b,LinearLayout.LayoutParams(-1,-2).apply {
+            topMargin=dp(4); bottomMargin=dp(5)
+        })
     }
     private fun card(title:String, body:String, action:(()->Unit)?=null) {
-        val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(14,10,14,12); setBackgroundColor(Color.WHITE) }
-        box.addView(txt(title,18f,true)); box.addView(txt(body,14f))
-        if(action!=null) box.setOnClickListener { action() }
-        content.addView(box,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=12 })
+        val box=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(dp(16),dp(12),dp(16),dp(13))
+            background=roundedBackground(Color.WHITE,16f,Color.rgb(224,232,220))
+            if(action!=null) {
+                isClickable=true
+                isFocusable=true
+                setOnClickListener { action() }
+            }
+        }
+        box.addView(txt(title,18f,true))
+        box.addView(txt(body,14f))
+        content.addView(box,LinearLayout.LayoutParams(-1,-2).apply {
+            bottomMargin=dp(10)
+        })
     }
 
     private fun showHome() {
