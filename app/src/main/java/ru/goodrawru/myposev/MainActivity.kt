@@ -71,6 +71,7 @@ class MainActivity : Activity() {
     }
     private val musicListener = object : Player.Listener {
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) { updateMusicStatus() }
+        override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) { updateMusicStatus() }
         override fun onIsPlayingChanged(isPlaying: Boolean) { updateMusicStatus() }
         override fun onPlaybackStateChanged(playbackState: Int) { updateMusicStatus() }
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
