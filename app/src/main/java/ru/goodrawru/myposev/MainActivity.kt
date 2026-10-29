@@ -55,6 +55,10 @@ class MainActivity : Activity() {
     private var musicStatusView: TextView? = null
     private var musicProgress: SeekBar? = null
     private var userSeekingMusic = false
+    private var weatherPageOpen = false
+    private var weatherForecastOpen = false
+    private var weatherLatitude: Double? = null
+    private var weatherLongitude: Double? = null
     private val musicHandler = Handler(Looper.getMainLooper())
     private val musicProgressTask = object : Runnable {
         override fun run() {
@@ -586,7 +590,7 @@ class MainActivity : Activity() {
         card("📍 Место вашего огорода","$city · $region\nКлиматическая зона: $zone\nНажмите, чтобы изменить место.",{showLocationSettings()})
         card("🌿 План на сегодня",regionalTodayAdvice())
         card("🧤 Задачи по уходу",todayTasksSummary(),{showTasks()})
-        card("🌦️ Яндекс Погода","Прогноз для выбранного места откроется прямо в приложении. Интернет нужен только для загрузки страницы.",{loadWeather()})
+        card("🌦️ Погода на 5 дней","Сначала откройте Яндекс Погоду, затем нажмите «Назад», чтобы увидеть прогноз на 5 дней.",{loadWeather()})
         card("🪴 Полезный принцип","Посевные сроки — ориентир, а не гарантия. Сверяйте рекомендации с прогнозом заморозков, температурой почвы и условиями конкретной грядки.")
         card("🌙 Лунный календарь",lunarSummary(Calendar.getInstance()),{showCalendar()})
         card("📅 Выбрать дату","Откройте календарь, чтобы посмотреть сезонные подсказки и заметки.",{showCalendar()})
@@ -728,11 +732,31 @@ class MainActivity : Activity() {
             showLocationSettings()
             return
         }
+        weatherLatitude = lat
+        weatherLongitude = lon
         showYandexWeather(lat, lon)
     }
 
+    override fun onBackPressed() {
+        if (weatherPageOpen) {
+            val lat = weatherLatitude
+            val lon = weatherLongitude
+            weatherPageOpen = false
+            if (lat != null && lon != null) loadWeatherForecast(lat, lon) else showHome()
+            return
+        }
+        if (weatherForecastOpen) {
+            weatherForecastOpen = false
+            showHome()
+            return
+        }
+        super.onBackPressed()
+    }
+
     private fun showYandexWeather(lat: Double, lon: Double) {
-        val url = String.format(Locale.US, "https://yandex.ru/pogoda/?lat=%.6f&lon=%.6f", lat, lon)
+        weatherPageOpen = true
+        weatherForecastOpen = false
+        val url = String.format(Locale.US, "https://yandex.ru/pogoda/?lat=%.4f&lon=%.4f", lat, lon)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(pale)
@@ -765,9 +789,12 @@ class MainActivity : Activity() {
                 setTextColor(Color.rgb(45, 65, 48))
             }, LinearLayout.LayoutParams(0, -2, 1f))
             addView(Button(this@MainActivity).apply {
-                text = "← Назад"
+                text = "← Назад · прогноз"
                 isAllCaps = false
-                setOnClickListener { showHome() }
+                setOnClickListener {
+                    weatherPageOpen = false
+                    loadWeatherForecast(lat, lon)
+                }
             })
         })
         val webView = android.webkit.WebView(this).apply {
@@ -778,10 +805,6 @@ class MainActivity : Activity() {
             settings.setSupportMultipleWindows(false)
             settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
             webViewClient = object : android.webkit.WebViewClient() {
-                override fun onPageFinished(view: android.webkit.WebView?, pageUrl: String?) {
-                    super.onPageFinished(view, pageUrl)
-                }
-
                 override fun onReceivedError(
                     view: android.webkit.WebView?,
                     request: android.webkit.WebResourceRequest?,
@@ -801,6 +824,150 @@ class MainActivity : Activity() {
         }
         root.addView(webView, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
+    }
+
+    private fun loadWeatherForecast(lat: Double, lon: Double) {
+        weatherPageOpen = false
+        weatherForecastOpen = true
+        val city = prefs.getString("garden_city", "Выбранное место") ?: "Выбранное место"
+        baseLayout("Прогноз на 5 дней")
+        content.addView(txt("📍 " + city, 17f, true))
+        content.addView(txt("Источник данных: MET Norway · без API-ключа. Яндекс Погода доступна отдельной страницей.", 13f))
+        button("← На главную") {
+            weatherForecastOpen = false
+            showHome()
+        }
+        content.addView(txt("Загружаю прогноз…", 15f))
+        Thread {
+            try {
+                val url = String.format(Locale.US,
+                    "https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=%.4f&lon=%.4f", lat, lon)
+                val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 12000
+                connection.readTimeout = 12000
+                connection.requestMethod = "GET"
+                connection.setRequestProperty("User-Agent", "MoiPosevnoy/1.0 (https://github.com/goodrawru/myposev)")
+                connection.setRequestProperty("Accept", "application/json")
+                val status = connection.responseCode
+                if (status !in 200..299) throw java.io.IOException("HTTP " + status)
+                val body = connection.inputStream.bufferedReader().use { it.readText() }
+                connection.disconnect()
+                val timeseries = JSONObject(body).getJSONObject("properties").getJSONArray("timeseries")
+                val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                val displayFormat = SimpleDateFormat("EEE, d MMM", Locale("ru"))
+                val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+                    timeZone = java.util.TimeZone.getTimeZone("UTC")
+                }
+                data class DayWeather(
+                    val date: Date,
+                    var min: Double = Double.POSITIVE_INFINITY,
+                    var max: Double = Double.NEGATIVE_INFINITY,
+                    var symbol: String = "",
+                    var rain: Double = 0.0,
+                    var hasRain: Boolean = false
+                )
+                val days = linkedMapOf<String, DayWeather>()
+                val now = System.currentTimeMillis()
+                for (i in 0 until timeseries.length()) {
+                    val row = timeseries.optJSONObject(i) ?: continue
+                    val date = try { parser.parse(row.optString("time")) } catch (_: Exception) { null } ?: continue
+                    if (date.time < now - 2 * 60 * 60 * 1000L) continue
+                    val key = dayFormat.format(date)
+                    if (days.size >= 5 && !days.containsKey(key)) continue
+                    val data = row.optJSONObject("data") ?: continue
+                    val instant = data.optJSONObject("instant")?.optJSONObject("details") ?: continue
+                    val temp = instant.optDouble("air_temperature", Double.NaN)
+                    if (!temp.isFinite()) continue
+                    val day = days.getOrPut(key) { DayWeather(date) }
+                    day.min = minOf(day.min, temp)
+                    day.max = maxOf(day.max, temp)
+                    val hour = java.util.Calendar.getInstance().apply { time = date }.get(java.util.Calendar.HOUR_OF_DAY)
+                    val next6 = data.optJSONObject("next_6_hours")
+                    val next1 = data.optJSONObject("next_1_hours")
+                    val symbol = next6?.optJSONObject("summary")?.optString("symbol_code", "")
+                        ?.takeIf { it.isNotBlank() }
+                        ?: next1?.optJSONObject("summary")?.optString("symbol_code", "").orEmpty()
+                    if (day.symbol.isBlank() || hour in 11..15) day.symbol = symbol
+                    val details = next6?.optJSONObject("details") ?: next1?.optJSONObject("details")
+                    val precipitation = details?.optDouble("precipitation_amount", Double.NaN) ?: Double.NaN
+                    if (precipitation.isFinite()) {
+                        day.rain += precipitation
+                        day.hasRain = true
+                    }
+                }
+                val result = days.values.take(5)
+                if (result.isEmpty()) throw java.io.IOException("Пустой прогноз")
+                val lines = result.map { day ->
+                    val symbol = weatherSymbolRu(day.symbol)
+                    val rainText = if (day.hasRain && day.rain >= 0.5) " · осадки ~" + String.format(Locale.US, "%.1f", day.rain) + " мм" else ""
+                    displayFormat.format(day.date).replaceFirstChar { it.uppercase(Locale("ru")) } + "\n" +
+                        symbol + "  " + day.min.toInt() + "…" + day.max.toInt() + " °C" + rainText
+                }
+                val frost = result.any { it.min <= 0.0 }
+                val summary = lines.joinToString("\n\n") +
+                    if (frost) "\n\n⚠️ Возможен заморозок. Защитите теплолюбивые растения." else
+                    "\n\nСверяйте прогноз с условиями именно вашего участка."
+                prefs.edit().putString("weather_summary", summary).apply()
+                runOnUiThread {
+                    if (!isFinishing && weatherForecastOpen) renderWeatherForecast(city, summary, lat, lon)
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    if (!isFinishing && weatherForecastOpen) {
+                        content.removeAllViews()
+                        content.addView(txt("Не удалось загрузить прогноз. Проверьте интернет и попробуйте ещё раз.", 15f))
+                        button("Повторить загрузку") { loadWeatherForecast(lat, lon) }
+                        button("Открыть Яндекс Погоду") {
+                            weatherForecastOpen = false
+                            showYandexWeather(lat, lon)
+                        }
+                        button("← На главную") {
+                            weatherForecastOpen = false
+                            showHome()
+                        }
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun renderWeatherForecast(city: String, summary: String, lat: Double, lon: Double) {
+        baseLayout("Прогноз на 5 дней")
+        content.addView(txt("📍 " + city, 17f, true))
+        val parts = summary.split("\n\n")
+        parts.forEachIndexed { index, part ->
+            if (index == parts.lastIndex && (part.startsWith("⚠️") || part.startsWith("Сверяйте"))) {
+                card("Совет для огорода", part)
+            } else {
+                card(if (index == 0) "🌤️ Ближайший прогноз" else "📅 День " + (index + 1), part)
+            }
+        }
+        button("↻ Обновить прогноз") { loadWeatherForecast(lat, lon) }
+        button("🌦️ Открыть Яндекс Погоду") {
+            weatherForecastOpen = false
+            showYandexWeather(lat, lon)
+        }
+        button("← На главную") {
+            weatherForecastOpen = false
+            showHome()
+        }
+    }
+
+    private fun weatherSymbolRu(code: String): String {
+        val normalized = code.lowercase(Locale.US)
+        return when {
+            "thunder" in normalized -> "⛈️ Гроза"
+            "snow" in normalized && "rain" in normalized -> "🌨️ Мокрый снег"
+            "snow" in normalized -> "❄️ Снег"
+            "sleet" in normalized -> "🌨️ Дождь со снегом"
+            "rain" in normalized -> "🌧️ Дождь"
+            "fog" in normalized -> "🌫️ Туман"
+            "cloudy" in normalized -> "☁️ Облачно"
+            "partlycloudy" in normalized -> "🌤️ Переменная облачность"
+            "fair" in normalized -> "🌤️ Малооблачно"
+            "clearsky" in normalized -> "☀️ Ясно"
+            else -> "🌥️ Переменная погода"
+        }
     }
 
     private fun showTasks() {
