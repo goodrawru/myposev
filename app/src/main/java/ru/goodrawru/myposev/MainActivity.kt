@@ -681,7 +681,7 @@ class MainActivity : Activity() {
         val city = prefs.getString("garden_city", "Выбранное место") ?: "Выбранное место"
         baseLayout("Прогноз на 5 дней")
         content.addView(txt("📍 " + city, 17f, true))
-        content.addView(txt("Источник данных: MET Norway · без API-ключа. Яндекс Погода доступна отдельной страницей.", 13f))
+        content.addView(txt("Источник: MET Norway. Данные сгруппированы по дням; лицензия CC BY 4.0. Яндекс Погода доступна отдельно.", 13f))
         button("← На главную") {
             weatherForecastOpen = false
             showHome()
@@ -791,6 +791,8 @@ class MainActivity : Activity() {
     private fun renderWeatherForecast(city: String, summary: String, lat: Double, lon: Double) {
         baseLayout("Прогноз на 5 дней")
         content.addView(txt("📍 " + city, 17f, true))
+        content.addView(txt("Источник: MET Norway · данные адаптированы и сгруппированы по дням · CC BY 4.0", 12f))
+        button("Лицензия CC BY 4.0") { openCalendarSource("https://creativecommons.org/licenses/by/4.0/") }
         val parts = summary.split("\n\n")
         parts.forEachIndexed { index, part ->
             if (index == parts.lastIndex && (part.startsWith("⚠️") || part.startsWith("Сверяйте"))) {
