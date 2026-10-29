@@ -35,7 +35,7 @@ class ReminderReceiver : BroadcastReceiver() {
         val notification=builder.setSmallIcon(android.R.drawable.ic_menu_my_calendar)
             .setContentTitle("Мой Посевной")
             .setContentText(message)
-            .setStyle(Notification.BigTextStyle().bigText(if(due.isEmpty()) message else due.joinToString("\\n")))
+            .setStyle(Notification.BigTextStyle().bigText(if(due.isEmpty()) message else due.joinToString("\n")))
             .setContentIntent(openApp).setAutoCancel(true).build()
         context.getSystemService(NotificationManager::class.java).notify(9001,notification)
     }
