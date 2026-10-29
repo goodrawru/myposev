@@ -1063,7 +1063,7 @@ class MainActivity : Activity() {
         val day = date.clone() as Calendar
         val key = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(day.time)
         val tasks = tasksArray(); val lines = mutableListOf<String>()
-        for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; if (item.optString("date") == key) lines.add((if (item.optBoolean("done", false)) "✓ " else "• ") + item.optString("title", "Задача") + " — " + item.optString("type", "Уход")) }
+        for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; if (item.optString("date") == key) { val crop = item.optString("crop", "").trim(); val taskLine = (if (item.optBoolean("done", false)) "✓ " else "• ") + item.optString("title", "Задача") + " — " + item.optString("type", "Уход"); lines.add(if (crop.isBlank()) taskLine else "$taskLine\n  Культура/грядка: $crop") } }
         val note = prefs.getString("note_" + dateString(day), "").orEmpty()
         val body = dateString(day) + "\n\n" + lunarSummary(day) + "\n\n" + seasonalAdvice(day) + "\n\nЗадачи:\n" + (if (lines.isEmpty()) "На эту дату задач нет." else lines.joinToString("\n")) + "\n\nЗаметка: " + if (note.isBlank()) "нет" else note
         android.app.AlertDialog.Builder(this).setTitle("Календарь на день").setMessage(body).setPositiveButton("Добавить задачу") { _, _ -> addTaskForDate(day) }.setNegativeButton("Закрыть", null).show()
