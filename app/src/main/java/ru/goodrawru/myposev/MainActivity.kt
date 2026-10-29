@@ -184,7 +184,7 @@ class MainActivity : Activity() {
     // Original synthesized ambient pad: no streaming service, ads, account, or network required.
     private fun createImmersionTrack(): AudioTrack {
         val sampleRate = 22050
-        val seconds = 24
+        val seconds = 20
         val samples = ShortArray(sampleRate * seconds)
         val chords = arrayOf(
             doubleArrayOf(130.81, 164.81, 196.00, 261.63), // C
@@ -200,7 +200,9 @@ class MainActivity : Activity() {
             val fade = 0.75
             val attack = (local / fade).coerceIn(0.0, 1.0)
             val release = ((chordSeconds - local) / fade).coerceIn(0.0, 1.0)
-            val envelope = minOf(attack, release)
+            val chordEnvelope = 0.88 + 0.12 * minOf(attack, release)
+            val edgeEnvelope = minOf((t / 0.18).coerceIn(0.0, 1.0), ((seconds - t) / 0.18).coerceIn(0.0, 1.0))
+            val envelope = chordEnvelope * edgeEnvelope
             var value = 0.0
             val chord = chords[chordIndex]
             for (n in chord.indices) {
