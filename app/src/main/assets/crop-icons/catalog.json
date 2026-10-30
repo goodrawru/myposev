@@ -1,0 +1,796 @@
+{
+  "schemaVersion": 1,
+  "app": "Мой Посевной",
+  "branch": "rustore",
+  "source": {
+    "name": "Open Crop Icons",
+    "repository": "https://github.com/openfarmcc/open-crop-icons",
+    "branch": "mainline",
+    "license": "CC0-1.0",
+    "attribution": "Not required; source attribution retained in this catalog.",
+    "note": "This is metadata, not bundled image files. A crop with sourceSlug=null needs a matching custom illustration or deliberate shared icon."
+  },
+  "iconStyle": "Use source illustrations where available; create matching colorful flat botanical art for missing crops. One record per crop; overlapping uses belong in tags, not duplicate crop entries.",
+  "crops": [
+    {
+      "id": "tomato",
+      "name": "Томат",
+      "category": "Овощи",
+      "sourceSlug": "tomato"
+    },
+    {
+      "id": "cucumber",
+      "name": "Огурец",
+      "category": "Овощи",
+      "sourceSlug": "cucumber"
+    },
+    {
+      "id": "sweet_pepper",
+      "name": "Перец сладкий",
+      "category": "Овощи",
+      "sourceSlug": "green-bell-pepper"
+    },
+    {
+      "id": "hot_pepper",
+      "name": "Перец острый",
+      "category": "Овощи",
+      "sourceSlug": "jalapeno"
+    },
+    {
+      "id": "eggplant",
+      "name": "Баклажан",
+      "category": "Овощи",
+      "sourceSlug": "eggplant"
+    },
+    {
+      "id": "potato",
+      "name": "Картофель",
+      "category": "Овощи",
+      "sourceSlug": "russet-potato"
+    },
+    {
+      "id": "carrot",
+      "name": "Морковь",
+      "category": "Корнеплоды",
+      "sourceSlug": "carrot"
+    },
+    {
+      "id": "beet",
+      "name": "Свёкла",
+      "category": "Корнеплоды",
+      "sourceSlug": "beet"
+    },
+    {
+      "id": "radish",
+      "name": "Редис",
+      "category": "Корнеплоды",
+      "sourceSlug": "cherry-bell-radish"
+    },
+    {
+      "id": "daikon",
+      "name": "Дайкон",
+      "category": "Корнеплоды",
+      "sourceSlug": "icicle-radish"
+    },
+    {
+      "id": "turnip",
+      "name": "Репа",
+      "category": "Корнеплоды",
+      "sourceSlug": "turnip"
+    },
+    {
+      "id": "rutabaga",
+      "name": "Брюква",
+      "category": "Корнеплоды",
+      "sourceSlug": "rutabaga"
+    },
+    {
+      "id": "white_cabbage",
+      "name": "Капуста белокочанная",
+      "category": "Капустные",
+      "sourceSlug": "green-cabbage"
+    },
+    {
+      "id": "red_cabbage",
+      "name": "Капуста краснокочанная",
+      "category": "Капустные",
+      "sourceSlug": "red-cabbage"
+    },
+    {
+      "id": "cauliflower",
+      "name": "Цветная капуста",
+      "category": "Капустные",
+      "sourceSlug": "cauliflower"
+    },
+    {
+      "id": "broccoli",
+      "name": "Брокколи",
+      "category": "Капустные",
+      "sourceSlug": "broccoli"
+    },
+    {
+      "id": "brussels_sprouts",
+      "name": "Брюссельская капуста",
+      "category": "Капустные",
+      "sourceSlug": "brussel-sprout"
+    },
+    {
+      "id": "kohlrabi",
+      "name": "Кольраби",
+      "category": "Капустные",
+      "sourceSlug": "kohlrabi"
+    },
+    {
+      "id": "zucchini",
+      "name": "Кабачок",
+      "category": "Тыквенные",
+      "sourceSlug": "zucchini"
+    },
+    {
+      "id": "pattypan",
+      "name": "Патиссон",
+      "category": "Тыквенные",
+      "sourceSlug": "pattypan-squash"
+    },
+    {
+      "id": "pumpkin",
+      "name": "Тыква",
+      "category": "Тыквенные",
+      "sourceSlug": "pumpkin"
+    },
+    {
+      "id": "watermelon",
+      "name": "Арбуз",
+      "category": "Тыквенные",
+      "sourceSlug": "watermelon"
+    },
+    {
+      "id": "melon",
+      "name": "Дыня",
+      "category": "Тыквенные",
+      "sourceSlug": "cantaloupe"
+    },
+    {
+      "id": "peas",
+      "name": "Горох",
+      "category": "Бобовые",
+      "sourceSlug": "snap-pea"
+    },
+    {
+      "id": "green_beans",
+      "name": "Фасоль стручковая",
+      "category": "Бобовые",
+      "sourceSlug": "blue-lake-bean"
+    },
+    {
+      "id": "broad_beans",
+      "name": "Бобы",
+      "category": "Бобовые",
+      "sourceSlug": "broad-bean"
+    },
+    {
+      "id": "corn",
+      "name": "Кукуруза сахарная",
+      "category": "Зерновые и овощи",
+      "sourceSlug": "corn"
+    },
+    {
+      "id": "onion",
+      "name": "Лук репчатый",
+      "category": "Луковые",
+      "sourceSlug": "onion"
+    },
+    {
+      "id": "leek",
+      "name": "Лук-порей",
+      "category": "Луковые",
+      "sourceSlug": "leek"
+    },
+    {
+      "id": "garlic",
+      "name": "Чеснок",
+      "category": "Луковые",
+      "sourceSlug": "garlic"
+    },
+    {
+      "id": "celeriac",
+      "name": "Сельдерей корневой",
+      "category": "Корнеплоды",
+      "sourceSlug": "celeriac-root"
+    },
+    {
+      "id": "celery",
+      "name": "Сельдерей черешковый",
+      "category": "Зелень",
+      "sourceSlug": "celery"
+    },
+    {
+      "id": "asparagus",
+      "name": "Спаржа",
+      "category": "Овощи",
+      "sourceSlug": "asparagus"
+    },
+    {
+      "id": "parsnip",
+      "name": "Пастернак",
+      "category": "Корнеплоды",
+      "sourceSlug": "parsnip"
+    },
+    {
+      "id": "sweet_potato",
+      "name": "Батат",
+      "category": "Овощи",
+      "sourceSlug": "sweet-potato"
+    },
+    {
+      "id": "dill",
+      "name": "Укроп",
+      "category": "Зелень",
+      "sourceSlug": null
+    },
+    {
+      "id": "parsley",
+      "name": "Петрушка",
+      "category": "Зелень",
+      "sourceSlug": "parsley"
+    },
+    {
+      "id": "cilantro",
+      "name": "Кинза",
+      "category": "Зелень",
+      "sourceSlug": "cilantro"
+    },
+    {
+      "id": "basil",
+      "name": "Базилик",
+      "category": "Пряные травы",
+      "sourceSlug": "basil"
+    },
+    {
+      "id": "mint",
+      "name": "Мята",
+      "category": "Пряные травы",
+      "sourceSlug": "mint"
+    },
+    {
+      "id": "lemon_balm",
+      "name": "Мелисса",
+      "category": "Пряные травы",
+      "sourceSlug": "lemon-balm"
+    },
+    {
+      "id": "spinach",
+      "name": "Шпинат",
+      "category": "Зелень",
+      "sourceSlug": "spinach"
+    },
+    {
+      "id": "lettuce",
+      "name": "Салат листовой",
+      "category": "Зелень",
+      "sourceSlug": "loose-leaf-lettuce"
+    },
+    {
+      "id": "arugula",
+      "name": "Руккола",
+      "category": "Зелень",
+      "sourceSlug": "arugula"
+    },
+    {
+      "id": "sorrel",
+      "name": "Щавель",
+      "category": "Зелень",
+      "sourceSlug": null
+    },
+    {
+      "id": "swiss_chard",
+      "name": "Мангольд",
+      "category": "Зелень",
+      "sourceSlug": "swiss-chard"
+    },
+    {
+      "id": "watercress",
+      "name": "Кресс-салат",
+      "category": "Зелень",
+      "sourceSlug": "watercress"
+    },
+    {
+      "id": "tarragon",
+      "name": "Эстрагон",
+      "category": "Пряные травы",
+      "sourceSlug": null
+    },
+    {
+      "id": "rosemary",
+      "name": "Розмарин",
+      "category": "Пряные травы",
+      "sourceSlug": "rosemary"
+    },
+    {
+      "id": "thyme",
+      "name": "Тимьян",
+      "category": "Пряные травы",
+      "sourceSlug": "thyme"
+    },
+    {
+      "id": "strawberry",
+      "name": "Клубника",
+      "category": "Ягоды",
+      "sourceSlug": "strawberry"
+    },
+    {
+      "id": "wild_strawberry",
+      "name": "Земляника",
+      "category": "Ягоды",
+      "sourceSlug": "strawberry"
+    },
+    {
+      "id": "raspberry",
+      "name": "Малина",
+      "category": "Ягоды",
+      "sourceSlug": "raspberry"
+    },
+    {
+      "id": "blackberry",
+      "name": "Ежевика",
+      "category": "Ягоды",
+      "sourceSlug": "blackberry"
+    },
+    {
+      "id": "black_currant",
+      "name": "Смородина чёрная",
+      "category": "Ягоды",
+      "sourceSlug": null
+    },
+    {
+      "id": "red_currant",
+      "name": "Смородина красная",
+      "category": "Ягоды",
+      "sourceSlug": null
+    },
+    {
+      "id": "white_currant",
+      "name": "Смородина белая",
+      "category": "Ягоды",
+      "sourceSlug": null
+    },
+    {
+      "id": "gooseberry",
+      "name": "Крыжовник",
+      "category": "Ягоды",
+      "sourceSlug": null
+    },
+    {
+      "id": "honeysuckle",
+      "name": "Жимолость съедобная",
+      "category": "Ягоды",
+      "sourceSlug": null
+    },
+    {
+      "id": "blueberry",
+      "name": "Голубика",
+      "category": "Ягоды",
+      "sourceSlug": "blueberry"
+    },
+    {
+      "id": "cranberry",
+      "name": "Клюква",
+      "category": "Ягоды",
+      "sourceSlug": null
+    },
+    {
+      "id": "lingonberry",
+      "name": "Брусника",
+      "category": "Ягоды",
+      "sourceSlug": null
+    },
+    {
+      "id": "grape",
+      "name": "Виноград",
+      "category": "Ягоды и лианы",
+      "sourceSlug": null
+    },
+    {
+      "id": "sea_buckthorn",
+      "name": "Облепиха",
+      "category": "Ягоды",
+      "sourceSlug": null
+    },
+    {
+      "id": "actinidia",
+      "name": "Актинидия",
+      "category": "Ягоды и лианы",
+      "sourceSlug": null
+    },
+    {
+      "id": "apple",
+      "name": "Яблоня",
+      "category": "Плодовые деревья",
+      "sourceSlug": "generic-apple"
+    },
+    {
+      "id": "pear",
+      "name": "Груша",
+      "category": "Плодовые деревья",
+      "sourceSlug": "green-anjou-pear"
+    },
+    {
+      "id": "plum",
+      "name": "Слива",
+      "category": "Плодовые деревья",
+      "sourceSlug": "plum"
+    },
+    {
+      "id": "sour_cherry",
+      "name": "Вишня",
+      "category": "Плодовые деревья",
+      "sourceSlug": "bing-cherry"
+    },
+    {
+      "id": "sweet_cherry",
+      "name": "Черешня",
+      "category": "Плодовые деревья",
+      "sourceSlug": "bing-cherry"
+    },
+    {
+      "id": "apricot",
+      "name": "Абрикос",
+      "category": "Плодовые деревья",
+      "sourceSlug": "apricot"
+    },
+    {
+      "id": "peach",
+      "name": "Персик",
+      "category": "Плодовые деревья",
+      "sourceSlug": "peach"
+    },
+    {
+      "id": "cherry_plum",
+      "name": "Алыча",
+      "category": "Плодовые деревья",
+      "sourceSlug": "plum"
+    },
+    {
+      "id": "quince",
+      "name": "Айва",
+      "category": "Плодовые деревья",
+      "sourceSlug": null
+    },
+    {
+      "id": "rowan",
+      "name": "Рябина",
+      "category": "Плодовые деревья",
+      "sourceSlug": null
+    },
+    {
+      "id": "serviceberry",
+      "name": "Ирга",
+      "category": "Плодовые кустарники",
+      "sourceSlug": null
+    },
+    {
+      "id": "rosehip",
+      "name": "Шиповник",
+      "category": "Плодовые кустарники",
+      "sourceSlug": null
+    },
+    {
+      "id": "walnut",
+      "name": "Грецкий орех",
+      "category": "Орехоплодные",
+      "sourceSlug": null
+    },
+    {
+      "id": "hazelnut",
+      "name": "Фундук",
+      "category": "Орехоплодные",
+      "sourceSlug": null
+    },
+    {
+      "id": "almond",
+      "name": "Миндаль",
+      "category": "Орехоплодные",
+      "sourceSlug": "almond"
+    },
+    {
+      "id": "viburnum",
+      "name": "Калина",
+      "category": "Плодовые кустарники",
+      "sourceSlug": null
+    },
+    {
+      "id": "hawthorn",
+      "name": "Боярышник",
+      "category": "Плодовые кустарники",
+      "sourceSlug": null
+    },
+    {
+      "id": "mulberry",
+      "name": "Шелковица",
+      "category": "Плодовые деревья",
+      "sourceSlug": null
+    },
+    {
+      "id": "cornelian_cherry",
+      "name": "Кизил",
+      "category": "Плодовые кустарники",
+      "sourceSlug": null
+    },
+    {
+      "id": "lemon",
+      "name": "Лимон",
+      "category": "Цитрусовые",
+      "sourceSlug": null
+    },
+    {
+      "id": "marigold",
+      "name": "Бархатцы",
+      "category": "Цветы",
+      "sourceSlug": null
+    },
+    {
+      "id": "nasturtium",
+      "name": "Настурция",
+      "category": "Цветы",
+      "sourceSlug": null
+    },
+    {
+      "id": "calendula",
+      "name": "Календула",
+      "category": "Цветы",
+      "sourceSlug": null
+    },
+    {
+      "id": "petunia",
+      "name": "Петуния",
+      "category": "Цветы",
+      "sourceSlug": null
+    },
+    {
+      "id": "aster",
+      "name": "Астра",
+      "category": "Цветы",
+      "sourceSlug": null
+    },
+    {
+      "id": "zinnia",
+      "name": "Цинния",
+      "category": "Цветы",
+      "sourceSlug": null
+    },
+    {
+      "id": "cosmos",
+      "name": "Космея",
+      "category": "Цветы",
+      "sourceSlug": null
+    },
+    {
+      "id": "snapdragon",
+      "name": "Львиный зев",
+      "category": "Цветы",
+      "sourceSlug": null
+    },
+    {
+      "id": "sweet_pea",
+      "name": "Душистый горошек",
+      "category": "Цветы",
+      "sourceSlug": null
+    },
+    {
+      "id": "morning_glory",
+      "name": "Ипомея",
+      "category": "Цветы",
+      "sourceSlug": null
+    },
+    {
+      "id": "sunflower",
+      "name": "Подсолнечник декоративный",
+      "category": "Цветы",
+      "sourceSlug": "sunflower"
+    },
+    {
+      "id": "dahlia",
+      "name": "Георгина",
+      "category": "Цветы",
+      "sourceSlug": null
+    },
+    {
+      "id": "gladiolus",
+      "name": "Гладиолус",
+      "category": "Цветы",
+      "sourceSlug": null
+    },
+    {
+      "id": "tulip",
+      "name": "Тюльпан",
+      "category": "Цветы",
+      "sourceSlug": null
+    },
+    {
+      "id": "daffodil",
+      "name": "Нарцисс",
+      "category": "Цветы",
+      "sourceSlug": null
+    },
+    {
+      "id": "white_mustard",
+      "name": "Горчица белая",
+      "category": "Сидераты",
+      "sourceSlug": "red-giant-mustard"
+    },
+    {
+      "id": "phacelia",
+      "name": "Фацелия",
+      "category": "Сидераты",
+      "sourceSlug": null
+    },
+    {
+      "id": "lupin",
+      "name": "Люпин",
+      "category": "Сидераты",
+      "sourceSlug": null
+    },
+    {
+      "id": "vetch",
+      "name": "Вика",
+      "category": "Сидераты",
+      "sourceSlug": "snap-pea"
+    },
+    {
+      "id": "white_clover",
+      "name": "Клевер белый",
+      "category": "Сидераты",
+      "sourceSlug": null
+    },
+    {
+      "id": "red_clover",
+      "name": "Клевер красный",
+      "category": "Сидераты",
+      "sourceSlug": null
+    },
+    {
+      "id": "alfalfa",
+      "name": "Люцерна",
+      "category": "Сидераты",
+      "sourceSlug": null
+    },
+    {
+      "id": "rye",
+      "name": "Рожь",
+      "category": "Сидераты",
+      "sourceSlug": "rye"
+    },
+    {
+      "id": "oat",
+      "name": "Овёс",
+      "category": "Сидераты",
+      "sourceSlug": "oat"
+    },
+    {
+      "id": "barley",
+      "name": "Ячмень",
+      "category": "Сидераты",
+      "sourceSlug": "barley"
+    },
+    {
+      "id": "buckwheat",
+      "name": "Гречиха",
+      "category": "Сидераты",
+      "sourceSlug": null
+    },
+    {
+      "id": "rapeseed",
+      "name": "Рапс",
+      "category": "Сидераты",
+      "sourceSlug": null
+    },
+    {
+      "id": "oilseed_radish",
+      "name": "Редька масличная",
+      "category": "Сидераты",
+      "sourceSlug": "icicle-radish"
+    },
+    {
+      "id": "sweet_clover",
+      "name": "Донник",
+      "category": "Сидераты",
+      "sourceSlug": null
+    },
+    {
+      "id": "sainfoin",
+      "name": "Эспарцет",
+      "category": "Сидераты",
+      "sourceSlug": null
+    },
+    {
+      "id": "shallot",
+      "name": "Лук-шалот",
+      "category": "Луковые",
+      "sourceSlug": "shallot"
+    },
+    {
+      "id": "chives",
+      "name": "Шнитт-лук",
+      "category": "Зелень",
+      "sourceSlug": "onion-chive"
+    },
+    {
+      "id": "welsh_onion",
+      "name": "Лук-батун",
+      "category": "Луковые",
+      "sourceSlug": "green-onion"
+    },
+    {
+      "id": "napa_cabbage",
+      "name": "Капуста пекинская",
+      "category": "Капустные",
+      "sourceSlug": "napa-cabbage"
+    },
+    {
+      "id": "kale",
+      "name": "Кейл",
+      "category": "Капустные",
+      "sourceSlug": "curly-kale"
+    },
+    {
+      "id": "rhubarb",
+      "name": "Ревень",
+      "category": "Многолетние овощи",
+      "sourceSlug": null
+    },
+    {
+      "id": "horseradish",
+      "name": "Хрен",
+      "category": "Многолетние овощи",
+      "sourceSlug": null
+    },
+    {
+      "id": "hops",
+      "name": "Хмель",
+      "category": "Лианы",
+      "sourceSlug": "hop"
+    },
+    {
+      "id": "fennel",
+      "name": "Фенхель",
+      "category": "Зелень",
+      "sourceSlug": "fennel"
+    },
+    {
+      "id": "oregano",
+      "name": "Душица",
+      "category": "Пряные травы",
+      "sourceSlug": "oregano"
+    },
+    {
+      "id": "sage",
+      "name": "Шалфей",
+      "category": "Пряные травы",
+      "sourceSlug": "sage"
+    },
+    {
+      "id": "lovage",
+      "name": "Любисток",
+      "category": "Пряные травы",
+      "sourceSlug": null
+    },
+    {
+      "id": "marjoram",
+      "name": "Майоран",
+      "category": "Пряные травы",
+      "sourceSlug": "majoram"
+    },
+    {
+      "id": "savory",
+      "name": "Чабер",
+      "category": "Пряные травы",
+      "sourceSlug": null
+    },
+    {
+      "id": "artichoke",
+      "name": "Артишок",
+      "category": "Овощи",
+      "sourceSlug": "atrichoke"
+    }
+  ]
+}
