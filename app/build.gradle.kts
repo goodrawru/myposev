@@ -7,6 +7,10 @@ android {
     namespace = "ru.goodrawru.myposev"
     compileSdk = 35
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "ru.goodrawru.myposev"
         minSdk = 26
