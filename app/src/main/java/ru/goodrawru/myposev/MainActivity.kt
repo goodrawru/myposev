@@ -210,7 +210,7 @@ class MainActivity : Activity() {
                     "PDF" -> showPaperPlanner()
                     else -> showAbout()
                 } }
-            }, LinearLayout.LayoutParams(0,-2,1f))
+            }, LinearLayout.LayoutParams(-2,-2))
         }
         navScroll.addView(nav)
         root.addView(navScroll)
