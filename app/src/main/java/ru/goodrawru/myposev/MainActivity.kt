@@ -280,20 +280,23 @@ class MainActivity : Activity() {
             val offset = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7; val days = c.getActualMaximum(Calendar.DAY_OF_MONTH); val cells = MutableList(offset) { 0 } + (1..days).toList()
             cells.chunked(7).forEach { row -> val labels = (row + List(7-row.size) { 0 }).map { day -> if (day == 0) "       " else day.toString().padStart(2) + " " + lunarGlyph(Calendar.getInstance().apply { set(actualYear, month, day, 12, 0, 0) }) }; line(labels.joinToString("   ")) }
             y += 5f; line("Фазы Луны даны как ориентир; сроки работ корректируйте по местным условиям.")
-            val monthNotes = prefs.all.toList().filter { e ->
-                e.key.startsWith("note_") && e.value is String && (e.value as String).isNotBlank() &&
+            val monthNotes = prefs.all.toList().filter { entry ->
+                val noteKey = entry.first
+                val noteValue = entry.second
+                noteKey.startsWith("note_") && noteValue is String && noteValue.isNotBlank() &&
                 runCatching {
-                    val d = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(e.key.removePrefix("note_"))
+                    val d = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(noteKey.removePrefix("note_"))
                     d != null && Calendar.getInstance().apply { time = d }.get(Calendar.YEAR) == actualYear &&
                         Calendar.getInstance().apply { time = d }.get(Calendar.MONTH) == month
                 }.getOrDefault(false)
-            }.sortedBy { it.key }
+            }.sortedBy { entry -> entry.first }
             if (monthNotes.isNotEmpty()) {
                 section("Заметки к календарю")
-                monthNotes.forEach { e ->
-                    val rawDate = e.key.removePrefix("note_")
+                monthNotes.forEach { entry ->
+                    val rawDate = entry.first.removePrefix("note_")
+                    val noteValue = entry.second as String
                     val displayDate = runCatching { SimpleDateFormat("dd.MM.yyyy", Locale("ru")).format(SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(rawDate)!!) }.getOrDefault(rawDate)
-                    line("$displayDate — ${e.value}")
+                    line("$displayDate — $noteValue")
                 }
             }
         }
