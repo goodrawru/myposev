@@ -176,11 +176,10 @@ class MainActivity : Activity() {
             text = "🌱  " + title; textSize=25f; setTextColor(Color.WHITE); setBackgroundColor(green)
             setPadding(20,22,20,22); gravity=Gravity.CENTER_VERTICAL
         })
-        // Раздел и быстрый переход к PDF; раздел «Погружение» удалён из интерфейса.
         val sectionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(3), dp(6), dp(3))
+            setPadding(dp(12), dp(8), dp(12), dp(8))
             setBackgroundColor(Color.WHITE)
         }
         sectionRow.addView(TextView(this).apply {
@@ -188,14 +187,6 @@ class MainActivity : Activity() {
             textSize = 12f
             setTextColor(Color.rgb(65, 78, 67))
             maxLines = 2
-        }, LinearLayout.LayoutParams(0, -2, 1f))
-        sectionRow.addView(Button(this).apply {
-            text = "📄 PDF"
-            textSize = 12f
-            isAllCaps = false
-            minWidth = 0
-            setPadding(dp(8), dp(2), dp(8), dp(2))
-            setOnClickListener { showPaperPlanner() }
         })
         root.addView(sectionRow)
         val navScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; setBackgroundColor(Color.WHITE) }
@@ -571,20 +562,20 @@ class MainActivity : Activity() {
 
     private fun showFirstRunOrUpdateNotice() {
         if (!prefs.getBoolean("welcome_shown", false)) {
-            prefs.edit().putBoolean("welcome_shown", true).putString("last_seen_version", "1.2.1").apply()
+            prefs.edit().putBoolean("welcome_shown", true).putString("last_seen_version", BuildConfig.VERSION_NAME).apply()
             android.app.AlertDialog.Builder(this).setTitle("Добро пожаловать в «Мой Посевной»! 🌱")
                 .setMessage("Планируйте посевы и садовые работы, ведите заметки, добавляйте культуры, создавайте PDF и сохраняйте резервные копии. Ваши данные хранятся на устройстве.")
                 .setPositiveButton("Начать работу", null).show()
             return
         }
-        if (prefs.getString("last_seen_version", "") != "1.2.1") {
-            prefs.edit().putString("last_seen_version", "1.2.1").apply()
+        if (prefs.getString("last_seen_version", "") != BuildConfig.VERSION_NAME) {
+            prefs.edit().putString("last_seen_version", BuildConfig.VERSION_NAME).apply()
             showUpdateNotes(false)
         }
     }
 
     private fun showUpdateNotes(manual: Boolean) {
-        android.app.AlertDialog.Builder(this).setTitle("Что нового · версия 1.2.0")
+        android.app.AlertDialog.Builder(this).setTitle("Что нового · версия " + BuildConfig.VERSION_NAME)
             .setMessage("• Добавление собственных культур и иконок.\n• Заметки под календарями месяцев в PDF.\n• Резервное копирование и восстановление.\n• Индикаторы дней в календаре.\n• Отдельный раздел «О программе».")
             .setPositiveButton("Понятно", null).show()
     }
@@ -619,8 +610,18 @@ class MainActivity : Activity() {
                     var entry = zip.nextEntry
                     var found: String? = null
                     while (entry != null) {
-                        if (entry.name == "backup.json") {
-                            found = zip.bufferedReader(Charsets.UTF_8).readText()
+                        if (entry.name == "backup.json" && !entry.isDirectory) {
+                            val output = java.io.ByteArrayOutputStream()
+                            val buffer = ByteArray(8192)
+                            var total = 0
+                            while (true) {
+                                val count = zip.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                if (total > 5 * 1024 * 1024) throw IllegalArgumentException("Файл резервной копии слишком большой")
+                                output.write(buffer, 0, count)
+                            }
+                            found = output.toString(Charsets.UTF_8.name())
                             break
                         }
                         zip.closeEntry()
@@ -632,25 +633,52 @@ class MainActivity : Activity() {
             val root = JSONObject(jsonText)
             if (root.optInt("format", -1) != 1) throw IllegalArgumentException("Неподдерживаемый формат копии")
             val values = root.optJSONObject("preferences") ?: throw IllegalArgumentException("В копии нет настроек")
-            val editor = prefs.edit().clear()
+
+            // Validate all supported values before changing any current data.
+            val parsed = mutableListOf<Pair<String, Pair<String, Any?>>>()
             val keys = values.keys()
             while (keys.hasNext()) {
                 val key = keys.next()
-                val entry = values.optJSONObject(key) ?: continue
-                val value = entry.opt("value")
-                when (entry.optString("type")) {
-                    "s" -> editor.putString(key, value?.takeUnless { it == JSONObject.NULL }?.toString() ?: "")
-                    "b" -> editor.putBoolean(key, value as? Boolean ?: false)
-                    "i" -> editor.putInt(key, (value as? Number)?.toInt() ?: 0)
-                    "l" -> editor.putLong(key, (value as? Number)?.toLong() ?: 0L)
-                    "f" -> editor.putFloat(key, (value as? Number)?.toFloat() ?: 0f)
+                val item = values.optJSONObject(key) ?: throw IllegalArgumentException("Повреждена запись: $key")
+                val type = item.optString("type", "")
+                val value = item.opt("value")
+                when (type) {
+                    "s" -> parsed.add(key to (type to (value?.takeUnless { it == JSONObject.NULL }?.toString() ?: "")))
+                    "b" -> {
+                        if (value !is Boolean) throw IllegalArgumentException("Неверное значение: $key")
+                        parsed.add(key to (type to value))
+                    }
+                    "i" -> {
+                        if (value !is Number) throw IllegalArgumentException("Неверное значение: $key")
+                        parsed.add(key to (type to value.toInt()))
+                    }
+                    "l" -> {
+                        if (value !is Number) throw IllegalArgumentException("Неверное значение: $key")
+                        parsed.add(key to (type to value.toLong()))
+                    }
+                    "f" -> {
+                        if (value !is Number) throw IllegalArgumentException("Неверное значение: $key")
+                        parsed.add(key to (type to value.toFloat()))
+                    }
+                    else -> throw IllegalArgumentException("Неизвестный тип данных: $key")
                 }
             }
-            editor.apply()
-            Toast.makeText(this, "Копия восстановлена. Перезапустите приложение для обновления всех экранов.", Toast.LENGTH_LONG).show()
+
+            val editor = prefs.edit().clear()
+            parsed.forEach { (key, pair) ->
+                when (pair.first) {
+                    "s" -> editor.putString(key, pair.second as String)
+                    "b" -> editor.putBoolean(key, pair.second as Boolean)
+                    "i" -> editor.putInt(key, pair.second as Int)
+                    "l" -> editor.putLong(key, pair.second as Long)
+                    "f" -> editor.putFloat(key, pair.second as Float)
+                }
+            }
+            if (!editor.commit()) throw IllegalStateException("Android не смог сохранить восстановленные данные")
+            Toast.makeText(this, "Копия восстановлена. Данные загружены.", Toast.LENGTH_LONG).show()
             showHome()
         } catch (e: Exception) {
-            Toast.makeText(this, "Не удалось восстановить копию: ${e.message ?: "неверный архив"}", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Не удалось восстановить копию: ${e.message ?: "неверный архив"}. Текущие данные не изменены.", Toast.LENGTH_LONG).show()
         }
     }
 
