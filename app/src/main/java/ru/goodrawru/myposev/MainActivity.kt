@@ -1588,7 +1588,7 @@ class MainActivity : Activity() {
 
     private fun setCropIcon(image: ImageView, key: String) {
         // Always install a visible fallback first; SVG parsing failures must never leave a blank card.
-        image.setImageResource(userCropIconResource(key))
+        image.setImageResource(R.drawable.plant_generic)
         try {
             var slug: String? = null
             for (i in 0 until cropIconCatalog.length()) {
