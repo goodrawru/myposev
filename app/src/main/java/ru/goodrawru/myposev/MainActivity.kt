@@ -584,7 +584,7 @@ class MainActivity : Activity() {
         try {
             val json = JSONObject().put("format", 1).put("created", System.currentTimeMillis())
             val values = JSONObject()
-            prefs.all.forEach { (k,v) -> values.put(k, JSONObject().put("type", when(v) { is String -> "s"; is Boolean -> "b"; is Int -> "i"; is Long -> "l"; is Float -> "f"; else -> "x" }).put("value", v)) }
+            prefs.all.forEach { (k,v) -> values.put(k, JSONObject().put("type", when(v) { is String -> "s"; is Boolean -> "b"; is Int -> "i"; is Long -> "l"; is Float -> "f"; is Set<*> -> "ss"; else -> "x" }).put("value", v)) }
             json.put("preferences", values)
             val bytes = java.io.ByteArrayOutputStream()
             java.util.zip.ZipOutputStream(bytes).use { z -> z.putNextEntry(java.util.zip.ZipEntry("backup.json")); z.write(json.toString(2).toByteArray(Charsets.UTF_8)); z.closeEntry() }
@@ -660,6 +660,16 @@ class MainActivity : Activity() {
                         if (value !is Number) throw IllegalArgumentException("Неверное значение: $key")
                         parsed.add(key to (type to value.toFloat()))
                     }
+                    "ss" -> {
+                        if (value !is org.json.JSONArray) throw IllegalArgumentException("Неверное значение: $key")
+                        val set = linkedSetOf<String>()
+                        for (i in 0 until value.length()) {
+                            val itemValue = value.opt(i)
+                            if (itemValue !is String) throw IllegalArgumentException("Неверное значение: $key")
+                            set.add(itemValue)
+                        }
+                        parsed.add(key to (type to set))
+                    }
                     else -> throw IllegalArgumentException("Неизвестный тип данных: $key")
                 }
             }
@@ -672,6 +682,7 @@ class MainActivity : Activity() {
                     "i" -> editor.putInt(key, pair.second as Int)
                     "l" -> editor.putLong(key, pair.second as Long)
                     "f" -> editor.putFloat(key, pair.second as Float)
+                    "ss" -> editor.putStringSet(key, pair.second as Set<String>)
                 }
             }
             if (!editor.commit()) throw IllegalStateException("Android не смог сохранить восстановленные данные")
