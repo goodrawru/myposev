@@ -1337,14 +1337,61 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun userCrops(): JSONArray = try { JSONArray(prefs.getString("user_crops", "[]")) } catch (_: Exception) { JSONArray() }
+
+    private fun addUserCrop(existing: JSONObject? = null) {
+        val name = EditText(this).apply { hint = "Название культуры *"; setText(existing?.optString("name", "") ?: "") }
+        val category = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("Овощи","Зелень","Ягоды","Цветы","Другое")); setSelection((listOf("Овощи","Зелень","Ягоды","Цветы","Другое").indexOf(existing?.optString("category")).coerceAtLeast(0))) }
+        val sowing = EditText(this).apply { hint = "Сроки посева"; setText(existing?.optString("sowing", "") ?: "") }
+        val depth = EditText(this).apply { hint = "Глубина посева"; setText(existing?.optString("depth", "") ?: "") }
+        val sprouts = EditText(this).apply { hint = "Сроки всходов"; setText(existing?.optString("sprouts", "") ?: "") }
+        val advice = EditText(this).apply { hint = "Советы по выращиванию"; setText(existing?.optString("advice", "") ?: ""); minLines = 2 }
+        val emojiChoices = listOf("🌱","🍅","🥕","🥒","🌶️","🥬","🌿","🍓","🌻","🌳","🧄","🎃","🫘")
+        val emoji = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, emojiChoices); setSelection(emojiChoices.indexOf(existing?.optString("emoji")).coerceAtLeast(0)) }
+        val form = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(4), dp(18), dp(4)) }
+        listOf<View>(name, category, sowing, depth, sprouts, advice, txt("Иконка",14f,true), emoji).forEach { form.addView(it) }
+        val dialog = android.app.AlertDialog.Builder(this).setTitle(if(existing == null) "Добавить свою культуру" else "Изменить культуру")
+            .setView(ScrollView(this).apply { addView(form) }).setNegativeButton("Отмена", null).setPositiveButton("Сохранить", null).create()
+        dialog.setOnShowListener {
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val cropName = name.text.toString().trim()
+                if (cropName.isBlank()) { name.error = "Введите название"; return@setOnClickListener }
+                val all = userCrops(); val id = existing?.optString("id") ?: java.util.UUID.randomUUID().toString()
+                val item = JSONObject().put("id",id).put("name",cropName).put("category",category.selectedItem.toString()).put("sowing",sowing.text.toString()).put("depth",depth.text.toString()).put("sprouts",sprouts.text.toString()).put("advice",advice.text.toString()).put("emoji",emoji.selectedItem.toString())
+                val next = JSONArray(); var replaced = false
+                for(i in 0 until all.length()) { val old = all.optJSONObject(i) ?: continue; if(old.optString("id")==id) { next.put(item); replaced=true } else next.put(old) }
+                if(!replaced) next.put(item)
+                prefs.edit().putString("user_crops",next.toString()).apply()
+                dialog.dismiss(); showPlants("")
+            }
+        }
+        dialog.show()
+    }
+
     private fun showPlants(query:String) {
         baseLayout("Каталог культур")
         val search=EditText(this).apply { hint="Найти культуру или группу"; setSingleLine(true); setText(query) }
         content.addView(search)
+        content.addView(Button(this).apply { text = "＋ Добавить свою культуру"; isAllCaps = false; setOnClickListener { addUserCrop() } })
         val results=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         content.addView(results)
         fun fill(filter:String) {
             results.removeAllViews()
+            val mine = userCrops()
+            val matches = (0 until mine.length()).mapNotNull { mine.optJSONObject(it) }.filter { it.optString("name").contains(filter,true) || it.optString("category").contains(filter,true) }
+            if (matches.isNotEmpty()) {
+                results.addView(txt("Мои культуры",19f,true))
+                matches.forEach { crop ->
+                    val cardView = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12),dp(10),dp(12),dp(8)); background = roundedBackground(Color.WHITE,14f) }
+                    cardView.addView(txt(crop.optString("emoji","🌱") + "  " + crop.optString("name"),18f,true))
+                    cardView.addView(txt(crop.optString("category"),13f))
+                    listOf("Сроки посева" to "sowing","Глубина" to "depth","Всходы" to "sprouts","Советы" to "advice").forEach { (label,key) -> if(crop.optString(key).isNotBlank()) cardView.addView(txt("$label: ${crop.optString(key)}",13f)) }
+                    cardView.addView(Button(this).apply { text = "Изменить"; isAllCaps=false; setOnClickListener { addUserCrop(crop) } })
+                    cardView.addView(Button(this).apply { text = "Удалить"; isAllCaps=false; setOnClickListener { android.app.AlertDialog.Builder(this@MainActivity).setTitle("Удалить культуру?").setMessage(crop.optString("name")).setNegativeButton("Отмена",null).setPositiveButton("Удалить") { _,_ -> val next=JSONArray(); for(i in 0 until mine.length()) { val v=mine.optJSONObject(i) ?: continue; if(v.optString("id")!=crop.optString("id")) next.put(v) }; prefs.edit().putString("user_crops",next.toString()).apply(); showPlants("") }.show() } })
+                    results.addView(cardView,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=dp(8) })
+                }
+            }
+            results.addView(txt("Встроенный каталог",19f,true))
             plants.filter { it.name.contains(filter,true) || it.group.contains(filter,true) }.forEach { p ->
                 val box=LinearLayout(this).apply {
                     orientation=LinearLayout.HORIZONTAL; setPadding(10,10,10,12)
