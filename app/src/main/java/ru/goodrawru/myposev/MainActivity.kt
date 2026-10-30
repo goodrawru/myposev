@@ -571,14 +571,14 @@ class MainActivity : Activity() {
 
     private fun showFirstRunOrUpdateNotice() {
         if (!prefs.getBoolean("welcome_shown", false)) {
-            prefs.edit().putBoolean("welcome_shown", true).putString("last_seen_version", "1.2.0").apply()
+            prefs.edit().putBoolean("welcome_shown", true).putString("last_seen_version", "1.2.1").apply()
             android.app.AlertDialog.Builder(this).setTitle("Добро пожаловать в «Мой Посевной»! 🌱")
                 .setMessage("Планируйте посевы и садовые работы, ведите заметки, добавляйте культуры, создавайте PDF и сохраняйте резервные копии. Ваши данные хранятся на устройстве.")
                 .setPositiveButton("Начать работу", null).show()
             return
         }
-        if (prefs.getString("last_seen_version", "") != "1.2.0") {
-            prefs.edit().putString("last_seen_version", "1.2.0").apply()
+        if (prefs.getString("last_seen_version", "") != "1.2.1") {
+            prefs.edit().putString("last_seen_version", "1.2.1").apply()
             showUpdateNotes(false)
         }
     }
