@@ -1167,6 +1167,7 @@ class MainActivity : Activity() {
             grid.addView(cellView, lp)
         }
         content.addView(grid, LinearLayout.LayoutParams(-1, -2))
+        card("Обозначения календаря", "🟢 Условно благоприятный ориентир · 🟡 Смешанный день · 🔴 Для осторожного планирования. Это традиционная подсказка по лунному циклу, не научный прогноз урожайности. ● — незавершённые задачи, ◆ — есть заметка.")
         card("Фаза Луны", lunarSummary(selectedDate))
         card("Что делать в этом месяце", seasonalAdvice(selectedDate))
         button("Подробности выбранного дня") { showCalendarDay(selectedDate) }
