@@ -155,6 +155,7 @@ class MainActivity : Activity() {
         scheduleDailyReminder()
         connectMusicController()
         showHome()
+        showFirstRunOrUpdateNotice()
     }
 
     private fun baseLayout(title:String) {
@@ -195,21 +196,24 @@ class MainActivity : Activity() {
             setOnClickListener { showImmersionPlayer() }
         })
         root.addView(sectionRow)
+        val navScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; setBackgroundColor(Color.WHITE) }
         val nav = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; setBackgroundColor(Color.WHITE) }
-        listOf("Сегодня","Календарь","Культуры","Задачи","Огород","PDF").forEach { label ->
+        listOf("Сегодня","Календарь","Культуры","Задачи","Огород","PDF","О программе").forEach { label ->
             nav.addView(Button(this).apply {
-                text=label; textSize=10f; isAllCaps=false; minWidth=0; minHeight=dp(44); setPadding(dp(2),dp(5),dp(2),dp(5))
+                text=label; textSize=10f; isAllCaps=false; minWidth=dp(68); minHeight=dp(44); setPadding(dp(5),dp(5),dp(5),dp(5))
                 setOnClickListener { when(label) {
                     "Сегодня" -> showHome()
                     "Календарь" -> showCalendar()
                     "Культуры" -> showPlants("")
                     "Задачи" -> showTasks()
                     "Огород" -> showDiary()
-                    else -> showPaperPlanner()
+                    "PDF" -> showPaperPlanner()
+                    else -> showAbout()
                 } }
             }, LinearLayout.LayoutParams(0,-2,1f))
         }
-        root.addView(nav)
+        navScroll.addView(nav)
+        root.addView(navScroll)
         val scroll=ScrollView(this)
         content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(16,16,16,28) }
         scroll.addView(content)
@@ -527,6 +531,26 @@ class MainActivity : Activity() {
         })
     }
 
+    private fun showFirstRunOrUpdateNotice() {
+        if (!prefs.getBoolean("welcome_shown", false)) {
+            prefs.edit().putBoolean("welcome_shown", true).putString("last_seen_version", "1.2.0").apply()
+            android.app.AlertDialog.Builder(this).setTitle("Добро пожаловать в «Мой Посевной»! 🌱")
+                .setMessage("Планируйте посевы и садовые работы, ведите заметки, добавляйте культуры, создавайте PDF и сохраняйте резервные копии. Ваши данные хранятся на устройстве.")
+                .setPositiveButton("Начать работу", null).show()
+            return
+        }
+        if (prefs.getString("last_seen_version", "") != "1.2.0") {
+            prefs.edit().putString("last_seen_version", "1.2.0").apply()
+            showUpdateNotes(false)
+        }
+    }
+
+    private fun showUpdateNotes(manual: Boolean) {
+        android.app.AlertDialog.Builder(this).setTitle("Что нового · версия 1.2.0")
+            .setMessage("• Добавление собственных культур и иконок.\n• Заметки под календарями месяцев в PDF.\n• Резервное копирование и восстановление.\n• Индикаторы дней в календаре.\n• Отдельный раздел «О программе».")
+            .setPositiveButton("Понятно", null).show()
+    }
+
     private fun showHome() {
         baseLayout("Мой Посевной")
         content.addView(txt("Ваш помощник для сада и огорода",18f,true))
@@ -537,7 +561,6 @@ class MainActivity : Activity() {
         card("📍 Место вашего огорода","$city · $region\nКлиматическая зона: $zone\nНажмите, чтобы изменить место.",{showLocationSettings()})
         card("🌿 План на сегодня",regionalTodayAdvice())
         card("🧤 Задачи по уходу",todayTasksSummary(),{showTasks()})
-        button("🌱 О программе") { showAbout() }
         button("Политика конфиденциальности") { showPrivacyPolicy() }
         card("🌦️ Погода на 5 дней","Прогноз на ближайшие 5 дней: температура, осадки и предупреждение о заморозках. Яндекс Погода доступна отдельной кнопкой внизу.",{loadWeather()})
         card("🪴 Полезный принцип","Посевные сроки — ориентир, а не гарантия. Сверяйте рекомендации с прогнозом заморозков, температурой почвы и условиями конкретной грядки.")
@@ -551,6 +574,9 @@ class MainActivity : Activity() {
 
     private fun showAbout() {
         baseLayout("О программе")
+        content.addView(txt("Версия 1.2.0", 16f, true))
+        content.addView(txt("Календарь с индикаторами дней, собственные культуры, PDF с заметками и резервное копирование.", 14f))
+        button("Что нового в версии") { showUpdateNotes(true) }
         content.setPadding(dp(18), dp(16), dp(18), dp(30))
 
         val hero = LinearLayout(this).apply {
