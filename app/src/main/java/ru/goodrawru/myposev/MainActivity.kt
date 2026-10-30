@@ -1556,6 +1556,7 @@ class MainActivity : Activity() {
         "peas", "green_beans", "broad_beans", "vetch" -> R.drawable.plant_pea
         "basil", "parsley", "cilantro", "mint", "lemon_balm", "sorrel", "tarragon", "rosemary", "thyme", "oregano", "sage", "lovage", "marjoram", "savory", "fennel" -> R.drawable.plant_herb
         "apple", "pear", "plum", "sour_cherry", "sweet_cherry", "apricot", "peach", "cherry_plum", "quince", "rowan", "serviceberry", "rosehip", "walnut", "hazelnut", "almond", "viburnum", "hawthorn", "mulberry", "cornelian_cherry", "lemon" -> R.drawable.plant_tree
+        "rhubarb" -> R.drawable.plant_generic
         "generic" -> R.drawable.plant_generic
         else -> R.drawable.plant_generic
     }
@@ -1563,7 +1564,7 @@ class MainActivity : Activity() {
     private fun cropIconKeyForName(name: String): String {
         val n = name.lowercase(Locale.ROOT)
         val aliases = listOf(
-            "томат" to "tomato", "огур" to "cucumber", "перец слад" to "sweet_pepper",
+            "томат" to "tomato", "огур" to "cucumber", "ревень" to "rhubarb", "любисток" to "lovage", "перец слад" to "sweet_pepper",
             "перец ост" to "hot_pepper", "перец" to "sweet_pepper", "баклаж" to "eggplant",
             "картоф" to "potato", "морков" to "carrot", "свёкл" to "beet", "свекл" to "beet",
             "редис" to "radish", "дайкон" to "daikon", "репа" to "turnip", "брюкв" to "rutabaga",
