@@ -8,9 +8,9 @@
     "branch": "mainline",
     "license": "CC0-1.0",
     "attribution": "Not required; source attribution retained in this catalog.",
-    "note": "This is metadata, not bundled image files. A crop with sourceSlug=null needs a matching custom illustration or deliberate shared icon."
+    "note": "Crops marked available=false are retained only for backward compatibility with saved icon IDs; they are hidden from selection because no matching icon is bundled."
   },
-  "iconStyle": "Use source illustrations where available; create matching colorful flat botanical art for missing crops. One record per crop; overlapping uses belong in tags, not duplicate crop entries.",
+  "iconStyle": "Use source illustrations where available. Crops without a bundled icon are unavailable for selection until an illustration is added.",
   "crops": [
     {
       "id": "tomato",
@@ -178,7 +178,8 @@
       "id": "onion",
       "name": "Лук репчатый",
       "category": "Луковые",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "leek",
@@ -226,7 +227,8 @@
       "id": "dill",
       "name": "Укроп",
       "category": "Зелень",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "parsley",
@@ -280,7 +282,8 @@
       "id": "sorrel",
       "name": "Щавель",
       "category": "Зелень",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "swiss_chard",
@@ -298,7 +301,8 @@
       "id": "tarragon",
       "name": "Эстрагон",
       "category": "Пряные травы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "rosemary",
@@ -340,31 +344,36 @@
       "id": "black_currant",
       "name": "Смородина чёрная",
       "category": "Ягоды",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "red_currant",
       "name": "Смородина красная",
       "category": "Ягоды",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "white_currant",
       "name": "Смородина белая",
       "category": "Ягоды",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "gooseberry",
       "name": "Крыжовник",
       "category": "Ягоды",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "honeysuckle",
       "name": "Жимолость съедобная",
       "category": "Ягоды",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "blueberry",
@@ -376,31 +385,36 @@
       "id": "cranberry",
       "name": "Клюква",
       "category": "Ягоды",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "lingonberry",
       "name": "Брусника",
       "category": "Ягоды",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "grape",
       "name": "Виноград",
       "category": "Ягоды и лианы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "sea_buckthorn",
       "name": "Облепиха",
       "category": "Ягоды",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "actinidia",
       "name": "Актинидия",
       "category": "Ягоды и лианы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "apple",
@@ -454,37 +468,43 @@
       "id": "quince",
       "name": "Айва",
       "category": "Плодовые деревья",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "rowan",
       "name": "Рябина",
       "category": "Плодовые деревья",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "serviceberry",
       "name": "Ирга",
       "category": "Плодовые кустарники",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "rosehip",
       "name": "Шиповник",
       "category": "Плодовые кустарники",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "walnut",
       "name": "Грецкий орех",
       "category": "Орехоплодные",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "hazelnut",
       "name": "Фундук",
       "category": "Орехоплодные",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "almond",
@@ -496,91 +516,106 @@
       "id": "viburnum",
       "name": "Калина",
       "category": "Плодовые кустарники",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "hawthorn",
       "name": "Боярышник",
       "category": "Плодовые кустарники",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "mulberry",
       "name": "Шелковица",
       "category": "Плодовые деревья",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "cornelian_cherry",
       "name": "Кизил",
       "category": "Плодовые кустарники",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "lemon",
       "name": "Лимон",
       "category": "Цитрусовые",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "marigold",
       "name": "Бархатцы",
       "category": "Цветы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "nasturtium",
       "name": "Настурция",
       "category": "Цветы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "calendula",
       "name": "Календула",
       "category": "Цветы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "petunia",
       "name": "Петуния",
       "category": "Цветы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "aster",
       "name": "Астра",
       "category": "Цветы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "zinnia",
       "name": "Цинния",
       "category": "Цветы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "cosmos",
       "name": "Космея",
       "category": "Цветы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "snapdragon",
       "name": "Львиный зев",
       "category": "Цветы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "sweet_pea",
       "name": "Душистый горошек",
       "category": "Цветы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "morning_glory",
       "name": "Ипомея",
       "category": "Цветы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "sunflower",
@@ -592,25 +627,29 @@
       "id": "dahlia",
       "name": "Георгина",
       "category": "Цветы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "gladiolus",
       "name": "Гладиолус",
       "category": "Цветы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "tulip",
       "name": "Тюльпан",
       "category": "Цветы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "daffodil",
       "name": "Нарцисс",
       "category": "Цветы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "white_mustard",
@@ -622,13 +661,15 @@
       "id": "phacelia",
       "name": "Фацелия",
       "category": "Сидераты",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "lupin",
       "name": "Люпин",
       "category": "Сидераты",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "vetch",
@@ -640,19 +681,22 @@
       "id": "white_clover",
       "name": "Клевер белый",
       "category": "Сидераты",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "red_clover",
       "name": "Клевер красный",
       "category": "Сидераты",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "alfalfa",
       "name": "Люцерна",
       "category": "Сидераты",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "rye",
@@ -676,13 +720,15 @@
       "id": "buckwheat",
       "name": "Гречиха",
       "category": "Сидераты",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "rapeseed",
       "name": "Рапс",
       "category": "Сидераты",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "oilseed_radish",
@@ -694,13 +740,15 @@
       "id": "sweet_clover",
       "name": "Донник",
       "category": "Сидераты",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "sainfoin",
       "name": "Эспарцет",
       "category": "Сидераты",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "shallot",
@@ -736,13 +784,15 @@
       "id": "rhubarb",
       "name": "Ревень",
       "category": "Многолетние овощи",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "horseradish",
       "name": "Хрен",
       "category": "Многолетние овощи",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "hops",
@@ -772,7 +822,8 @@
       "id": "lovage",
       "name": "Любисток",
       "category": "Пряные травы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "marjoram",
@@ -784,7 +835,8 @@
       "id": "savory",
       "name": "Чабер",
       "category": "Пряные травы",
-      "sourceSlug": null
+      "sourceSlug": null,
+      "available": false
     },
     {
       "id": "artichoke",
