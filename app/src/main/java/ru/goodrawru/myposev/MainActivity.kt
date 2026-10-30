@@ -200,7 +200,7 @@ class MainActivity : Activity() {
         root.addView(sectionRow)
         val navScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; setBackgroundColor(Color.WHITE) }
         val nav = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; setBackgroundColor(Color.WHITE) }
-        listOf("Сегодня","Календарь","Культуры","Задачи","Огород","PDF","О программе").forEach { label ->
+        listOf("Сегодня","Календарь","Культуры","Задачи","Огород","О программе").forEach { label ->
             nav.addView(Button(this).apply {
                 text=label; textSize=10f; isAllCaps=false; minWidth=dp(68); minHeight=dp(44); setPadding(dp(5),dp(5),dp(5),dp(5))
                 setOnClickListener { when(label) {
@@ -209,7 +209,6 @@ class MainActivity : Activity() {
                     "Культуры" -> showPlants("")
                     "Задачи" -> showTasks()
                     "Огород" -> showDiary()
-                    "PDF" -> showPaperPlanner()
                     else -> showAbout()
                 } }
             }, LinearLayout.LayoutParams(-2,-2))
