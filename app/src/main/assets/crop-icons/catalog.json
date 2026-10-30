@@ -178,7 +178,7 @@
       "id": "onion",
       "name": "Лук репчатый",
       "category": "Луковые",
-      "sourceSlug": "onion"
+      "sourceSlug": null
     },
     {
       "id": "leek",
