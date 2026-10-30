@@ -206,7 +206,15 @@ class MainActivity : Activity() {
         val nav = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; setBackgroundColor(Color.WHITE) }
         listOf("Сегодня","Календарь","Культуры","Задачи","Огород").forEach { label ->
             nav.addView(Button(this).apply {
-                text=label; textSize=10f; isAllCaps=false; minWidth=dp(68); minHeight=dp(44); setPadding(dp(5),dp(5),dp(5),dp(5))
+                text=label
+                textSize=12f
+                isAllCaps=false
+                minWidth=dp(72)
+                minHeight=dp(44)
+                setPadding(dp(10),dp(6),dp(10),dp(6))
+                setTextColor(green)
+                background=roundedBackground(Color.rgb(239,246,235),12f,Color.rgb(213,229,207))
+                stateListAnimator = null
                 setOnClickListener { when(label) {
                     "Сегодня" -> showHome()
                     "Календарь" -> showCalendar()
@@ -741,6 +749,7 @@ class MainActivity : Activity() {
     private fun showAbout() {
         baseLayout("О программе")
         content.addView(txt("Версия ${BuildConfig.VERSION_NAME}", 16f, true))
+        content.addView(txt("Номер сборки: ${BuildConfig.VERSION_CODE}", 13f))
         content.addView(txt("Календарь с индикаторами дней, собственные культуры, PDF с заметками и резервное копирование.", 14f))
         button("Что нового в версии") { showUpdateNotes(true) }
         button("📄 Создать PDF-планировщик") { showPaperPlanner() }
