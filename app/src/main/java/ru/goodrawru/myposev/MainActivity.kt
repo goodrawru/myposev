@@ -187,11 +187,16 @@ class MainActivity : Activity() {
             textSize = 12f
             setTextColor(Color.rgb(65, 78, 67))
             maxLines = 2
-        })
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        sectionRow.addView(Button(this).apply {
+            text = "О программе"; textSize = 11f; isAllCaps = false
+            minWidth = dp(0); minHeight = dp(36); setPadding(dp(8), 0, dp(8), 0)
+            setOnClickListener { showAbout() }
+        }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
         root.addView(sectionRow)
         val navScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; setBackgroundColor(Color.WHITE) }
         val nav = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; setBackgroundColor(Color.WHITE) }
-        listOf("Сегодня","Календарь","Культуры","Задачи","Огород","О программе").forEach { label ->
+        listOf("Сегодня","Календарь","Культуры","Задачи","Огород").forEach { label ->
             nav.addView(Button(this).apply {
                 text=label; textSize=10f; isAllCaps=false; minWidth=dp(68); minHeight=dp(44); setPadding(dp(5),dp(5),dp(5),dp(5))
                 setOnClickListener { when(label) {
@@ -1303,15 +1308,18 @@ class MainActivity : Activity() {
             val day = (first.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, number) }
             val key = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(day.time)
             val isToday = day.get(Calendar.YEAR) == today.get(Calendar.YEAR) && day.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)
+            val isSelected = day.get(Calendar.YEAR) == selectedDate.get(Calendar.YEAR) && day.get(Calendar.DAY_OF_YEAR) == selectedDate.get(Calendar.DAY_OF_YEAR)
             val note = !prefs.getString("note_" + dateString(day), "").isNullOrBlank()
             var count = 0
             for (i in 0 until tasks.length()) { val task = tasks.optJSONObject(i) ?: continue; if (task.optString("date") == key && !task.optBoolean("done", false)) count++ }
-            val cellView = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(dp(1), dp(2), dp(1), dp(2)); background = roundedBackground(if (isToday) green else if (count > 0 || note) Color.rgb(226,241,219) else Color.WHITE, 8f, if (isToday) green else Color.rgb(216,228,211)); isClickable = true; isFocusable = true; setOnClickListener { selectedDate = day.clone() as Calendar; showCalendarDay(selectedDate) } }
+            val cellFill = when { isSelected -> Color.rgb(232,234,232); count > 0 || note -> Color.rgb(226,241,219); else -> Color.WHITE }
+            val cellStroke = when { isSelected -> Color.rgb(91,119,94); isToday -> green; else -> Color.rgb(216,228,211) }
+            val cellView = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(dp(1), dp(2), dp(1), dp(2)); background = roundedBackground(cellFill, 8f, cellStroke); isClickable = true; isFocusable = true; setOnClickListener { selectedDate = day.clone() as Calendar; showCalendar() } }
             val dayHeader = FrameLayout(this)
-            dayHeader.addView(TextView(this).apply { text = lunarGlyph(day) + " " + number.toString(); textSize = 14f; gravity = Gravity.CENTER; setTextColor(if (isToday) Color.WHITE else Color.rgb(35,48,38)); setTypeface(null, if (isToday) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL) }, FrameLayout.LayoutParams(-1, -1))
+            dayHeader.addView(TextView(this).apply { text = lunarGlyph(day) + " " + number.toString(); textSize = 14f; gravity = Gravity.CENTER; setTextColor(Color.rgb(35,48,38)); setTypeface(null, if (isToday || isSelected) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL) }, FrameLayout.LayoutParams(-1, -1))
             dayHeader.addView(TextView(this).apply { text = "●"; textSize = 10f; gravity = Gravity.TOP or Gravity.END; setTextColor(dayIndicatorColor(day)); setPadding(0, 0, dp(2), 0); contentDescription = when (dayIndicatorColor(day)) { Color.rgb(46,139,87) -> "Условно благоприятный день"; Color.rgb(232,174,35) -> "Смешанный день"; else -> "День для осторожного планирования" } }, FrameLayout.LayoutParams(-1, -1))
             cellView.addView(dayHeader, LinearLayout.LayoutParams(-1, 0, 1f))
-            cellView.addView(TextView(this).apply { text = (if (count > 0) "● $count" else "") + if (note) " ◆" else ""; textSize = 9f; gravity = Gravity.CENTER; setTextColor(if (isToday) Color.WHITE else green) }, LinearLayout.LayoutParams(-1, dp(14)))
+            cellView.addView(TextView(this).apply { text = (if (count > 0) "● $count" else "") + if (note) " ◆" else ""; textSize = 9f; gravity = Gravity.CENTER; setTextColor(if (count > 0 || note) Color.rgb(39,91,57) else Color.rgb(100,110,100)) }, LinearLayout.LayoutParams(-1, dp(14)))
             grid.addView(cellView, lp)
         }
         content.addView(grid, LinearLayout.LayoutParams(-1, -2))
@@ -1568,59 +1576,110 @@ class MainActivity : Activity() {
         dialog.show()
     }
 
+    private var builtInCatalogExpanded = false
+
     private fun showPlants(query:String) {
         baseLayout("Каталог культур")
-        val search=EditText(this).apply { hint="Найти культуру или группу"; setSingleLine(true); setText(query) }
+        val search = EditText(this).apply { hint = "Найти культуру или группу"; setSingleLine(true); setText(query) }
         content.addView(search)
         content.addView(Button(this).apply { text = "＋ Добавить свою культуру"; isAllCaps = false; setOnClickListener { addUserCrop() } })
-        val results=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(results)
+
+        fun addTileRows(target: LinearLayout, tiles: List<View>) {
+            tiles.chunked(2).forEach { pair ->
+                val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.TOP }
+                pair.forEach { tile -> row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(5); marginStart = dp(5); bottomMargin = dp(10) }) }
+                if (pair.size == 1) row.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f).apply { marginStart = dp(5); marginEnd = dp(5) })
+                target.addView(row, LinearLayout.LayoutParams(-1, -2))
+            }
+        }
+
         fun fill(filter:String) {
             results.removeAllViews()
             val mine = userCrops()
-            val matches = (0 until mine.length()).mapNotNull { mine.optJSONObject(it) }.filter { it.optString("name").contains(filter,true) || it.optString("category").contains(filter,true) }
+            val matches = (0 until mine.length()).mapNotNull { mine.optJSONObject(it) }
+                .filter { it.optString("name").contains(filter,true) || it.optString("category").contains(filter,true) }
             if (matches.isNotEmpty()) {
                 results.addView(txt("Мои культуры",19f,true))
-                matches.forEach { crop ->
-                    val cardView = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12),dp(10),dp(12),dp(8)); background = roundedBackground(Color.WHITE,14f) }
-                    val cropHead = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-                    cropHead.addView(ImageView(this).apply { setImageResource(userCropIconResource(crop.optString("icon", "generic"))); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(58), dp(58)).apply { marginEnd = dp(10) })
-                    cropHead.addView(txt(crop.optString("name"),18f,true), LinearLayout.LayoutParams(0,-2,1f))
-                    cardView.addView(cropHead)
-                    cardView.addView(txt(crop.optString("category"),13f))
-                    listOf("Сроки посева" to "sowing","Глубина" to "depth","Всходы" to "sprouts","Советы" to "advice").forEach { (label,key) -> if(crop.optString(key).isNotBlank()) cardView.addView(txt("$label: ${crop.optString(key)}",13f)) }
-                    cardView.addView(Button(this).apply { text = "Изменить"; isAllCaps=false; setOnClickListener { addUserCrop(crop) } })
-                    cardView.addView(Button(this).apply { text = "Удалить"; isAllCaps=false; setOnClickListener { android.app.AlertDialog.Builder(this@MainActivity).setTitle("Удалить культуру?").setMessage(crop.optString("name")).setNegativeButton("Отмена",null).setPositiveButton("Удалить") { _,_ -> val next=JSONArray(); for(i in 0 until mine.length()) { val v=mine.optJSONObject(i) ?: continue; if(v.optString("id")!=crop.optString("id")) next.put(v) }; prefs.edit().putString("user_crops",next.toString()).apply(); showPlants("") }.show() } })
-                    results.addView(cardView,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=dp(8) })
+                val userTiles = matches.map { crop ->
+                    val tile = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
+                        setPadding(dp(8),dp(10),dp(8),dp(8))
+                        background = roundedBackground(Color.WHITE,14f,Color.rgb(220,230,216))
+                        elevation = dp(1).toFloat()
+                    }
+                    tile.addView(ImageView(this).apply {
+                        setImageResource(userCropIconResource(crop.optString("icon", "generic")))
+                        scaleType = ImageView.ScaleType.FIT_CENTER
+                        contentDescription = "Иконка культуры " + crop.optString("name")
+                    }, LinearLayout.LayoutParams(dp(76),dp(76)).apply { bottomMargin = dp(4) })
+                    tile.addView(txt(crop.optString("name"),15f,true).apply { gravity = Gravity.CENTER; maxLines = 2 })
+                    tile.addView(txt(crop.optString("category"),12f).apply { gravity = Gravity.CENTER })
+                    tile.addView(Button(this).apply {
+                        text = "Подробнее"; textSize = 11f; isAllCaps = false
+                        setOnClickListener {
+                            val details = listOf("Сроки посева" to "sowing","Глубина" to "depth","Всходы" to "sprouts","Советы" to "advice")
+                                .mapNotNull { (label,key) -> crop.optString(key).takeIf { it.isNotBlank() }?.let { "$label: $it" } }
+                                .joinToString("\n\n")
+                            android.app.AlertDialog.Builder(this@MainActivity)
+                                .setTitle(crop.optString("name"))
+                                .setMessage(crop.optString("category") + if(details.isBlank()) "" else "\n\n$details")
+                                .setNeutralButton("Изменить") { _,_ -> addUserCrop(crop) }
+                                .setNegativeButton("Закрыть",null)
+                                .setPositiveButton("Удалить") { _,_ ->
+                                    android.app.AlertDialog.Builder(this@MainActivity).setTitle("Удалить культуру?")
+                                        .setMessage(crop.optString("name")).setNegativeButton("Отмена",null)
+                                        .setPositiveButton("Удалить") { _,_ ->
+                                            val next = JSONArray()
+                                            for (i in 0 until mine.length()) { val v = mine.optJSONObject(i) ?: continue; if (v.optString("id") != crop.optString("id")) next.put(v) }
+                                            prefs.edit().putString("user_crops",next.toString()).apply()
+                                            showPlants("")
+                                        }.show()
+                                }.show()
+                        }
+                    })
+                    tile
                 }
+                addTileRows(results,userTiles)
             }
-            results.addView(txt("Встроенный каталог",19f,true))
-            plants.filter { it.name.contains(filter,true) || it.group.contains(filter,true) }.forEach { p ->
-                val box=LinearLayout(this).apply {
-                    orientation=LinearLayout.HORIZONTAL; setPadding(10,10,10,12)
-                    background=roundedBackground(Color.WHITE, 16f)
-                    elevation=dp(2).toFloat()
+
+            val builtIns = plants.filter { it.name.contains(filter,true) || it.group.contains(filter,true) }
+            val shouldExpand = filter.isNotBlank() || builtInCatalogExpanded
+            val heading = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0,dp(4),0,dp(4)) }
+            heading.addView(txt("Встроенные культуры (${builtIns.size})",19f,true),LinearLayout.LayoutParams(0,-2,1f))
+            heading.addView(Button(this).apply {
+                text = if(shouldExpand) "Свернуть ▲" else "Показать ▼"; textSize = 11f; isAllCaps = false
+                setOnClickListener { builtInCatalogExpanded = !shouldExpand; fill(search.text.toString()) }
+            })
+            results.addView(heading)
+
+            if (shouldExpand) {
+                val builtInTiles = builtIns.map { p ->
+                    val tile = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
+                        setPadding(dp(8),dp(10),dp(8),dp(10))
+                        background = roundedBackground(Color.WHITE,14f,Color.rgb(220,230,216))
+                        elevation = dp(1).toFloat(); isClickable = true; isFocusable = true
+                        setOnClickListener {
+                            android.app.AlertDialog.Builder(this@MainActivity).setTitle(p.name)
+                                .setMessage("${p.group}\n\nПосев: ${p.sowing}\nГлубина: ${p.depth}\nВсходы: ${p.sprouts}\n\n${p.advice}")
+                                .setPositiveButton("Закрыть",null).show()
+                        }
+                    }
+                    tile.addView(ImageView(this).apply {
+                        setImageResource(plantIllustration(p.name)); scaleType = ImageView.ScaleType.FIT_CENTER
+                        setPadding(dp(3),dp(3),dp(3),dp(3))
+                        background = roundedBackground(Color.rgb(241,247,237),12f)
+                        contentDescription = "Иконка культуры: " + p.name
+                    },LinearLayout.LayoutParams(dp(82),dp(82)).apply { bottomMargin = dp(5) })
+                    tile.addView(txt(p.name,15f,true).apply { gravity = Gravity.CENTER; maxLines = 2 })
+                    tile.addView(txt(p.group,12f).apply { gravity = Gravity.CENTER })
+                    tile
                 }
-                val icon=ImageView(this).apply {
-                    setImageResource(plantIllustration(p.name))
-                    scaleType = ImageView.ScaleType.FIT_CENTER
-                    setPadding(dp(5),dp(5),dp(5),dp(5))
-                    background=roundedBackground(Color.rgb(235,245,229), 14f)
-                    contentDescription = "Цветная иллюстрация культуры: ${p.name}"
-                }
-                box.addView(icon, LinearLayout.LayoutParams(dp(112),dp(124)).apply { marginEnd=dp(12) })
-                val details=LinearLayout(this).apply {
-                    orientation=LinearLayout.VERTICAL
-                    addView(txt(p.name,18f,true))
-                    addView(txt(p.group,13f))
-                    addView(txt("Посев: "+p.sowing,14f))
-                    addView(txt("Глубина: "+p.depth+" · Всходы: "+p.sprouts,13f))
-                    addView(txt(p.advice,14f))
-                }
-                box.addView(details, LinearLayout.LayoutParams(0,-2,1f))
-                results.addView(box,LinearLayout.LayoutParams(-1,-2).apply { bottomMargin=12 })
+                addTileRows(results,builtInTiles)
             }
-            if(results.childCount==0) results.addView(txt("Ничего не найдено. Попробуйте другое название."))
+            if (results.childCount == 0) results.addView(txt("Ничего не найдено. Попробуйте другое название."))
         }
         fill(query)
         search.addTextChangedListener(object:android.text.TextWatcher {
