@@ -24,6 +24,7 @@ import android.graphics.pdf.PdfDocument
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.view.WindowInsets
 import android.widget.GridLayout
 import android.widget.*
@@ -61,6 +62,7 @@ class MainActivity : Activity() {
     private var weatherPageOpen = false
     private var weatherForecastOpen = false
     private var pendingPdfBytes: ByteArray? = null
+    private var pendingBackupBytes: ByteArray? = null
     private var weatherLatitude: Double? = null
     private var weatherLongitude: Double? = null
     private val musicHandler = Handler(Looper.getMainLooper())
@@ -278,7 +280,7 @@ class MainActivity : Activity() {
             val offset = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7; val days = c.getActualMaximum(Calendar.DAY_OF_MONTH); val cells = MutableList(offset) { 0 } + (1..days).toList()
             cells.chunked(7).forEach { row -> val labels = (row + List(7-row.size) { 0 }).map { day -> if (day == 0) "       " else day.toString().padStart(2) + " " + lunarGlyph(Calendar.getInstance().apply { set(actualYear, month, day, 12, 0, 0) }) }; line(labels.joinToString("   ")) }
             y += 5f; line("Фазы Луны даны как ориентир; сроки работ корректируйте по местным условиям.")
-            val monthNotes = prefs.all.filter { e ->
+            val monthNotes = prefs.all.toList().filter { e ->
                 e.key.startsWith("note_") && e.value is String && (e.value as String).isNotBlank() &&
                 runCatching {
                     val d = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(e.key.removePrefix("note_"))
