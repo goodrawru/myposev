@@ -427,6 +427,17 @@ class MainActivity : Activity() {
             catch (e: Exception) { Toast.makeText(this, "Ошибка сохранения копии", Toast.LENGTH_LONG).show() }
             return
         }
+        if (requestCode == 2402) {
+            if (resultCode == Activity.RESULT_OK && data?.data != null) {
+                android.app.AlertDialog.Builder(this)
+                    .setTitle("Заменить данные приложения?")
+                    .setMessage("Восстановление заменит текущие настройки, задачи, заметки и каталог культур данными из резервной копии.")
+                    .setNegativeButton("Отмена", null)
+                    .setPositiveButton("Восстановить") { _, _ -> importBackup(data.data!!) }
+                    .show()
+            }
+            return
+        }
         if (requestCode == 2027) {
             val bytes = pendingPdfBytes
             pendingPdfBytes = null
@@ -591,6 +602,58 @@ class MainActivity : Activity() {
             startActivityForResult(intent, 2401)
         } catch (e: Exception) { Toast.makeText(this, "Ошибка создания копии: " + (e.message ?: "ошибка"), Toast.LENGTH_LONG).show() }
     }
+    private fun restoreBackup() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/zip"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try { startActivityForResult(intent, 2402) }
+        catch (_: Exception) { Toast.makeText(this, "Не удалось открыть выбор файла", Toast.LENGTH_LONG).show() }
+    }
+
+    private fun importBackup(uri: Uri) {
+        try {
+            val jsonText = contentResolver.openInputStream(uri)?.use { input ->
+                java.util.zip.ZipInputStream(input).use { zip ->
+                    var entry = zip.nextEntry
+                    var found: String? = null
+                    while (entry != null) {
+                        if (entry.name == "backup.json") {
+                            found = zip.bufferedReader(Charsets.UTF_8).readText()
+                            break
+                        }
+                        zip.closeEntry()
+                        entry = zip.nextEntry
+                    }
+                    found
+                }
+            } ?: throw IllegalArgumentException("В архиве не найден backup.json")
+            val root = JSONObject(jsonText)
+            if (root.optInt("format", -1) != 1) throw IllegalArgumentException("Неподдерживаемый формат копии")
+            val values = root.optJSONObject("preferences") ?: throw IllegalArgumentException("В копии нет настроек")
+            val editor = prefs.edit().clear()
+            val keys = values.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val entry = values.optJSONObject(key) ?: continue
+                val value = entry.opt("value")
+                when (entry.optString("type")) {
+                    "s" -> editor.putString(key, value?.takeUnless { it == JSONObject.NULL }?.toString() ?: "")
+                    "b" -> editor.putBoolean(key, value as? Boolean ?: false)
+                    "i" -> editor.putInt(key, (value as? Number)?.toInt() ?: 0)
+                    "l" -> editor.putLong(key, (value as? Number)?.toLong() ?: 0L)
+                    "f" -> editor.putFloat(key, (value as? Number)?.toFloat() ?: 0f)
+                }
+            }
+            editor.apply()
+            Toast.makeText(this, "Копия восстановлена. Перезапустите приложение для обновления всех экранов.", Toast.LENGTH_LONG).show()
+            showHome()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Не удалось восстановить копию: ${e.message ?: "неверный архив"}", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun showHome() {
         baseLayout("Мой Посевной")
         content.addView(txt("Ваш помощник для сада и огорода",18f,true))
@@ -619,6 +682,7 @@ class MainActivity : Activity() {
         button("Что нового в версии") { showUpdateNotes(true) }
         button("📄 Создать PDF-планировщик") { showPaperPlanner() }
         button("📦 Создать резервную копию") { createBackup() }
+        button("♻️ Восстановить резервную копию") { restoreBackup() }
         content.setPadding(dp(18), dp(16), dp(18), dp(30))
 
         val hero = LinearLayout(this).apply {
