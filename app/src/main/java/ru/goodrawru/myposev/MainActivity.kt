@@ -416,6 +416,13 @@ class MainActivity : Activity() {
     @Deprecated("Uses the document picker to support older Android versions")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 2401) {
+            val bytes = pendingBackupBytes; pendingBackupBytes = null
+            if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) return
+            try { contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }; Toast.makeText(this, "Резервная копия сохранена", Toast.LENGTH_LONG).show() }
+            catch (e: Exception) { Toast.makeText(this, "Ошибка сохранения копии", Toast.LENGTH_LONG).show() }
+            return
+        }
         if (requestCode == 2027) {
             val bytes = pendingPdfBytes
             pendingPdfBytes = null
@@ -567,6 +574,19 @@ class MainActivity : Activity() {
             .setPositiveButton("Понятно", null).show()
     }
 
+    private fun createBackup() {
+        try {
+            val json = JSONObject().put("format", 1).put("created", System.currentTimeMillis())
+            val values = JSONObject()
+            prefs.all.forEach { (k,v) -> values.put(k, JSONObject().put("type", when(v) { is String -> "s"; is Boolean -> "b"; is Int -> "i"; is Long -> "l"; is Float -> "f"; else -> "x" }).put("value", v)) }
+            json.put("preferences", values)
+            val bytes = java.io.ByteArrayOutputStream()
+            java.util.zip.ZipOutputStream(bytes).use { z -> z.putNextEntry(java.util.zip.ZipEntry("backup.json")); z.write(json.toString(2).toByteArray(Charsets.UTF_8)); z.closeEntry() }
+            pendingBackupBytes = bytes.toByteArray()
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "application/zip"; putExtra(Intent.EXTRA_TITLE, "Moi_Posevnoy_backup.zip") }
+            startActivityForResult(intent, 2401)
+        } catch (e: Exception) { Toast.makeText(this, "Ошибка создания копии: " + (e.message ?: "ошибка"), Toast.LENGTH_LONG).show() }
+    }
     private fun showHome() {
         baseLayout("Мой Посевной")
         content.addView(txt("Ваш помощник для сада и огорода",18f,true))
@@ -593,6 +613,8 @@ class MainActivity : Activity() {
         content.addView(txt("Версия 1.2.0", 16f, true))
         content.addView(txt("Календарь с индикаторами дней, собственные культуры, PDF с заметками и резервное копирование.", 14f))
         button("Что нового в версии") { showUpdateNotes(true) }
+        button("📄 Создать PDF-планировщик") { showPaperPlanner() }
+        button("📦 Создать резервную копию") { createBackup() }
         content.setPadding(dp(18), dp(16), dp(18), dp(30))
 
         val hero = LinearLayout(this).apply {
