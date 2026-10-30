@@ -1573,10 +1573,9 @@ class MainActivity : Activity() {
             if (slug != null && assets.list("crop-icons/svg")?.contains("$slug.svg") == true) {
                 val svg = SVG.getFromAsset(assets, "crop-icons/svg/$slug.svg")
                 val size = 128
-                svg.setDocumentWidth(size.toFloat())
-                svg.setDocumentHeight(size.toFloat())
                 val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-                svg.renderToCanvas(Canvas(bitmap))
+                val canvas = Canvas(bitmap)
+                canvas.drawPicture(svg.renderToPicture(size, size))
                 image.setImageBitmap(bitmap)
                 return
             }
