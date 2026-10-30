@@ -1455,6 +1455,26 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun userCropIconResource(key: String): Int = when (key) {
+        "tomato" -> R.drawable.plant_tomato
+        "pepper" -> R.drawable.plant_pepper
+        "cucumber" -> R.drawable.plant_cucumber
+        "carrot" -> R.drawable.plant_carrot
+        "radish" -> R.drawable.plant_radish
+        "dill" -> R.drawable.plant_dill
+        "lettuce" -> R.drawable.plant_lettuce
+        "cabbage" -> R.drawable.plant_cabbage
+        "strawberry" -> R.drawable.plant_strawberry
+        "berry" -> R.drawable.plant_berry
+        "flower" -> R.drawable.plant_flower
+        "pumpkin" -> R.drawable.plant_pumpkin
+        "onion" -> R.drawable.plant_onion
+        "pea" -> R.drawable.plant_pea
+        "herb" -> R.drawable.plant_herb
+        "tree" -> R.drawable.plant_tree
+        else -> R.drawable.plant_generic
+    }
+
     private fun userCrops(): JSONArray = try { JSONArray(prefs.getString("user_crops", "[]")) } catch (_: Exception) { JSONArray() }
 
     private fun addUserCrop(existing: JSONObject? = null) {
@@ -1464,10 +1484,33 @@ class MainActivity : Activity() {
         val depth = EditText(this).apply { hint = "Глубина посева"; setText(existing?.optString("depth", "") ?: "") }
         val sprouts = EditText(this).apply { hint = "Сроки всходов"; setText(existing?.optString("sprouts", "") ?: "") }
         val advice = EditText(this).apply { hint = "Советы по выращиванию"; setText(existing?.optString("advice", "") ?: ""); minLines = 2 }
-        val emojiChoices = listOf("🌱","🍅","🥕","🥒","🌶️","🥬","🌿","🍓","🌻","🌳","🧄","🎃","🫘")
-        val emoji = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, emojiChoices); setSelection(emojiChoices.indexOf(existing?.optString("emoji")).coerceAtLeast(0)) }
+        val iconChoices = listOf(
+            "generic" to "Росток", "tomato" to "Томат", "pepper" to "Перец",
+            "cucumber" to "Огурец", "carrot" to "Морковь", "radish" to "Редис",
+            "dill" to "Укроп / зелень", "lettuce" to "Салат", "cabbage" to "Капуста",
+            "strawberry" to "Клубника", "berry" to "Ягоды", "flower" to "Цветы",
+            "pumpkin" to "Тыква / кабачок", "onion" to "Лук / чеснок",
+            "pea" to "Горох / фасоль", "herb" to "Пряные травы", "tree" to "Дерево"
+        )
+        val iconPicker = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, iconChoices.map { it.second })
+            val key = existing?.optString("icon", "") ?: ""
+            val index = iconChoices.indexOfFirst { it.first == key }.let { if (it >= 0) it else 0 }
+            setSelection(index)
+        }
+        val iconPreview = ImageView(this).apply {
+            setImageResource(userCropIconResource(iconChoices[iconPicker.selectedItemPosition].first))
+            adjustViewBounds = true
+            scaleType = ImageView.ScaleType.FIT_CENTER
+        }
+        iconPicker.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                iconPreview.setImageResource(userCropIconResource(iconChoices[position].first))
+            }
+        }
         val form = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(4), dp(18), dp(4)) }
-        listOf<View>(name, category, sowing, depth, sprouts, advice, txt("Иконка",14f,true), emoji).forEach { form.addView(it) }
+        listOf<View>(name, category, sowing, depth, sprouts, advice, txt("Цветная иконка культуры",14f,true), iconPreview, iconPicker).forEach { form.addView(it) }
         val dialog = android.app.AlertDialog.Builder(this).setTitle(if(existing == null) "Добавить свою культуру" else "Изменить культуру")
             .setView(ScrollView(this).apply { addView(form) }).setNegativeButton("Отмена", null).setPositiveButton("Сохранить", null).create()
         dialog.setOnShowListener {
@@ -1475,7 +1518,7 @@ class MainActivity : Activity() {
                 val cropName = name.text.toString().trim()
                 if (cropName.isBlank()) { name.error = "Введите название"; return@setOnClickListener }
                 val all = userCrops(); val id = existing?.optString("id") ?: java.util.UUID.randomUUID().toString()
-                val item = JSONObject().put("id",id).put("name",cropName).put("category",category.selectedItem.toString()).put("sowing",sowing.text.toString()).put("depth",depth.text.toString()).put("sprouts",sprouts.text.toString()).put("advice",advice.text.toString()).put("emoji",emoji.selectedItem.toString())
+                val item = JSONObject().put("id",id).put("name",cropName).put("category",category.selectedItem.toString()).put("sowing",sowing.text.toString()).put("depth",depth.text.toString()).put("sprouts",sprouts.text.toString()).put("advice",advice.text.toString()).put("icon",iconChoices[iconPicker.selectedItemPosition].first).put("emoji",plantEmoji(cropName))
                 val next = JSONArray(); var replaced = false
                 for(i in 0 until all.length()) { val old = all.optJSONObject(i) ?: continue; if(old.optString("id")==id) { next.put(item); replaced=true } else next.put(old) }
                 if(!replaced) next.put(item)
@@ -1501,7 +1544,10 @@ class MainActivity : Activity() {
                 results.addView(txt("Мои культуры",19f,true))
                 matches.forEach { crop ->
                     val cardView = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12),dp(10),dp(12),dp(8)); background = roundedBackground(Color.WHITE,14f) }
-                    cardView.addView(txt(crop.optString("emoji","🌱") + "  " + crop.optString("name"),18f,true))
+                    val cropHead = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+                    cropHead.addView(ImageView(this).apply { setImageResource(userCropIconResource(crop.optString("icon", "generic"))); scaleType = ImageView.ScaleType.FIT_CENTER }, LinearLayout.LayoutParams(dp(58), dp(58)).apply { marginEnd = dp(10) })
+                    cropHead.addView(txt(crop.optString("name"),18f,true), LinearLayout.LayoutParams(0,-2,1f))
+                    cardView.addView(cropHead)
                     cardView.addView(txt(crop.optString("category"),13f))
                     listOf("Сроки посева" to "sowing","Глубина" to "depth","Всходы" to "sprouts","Советы" to "advice").forEach { (label,key) -> if(crop.optString(key).isNotBlank()) cardView.addView(txt("$label: ${crop.optString(key)}",13f)) }
                     cardView.addView(Button(this).apply { text = "Изменить"; isAllCaps=false; setOnClickListener { addUserCrop(crop) } })
@@ -1516,13 +1562,12 @@ class MainActivity : Activity() {
                     background=roundedBackground(Color.WHITE, 16f)
                     elevation=dp(2).toFloat()
                 }
-                val icon=TextView(this).apply {
-                    text = plantEmoji(p.name)
-                    textSize = 54f
-                    gravity = Gravity.CENTER
-                    setPadding(dp(2),dp(2),dp(2),dp(2))
-                    background=roundedBackground(Color.rgb(225,241,217), 14f)
-                    contentDescription = "Иллюстрация культуры: ${p.name}"
+                val icon=ImageView(this).apply {
+                    setImageResource(plantIllustration(p.name))
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    setPadding(dp(5),dp(5),dp(5),dp(5))
+                    background=roundedBackground(Color.rgb(235,245,229), 14f)
+                    contentDescription = "Цветная иллюстрация культуры: ${p.name}"
                 }
                 box.addView(icon, LinearLayout.LayoutParams(dp(112),dp(124)).apply { marginEnd=dp(12) })
                 val details=LinearLayout(this).apply {
