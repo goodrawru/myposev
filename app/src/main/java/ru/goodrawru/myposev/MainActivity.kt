@@ -219,7 +219,7 @@ class MainActivity : Activity() {
         val scroll=ScrollView(this).apply {
             isFillViewport = true
             isSmoothScrollingEnabled = true
-            descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+            descendantFocusability = android.view.ViewGroup.FOCUS_AFTER_DESCENDANTS
         }
         content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(16,16,16,28) }
         scroll.addView(content)
