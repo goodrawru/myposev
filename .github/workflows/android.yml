@@ -2,7 +2,7 @@ name: Android APK
 
 on:
   push:
-    branches: [ "main", "rustore" ]
+    branches: [ "rustore" ]
   workflow_dispatch:
 
 # Не отменяем уже начатую сборку новым коммитом.
