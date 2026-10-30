@@ -740,7 +740,7 @@ class MainActivity : Activity() {
 
     private fun showAbout() {
         baseLayout("О программе")
-        content.addView(txt("Версия 1.2.0", 16f, true))
+        content.addView(txt("Версия ${BuildConfig.VERSION_NAME}", 16f, true))
         content.addView(txt("Календарь с индикаторами дней, собственные культуры, PDF с заметками и резервное копирование.", 14f))
         button("Что нового в версии") { showUpdateNotes(true) }
         button("📄 Создать PDF-планировщик") { showPaperPlanner() }
@@ -792,7 +792,7 @@ class MainActivity : Activity() {
         button("Политика конфиденциальности") { showPrivacyPolicy() }
         button("← На главный экран") { showHome() }
         content.addView(TextView(this).apply {
-            text = "Спасибо, что выбрали «Мой Посевной». Пусть ваши труды дают добрые всходы, а урожай радует каждый год!\n\nВерсия 1.1.0"
+            text = "Спасибо, что выбрали «Мой Посевной». Пусть ваши труды дают добрые всходы, а урожай радует каждый год!\n\nВерсия ${BuildConfig.VERSION_NAME}"
             textSize = 13f
             setTextColor(Color.rgb(93, 108, 91))
             gravity = Gravity.CENTER
@@ -1604,8 +1604,15 @@ class MainActivity : Activity() {
                 val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
                 val canvas = Canvas(bitmap)
                 svg.renderToCanvas(canvas)
-                image.setImageBitmap(bitmap)
-                return
+                // Some SVGs parse without errors but render fully transparent on Android.
+                // Only accept the SVG when it actually produced visible pixels.
+                val pixels = IntArray(size * size)
+                bitmap.getPixels(pixels, 0, size, 0, 0, size, size)
+                if (pixels.any { Color.alpha(it) > 8 }) {
+                    image.setImageBitmap(bitmap)
+                    return
+                }
+                bitmap.recycle()
             }
         } catch (_: Exception) { }
         image.setImageResource(userCropIconResource(key))
