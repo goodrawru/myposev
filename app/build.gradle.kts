@@ -65,4 +65,5 @@ dependencies {
     val media3Version = "1.5.1"
     implementation("androidx.media3:media3-exoplayer:$media3Version")
     implementation("androidx.media3:media3-session:$media3Version")
+    implementation("com.caverock:androidsvg-aar:1.4")
 }

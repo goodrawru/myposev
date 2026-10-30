@@ -18,6 +18,9 @@ import android.text.Editable
 import org.json.JSONArray
 import org.json.JSONObject
 import android.graphics.Color
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import com.caverock.androidsvg.SVG
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
@@ -1518,24 +1521,67 @@ class MainActivity : Activity() {
         }
     }
 
+    private val cropIconCatalog: JSONArray by lazy {
+        try {
+            val json = assets.open("crop-icons/catalog.json").bufferedReader().use { it.readText() }
+            JSONObject(json).optJSONArray("crops") ?: JSONArray()
+        } catch (_: Exception) { JSONArray() }
+    }
+
+    private fun cropIconChoices(): List<Pair<String, String>> {
+        val choices = mutableListOf("generic" to "Росток")
+        for (i in 0 until cropIconCatalog.length()) {
+            val crop = cropIconCatalog.optJSONObject(i) ?: continue
+            val id = crop.optString("id")
+            val name = crop.optString("name")
+            if (id.isNotBlank() && name.isNotBlank()) choices.add(id to name)
+        }
+        return choices
+    }
+
     private fun userCropIconResource(key: String): Int = when (key) {
         "tomato" -> R.drawable.plant_tomato
-        "pepper" -> R.drawable.plant_pepper
+        "pepper", "sweet_pepper", "hot_pepper" -> R.drawable.plant_pepper
         "cucumber" -> R.drawable.plant_cucumber
         "carrot" -> R.drawable.plant_carrot
-        "radish" -> R.drawable.plant_radish
+        "radish", "daikon", "oilseed_radish", "beet" -> R.drawable.plant_radish
         "dill" -> R.drawable.plant_dill
-        "lettuce" -> R.drawable.plant_lettuce
-        "cabbage" -> R.drawable.plant_cabbage
-        "strawberry" -> R.drawable.plant_strawberry
-        "berry" -> R.drawable.plant_berry
-        "flower" -> R.drawable.plant_flower
-        "pumpkin" -> R.drawable.plant_pumpkin
-        "onion" -> R.drawable.plant_onion
-        "pea" -> R.drawable.plant_pea
-        "herb" -> R.drawable.plant_herb
-        "tree" -> R.drawable.plant_tree
+        "lettuce", "spinach", "arugula", "watercress" -> R.drawable.plant_lettuce
+        "cabbage", "white_cabbage", "red_cabbage", "cauliflower", "broccoli", "brussels_sprouts", "kohlrabi", "napa_cabbage", "kale" -> R.drawable.plant_cabbage
+        "strawberry", "wild_strawberry" -> R.drawable.plant_strawberry
+        "berry", "raspberry", "blackberry", "black_currant", "red_currant", "white_currant", "gooseberry", "honeysuckle", "blueberry", "cranberry", "lingonberry", "sea_buckthorn" -> R.drawable.plant_berry
+        "flower", "marigold", "nasturtium", "calendula", "petunia", "aster", "zinnia", "cosmos", "snapdragon", "sweet_pea", "morning_glory", "dahlia", "gladiolus", "tulip", "daffodil" -> R.drawable.plant_flower
+        "pumpkin", "zucchini", "pattypan", "melon", "watermelon" -> R.drawable.plant_pumpkin
+        "onion", "leek", "garlic", "shallot", "chives", "welsh_onion" -> R.drawable.plant_onion
+        "peas", "green_beans", "broad_beans", "vetch" -> R.drawable.plant_pea
+        "basil", "parsley", "cilantro", "mint", "lemon_balm", "sorrel", "tarragon", "rosemary", "thyme", "oregano", "sage", "lovage", "marjoram", "savory", "fennel" -> R.drawable.plant_herb
+        "apple", "pear", "plum", "sour_cherry", "sweet_cherry", "apricot", "peach", "cherry_plum", "quince", "rowan", "serviceberry", "rosehip", "walnut", "hazelnut", "almond", "viburnum", "hawthorn", "mulberry", "cornelian_cherry", "lemon" -> R.drawable.plant_tree
+        "generic" -> R.drawable.plant_generic
         else -> R.drawable.plant_generic
+    }
+
+    private fun setCropIcon(image: ImageView, key: String) {
+        try {
+            var slug: String? = null
+            for (i in 0 until cropIconCatalog.length()) {
+                val crop = cropIconCatalog.optJSONObject(i) ?: continue
+                if (crop.optString("id") == key) {
+                    slug = crop.optString("sourceSlug").takeIf { it.isNotBlank() && it != "null" }
+                    break
+                }
+            }
+            if (slug != null && assets.list("crop-icons/svg")?.contains("$slug.svg") == true) {
+                val svg = SVG.getFromAsset(assets, "crop-icons/svg/$slug.svg")
+                val size = 128
+                svg.setDocumentWidth(size.toFloat())
+                svg.setDocumentHeight(size.toFloat())
+                val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+                svg.renderToCanvas(Canvas(bitmap))
+                image.setImageBitmap(bitmap)
+                return
+            }
+        } catch (_: Exception) { }
+        image.setImageResource(userCropIconResource(key))
     }
 
     private fun userCrops(): JSONArray = try { JSONArray(prefs.getString("user_crops", "[]")) } catch (_: Exception) { JSONArray() }
@@ -1547,29 +1593,33 @@ class MainActivity : Activity() {
         val depth = EditText(this).apply { hint = "Глубина посева"; setText(existing?.optString("depth", "") ?: "") }
         val sprouts = EditText(this).apply { hint = "Сроки всходов"; setText(existing?.optString("sprouts", "") ?: "") }
         val advice = EditText(this).apply { hint = "Советы по выращиванию"; setText(existing?.optString("advice", "") ?: ""); minLines = 2 }
-        val iconChoices = listOf(
-            "generic" to "Росток", "tomato" to "Томат", "pepper" to "Перец",
-            "cucumber" to "Огурец", "carrot" to "Морковь", "radish" to "Редис",
-            "dill" to "Укроп / зелень", "lettuce" to "Салат", "cabbage" to "Капуста",
-            "strawberry" to "Клубника", "berry" to "Ягоды", "flower" to "Цветы",
-            "pumpkin" to "Тыква / кабачок", "onion" to "Лук / чеснок",
-            "pea" to "Горох / фасоль", "herb" to "Пряные травы", "tree" to "Дерево"
-        )
+        val iconChoices = cropIconChoices()
+        val legacyIconKey = when (existing?.optString("icon", "")) {
+            "pepper" -> "sweet_pepper"
+            "lettuce" -> "lettuce"
+            "berry" -> "raspberry"
+            "flower" -> "marigold"
+            "pumpkin" -> "pumpkin"
+            "onion" -> "onion"
+            "pea" -> "peas"
+            "herb" -> "basil"
+            "tree" -> "apple"
+            else -> existing?.optString("icon", "") ?: ""
+        }
         val iconPicker = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, iconChoices.map { it.second })
-            val key = existing?.optString("icon", "") ?: ""
-            val index = iconChoices.indexOfFirst { it.first == key }.let { if (it >= 0) it else 0 }
+            val index = iconChoices.indexOfFirst { it.first == legacyIconKey }.let { if (it >= 0) it else 0 }
             setSelection(index)
         }
         val iconPreview = ImageView(this).apply {
-            setImageResource(userCropIconResource(iconChoices[iconPicker.selectedItemPosition].first))
+            run { val key = iconChoices[iconPicker.selectedItemPosition].first; setCropIcon(this, key) }
             adjustViewBounds = true
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
         iconPicker.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                iconPreview.setImageResource(userCropIconResource(iconChoices[position].first))
+                setCropIcon(iconPreview, iconChoices[position].first)
             }
         }
         val form = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(4), dp(18), dp(4)) }
@@ -1626,7 +1676,7 @@ class MainActivity : Activity() {
                         elevation = dp(1).toFloat()
                     }
                     tile.addView(ImageView(this).apply {
-                        setImageResource(userCropIconResource(crop.optString("icon", "generic")))
+                        run { val key = crop.optString("icon", "generic"); setCropIcon(this, key) }
                         scaleType = ImageView.ScaleType.FIT_CENTER
                         contentDescription = "Иконка культуры " + crop.optString("name")
                     }, LinearLayout.LayoutParams(dp(76),dp(76)).apply { bottomMargin = dp(4) })
