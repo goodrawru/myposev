@@ -176,7 +176,7 @@ class MainActivity : Activity() {
             text = "🌱  " + title; textSize=25f; setTextColor(Color.WHITE); setBackgroundColor(green)
             setPadding(20,22,20,22); gravity=Gravity.CENTER_VERTICAL
         })
-        // Section description row with an offline, original ambient sound toggle.
+        // Раздел и быстрый переход к PDF; раздел «Погружение» удалён из интерфейса.
         val sectionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -190,12 +190,12 @@ class MainActivity : Activity() {
             maxLines = 2
         }, LinearLayout.LayoutParams(0, -2, 1f))
         sectionRow.addView(Button(this).apply {
-            text = "🎧 Погружение"
+            text = "📄 PDF"
             textSize = 12f
             isAllCaps = false
             minWidth = 0
             setPadding(dp(8), dp(2), dp(8), dp(2))
-            setOnClickListener { showImmersionPlayer() }
+            setOnClickListener { showPaperPlanner() }
         })
         root.addView(sectionRow)
         val navScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; setBackgroundColor(Color.WHITE) }
@@ -1204,13 +1204,29 @@ class MainActivity : Activity() {
             val note = !prefs.getString("note_" + dateString(day), "").isNullOrBlank()
             var count = 0
             for (i in 0 until tasks.length()) { val task = tasks.optJSONObject(i) ?: continue; if (task.optString("date") == key && !task.optBoolean("done", false)) count++ }
-            val cellView = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(dp(1), dp(3), dp(1), dp(2)); background = roundedBackground(if (isToday) green else if (count > 0 || note) Color.rgb(226,241,219) else Color.WHITE, 8f, if (isToday) green else Color.rgb(216,228,211)); isClickable = true; isFocusable = true; setOnClickListener { selectedDate = day.clone() as Calendar; showCalendarDay(selectedDate) } }
-            cellView.addView(TextView(this).apply { text = lunarGlyph(day) + "\n" + number.toString(); textSize = 15f; gravity = Gravity.CENTER; setTextColor(if (isToday) Color.WHITE else Color.rgb(35,48,38)); setTypeface(null, if (isToday) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL) }, LinearLayout.LayoutParams(-1, 0, 1f))
+            val cellView = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(dp(1), dp(2), dp(1), dp(2)); background = roundedBackground(if (isToday) green else if (count > 0 || note) Color.rgb(226,241,219) else Color.WHITE, 8f, if (isToday) green else Color.rgb(216,228,211)); isClickable = true; isFocusable = true; setOnClickListener { selectedDate = day.clone() as Calendar; showCalendarDay(selectedDate) } }
+            val dayHeader = FrameLayout(this)
+            dayHeader.addView(TextView(this).apply { text = lunarGlyph(day) + " " + number.toString(); textSize = 14f; gravity = Gravity.CENTER; setTextColor(if (isToday) Color.WHITE else Color.rgb(35,48,38)); setTypeface(null, if (isToday) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL) }, FrameLayout.LayoutParams(-1, -1))
+            dayHeader.addView(TextView(this).apply { text = "●"; textSize = 10f; gravity = Gravity.TOP or Gravity.END; setTextColor(dayIndicatorColor(day)); setPadding(0, 0, dp(2), 0); contentDescription = when (dayIndicatorColor(day)) { Color.rgb(46,139,87) -> "Условно благоприятный день"; Color.rgb(232,174,35) -> "Смешанный день"; else -> "День для осторожного планирования" } }, FrameLayout.LayoutParams(-1, -1))
+            cellView.addView(dayHeader, LinearLayout.LayoutParams(-1, 0, 1f))
             cellView.addView(TextView(this).apply { text = (if (count > 0) "● $count" else "") + if (note) " ◆" else ""; textSize = 9f; gravity = Gravity.CENTER; setTextColor(if (isToday) Color.WHITE else green) }, LinearLayout.LayoutParams(-1, dp(14)))
             grid.addView(cellView, lp)
         }
         content.addView(grid, LinearLayout.LayoutParams(-1, -2))
-        card("Обозначения календаря", "🟢 Условно благоприятный ориентир · 🟡 Смешанный день · 🔴 Для осторожного планирования. Это традиционная подсказка по лунному циклу, не научный прогноз урожайности. ● — незавершённые задачи, ◆ — есть заметка.")
+        val legend = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(8), dp(12), dp(8)); background = roundedBackground(Color.WHITE, 10f, Color.rgb(216,228,211)) }
+        legend.addView(txt("Обозначения календаря", 17f, true))
+        listOf(
+            Triple(Color.rgb(46,139,87), "Зелёная точка", "Условно благоприятный ориентир"),
+            Triple(Color.rgb(232,174,35), "Жёлтая точка", "Смешанный день"),
+            Triple(Color.rgb(210,65,65), "Красная точка", "Для осторожного планирования")
+        ).forEach { item ->
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+            row.addView(TextView(this).apply { text = "●"; textSize = 20f; setTextColor(item.first); setPadding(0, 0, dp(10), 0) })
+            row.addView(txt(item.second + " — " + item.third, 13f))
+            legend.addView(row)
+        }
+        legend.addView(txt("Традиционная лунная подсказка, не научный прогноз урожайности. ● с числом — незавершённые задачи; ◆ — есть заметка.", 12f))
+        content.addView(legend)
         card("Фаза Луны", lunarSummary(selectedDate))
         card("Что делать в этом месяце", seasonalAdvice(selectedDate))
         button("Подробности выбранного дня") { showCalendarDay(selectedDate) }
@@ -1297,6 +1313,18 @@ class MainActivity : Activity() {
             else -> "Убывающая Луна"
         }
         return "$phase. Фаза вычислена приближённо. Лунные советы — традиционная практика и не заменяют агрономические рекомендации."
+    }
+
+    // Условная цветовая маркировка по лунному циклу: это традиционная подсказка, а не прогноз урожайности.
+    private fun dayIndicatorColor(c: Calendar): Int {
+        val knownNewMoon = Calendar.getInstance().apply { set(2000, Calendar.JANUARY, 6, 18, 14, 0) }.timeInMillis
+        val synodicMonth = 29.530588853 * 24 * 60 * 60 * 1000
+        val age = ((((c.timeInMillis - knownNewMoon) % synodicMonth) + synodicMonth) % synodicMonth) / synodicMonth
+        return when {
+            age < 0.035 || age in 0.22..0.28 || age in 0.47..0.535 || age in 0.72..0.78 || age >= 0.965 -> Color.rgb(232,174,35)
+            age < 0.5 -> Color.rgb(46,139,87)
+            else -> Color.rgb(210,65,65)
+        }
     }
 
     private fun lunarGlyph(c: Calendar): String {
