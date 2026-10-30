@@ -1583,12 +1583,12 @@ class MainActivity : Activity() {
             "овёс" to "oat", "овес" to "oat", "ячмен" to "barley", "гречих" to "buckwheat",
             "хмель" to "hops", "фенхел" to "fennel", "душиц" to "oregano", "шалф" to "sage"
         )
-        return aliases.firstOrNull { n.contains(it.first) }?.second
-            ?: cropIconCatalog.optJSONObject(0)?.optString("id", "generic")
-            ?: "generic"
+        return aliases.firstOrNull { n.contains(it.first) }?.second ?: "generic"
     }
 
     private fun setCropIcon(image: ImageView, key: String) {
+        // Always install a visible fallback first; SVG parsing failures must never leave a blank card.
+        image.setImageResource(userCropIconResource(key))
         try {
             var slug: String? = null
             for (i in 0 until cropIconCatalog.length()) {
