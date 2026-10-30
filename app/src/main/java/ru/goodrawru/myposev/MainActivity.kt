@@ -244,16 +244,6 @@ class MainActivity : Activity() {
         card("Что попадёт в документ", "Календарь с датами и фазами Луны, рекомендации по месяцам, задачи с культурой/грядкой и статусом, каталог культур и выбранные заметки. Длинные разделы переносятся на следующие страницы.")
     }
 
-    @Deprecated("Uses Android document picker for compatibility")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != 2027) return
-        val bytes = pendingPdfBytes; pendingPdfBytes = null
-        if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) return
-        try { contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) } ?: throw IllegalStateException("Не удалось открыть файл"); Toast.makeText(this, "PDF сохранён", Toast.LENGTH_LONG).show() }
-        catch (e: Exception) { Toast.makeText(this, "Ошибка сохранения: " + (e.message ?: "неизвестная ошибка"), Toast.LENGTH_LONG).show() }
-    }
-
     private fun buildPaperPdf(year: Int, periodIndex: Int, selected: Set<String>, colorMode: Boolean): ByteArray {
         val doc = PdfDocument(); val width = 595; val height = 842; val left = 42f; val right = 553f; val bottom = 795f
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 19f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); color = if (colorMode) android.graphics.Color.rgb(39,91,57) else android.graphics.Color.BLACK }
@@ -406,6 +396,19 @@ class MainActivity : Activity() {
     @Deprecated("Uses the document picker to support older Android versions")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 2027) {
+            val bytes = pendingPdfBytes
+            pendingPdfBytes = null
+            if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) return
+            try {
+                contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }
+                    ?: throw IllegalStateException("Не удалось открыть файл")
+                Toast.makeText(this, "PDF сохранён", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Ошибка сохранения: " + (e.message ?: "неизвестная ошибка"), Toast.LENGTH_LONG).show()
+            }
+            return
+        }
         if (requestCode != 2301 || resultCode != Activity.RESULT_OK || data == null) return
         val uris = mutableListOf<Uri>()
         data.clipData?.let { clip -> for (i in 0 until clip.itemCount) uris.add(clip.getItemAt(i).uri) }
