@@ -278,6 +278,22 @@ class MainActivity : Activity() {
             val offset = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7; val days = c.getActualMaximum(Calendar.DAY_OF_MONTH); val cells = MutableList(offset) { 0 } + (1..days).toList()
             cells.chunked(7).forEach { row -> val labels = (row + List(7-row.size) { 0 }).map { day -> if (day == 0) "       " else day.toString().padStart(2) + " " + lunarGlyph(Calendar.getInstance().apply { set(actualYear, month, day, 12, 0, 0) }) }; line(labels.joinToString("   ")) }
             y += 5f; line("Фазы Луны даны как ориентир; сроки работ корректируйте по местным условиям.")
+            val monthNotes = prefs.all.filter { e ->
+                e.key.startsWith("note_") && e.value is String && (e.value as String).isNotBlank() &&
+                runCatching {
+                    val d = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(e.key.removePrefix("note_"))
+                    d != null && Calendar.getInstance().apply { time = d }.get(Calendar.YEAR) == actualYear &&
+                        Calendar.getInstance().apply { time = d }.get(Calendar.MONTH) == month
+                }.getOrDefault(false)
+            }.sortedBy { it.key }
+            if (monthNotes.isNotEmpty()) {
+                section("Заметки к календарю")
+                monthNotes.forEach { e ->
+                    val rawDate = e.key.removePrefix("note_")
+                    val displayDate = runCatching { SimpleDateFormat("dd.MM.yyyy", Locale("ru")).format(SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(rawDate)!!) }.getOrDefault(rawDate)
+                    line("$displayDate — ${e.value}")
+                }
+            }
         }
         if ("work" in selected) { newPage("Сезонные рекомендации"); months.forEach { month -> val actualYear = if (periodIndex == 4 && month == 11) year - 1 else year; val c = Calendar.getInstance().apply { set(actualYear, month, 15, 12, 0, 0) }; section(SimpleDateFormat("LLLL", Locale("ru")).format(c.time)); line(seasonalAdvice(c)) } }
         if ("tasks" in selected) {
