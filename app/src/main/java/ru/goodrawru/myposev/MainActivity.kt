@@ -188,7 +188,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(12), dp(8), dp(12), dp(8))
-            setBackgroundColor(Color.WHITE)
+            background = roundedBackground(Color.rgb(248, 251, 245), 14f, Color.rgb(213, 229, 207))
         }
         sectionRow.addView(TextView(this).apply {
             text = "Раздел: $title"
@@ -197,11 +197,23 @@ class MainActivity : Activity() {
             maxLines = 2
         }, LinearLayout.LayoutParams(0, -2, 1f))
         sectionRow.addView(Button(this).apply {
-            text = "О программе"; textSize = 11f; isAllCaps = false
-            minWidth = dp(0); minHeight = dp(36); setPadding(dp(8), 0, dp(8), 0)
+            text = "О программе"
+            textSize = 12f
+            isAllCaps = false
+            minWidth = dp(72)
+            minHeight = dp(44)
+            setPadding(dp(10), dp(6), dp(10), dp(6))
+            setTextColor(green)
+            background = roundedBackground(Color.rgb(239, 246, 235), 12f, Color.rgb(213, 229, 207))
+            stateListAnimator = null
             setOnClickListener { showAbout() }
         }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
-        root.addView(sectionRow)
+        root.addView(sectionRow, LinearLayout.LayoutParams(-1, -2).apply {
+            marginStart = dp(10)
+            marginEnd = dp(10)
+            topMargin = dp(6)
+            bottomMargin = dp(6)
+        })
         val navScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; setBackgroundColor(Color.WHITE) }
         val nav = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; setBackgroundColor(Color.WHITE) }
         listOf("Сегодня","Календарь","Культуры","Задачи","Огород").forEach { label ->
