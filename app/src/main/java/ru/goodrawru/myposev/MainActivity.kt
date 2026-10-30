@@ -151,6 +151,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_UNCHANGED)
         createNotificationChannel()
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
@@ -167,7 +168,11 @@ class MainActivity : Activity() {
             // Respect Android 15 edge-to-edge status-bar inset.
             setOnApplyWindowInsetsListener { view, insets ->
                 val topInset = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) insets.getInsets(WindowInsets.Type.statusBars()).top else insets.systemWindowInsetTop
-                val bottomInset = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) insets.getInsets(WindowInsets.Type.navigationBars()).bottom else 0
+                val bottomInset = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    val navBottom = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+                    val imeBottom = insets.getInsets(WindowInsets.Type.ime()).bottom
+                    maxOf(navBottom, imeBottom)
+                } else insets.systemWindowInsetBottom
                 view.setPadding(0, topInset, 0, bottomInset)
                 insets
             }
@@ -211,11 +216,22 @@ class MainActivity : Activity() {
         }
         navScroll.addView(nav)
         root.addView(navScroll)
-        val scroll=ScrollView(this)
+        val scroll=ScrollView(this).apply {
+            isFillViewport = true
+            isSmoothScrollingEnabled = true
+            descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+        }
         content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(16,16,16,28) }
         scroll.addView(content)
         root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
         setContentView(root)
+        // When the keyboard opens, keep the focused text field visible in the scroll area.
+        root.viewTreeObserver.addOnGlobalLayoutListener {
+            val focused = currentFocus
+            if (focused is EditText && focused.hasFocus()) {
+                scroll.post { scroll.requestChildFocus(focused, focused) }
+            }
+        }
     }
 
     private fun showPaperPlanner() {
