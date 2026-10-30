@@ -1560,6 +1560,34 @@ class MainActivity : Activity() {
         else -> R.drawable.plant_generic
     }
 
+    private fun cropIconKeyForName(name: String): String {
+        val n = name.lowercase(Locale.ROOT)
+        val aliases = listOf(
+            "томат" to "tomato", "огур" to "cucumber", "перец слад" to "sweet_pepper",
+            "перец ост" to "hot_pepper", "перец" to "sweet_pepper", "баклаж" to "eggplant",
+            "картоф" to "potato", "морков" to "carrot", "свёкл" to "beet", "свекл" to "beet",
+            "редис" to "radish", "дайкон" to "daikon", "репа" to "turnip", "брюкв" to "rutabaga",
+            "капуст" to "white_cabbage", "броккол" to "broccoli", "кольраб" to "kohlrabi",
+            "кабач" to "zucchini", "патиссон" to "pattypan", "тыкв" to "pumpkin",
+            "арбуз" to "watermelon", "дын" to "melon", "горох" to "peas", "фасол" to "green_beans",
+            "кукуруз" to "corn", "лук-порей" to "leek", "чеснок" to "garlic", "лук" to "onion",
+            "укроп" to "dill", "петруш" to "parsley", "кинз" to "cilantro", "базилик" to "basil",
+            "мят" to "mint", "мелисс" to "lemon_balm", "шпинат" to "spinach", "салат" to "lettuce",
+            "руккол" to "arugula", "щавел" to "sorrel", "мангольд" to "swiss_chard",
+            "клубник" to "strawberry", "земляник" to "wild_strawberry", "малин" to "raspberry",
+            "ежевик" to "blackberry", "голубик" to "blueberry", "яблон" to "apple", "груш" to "pear",
+            "слив" to "plum", "вишн" to "sour_cherry", "черешн" to "sweet_cherry", "абрикос" to "apricot",
+            "персик" to "peach", "миндал" to "almond", "бархатц" to "marigold", "настурц" to "nasturtium",
+            "календул" to "calendula", "петуни" to "petunia", "астр" to "aster", "подсолнеч" to "sunflower",
+            "горчиц" to "white_mustard", "фацели" to "phacelia", "люпин" to "lupin", "рож" to "rye",
+            "овёс" to "oat", "овес" to "oat", "ячмен" to "barley", "гречих" to "buckwheat",
+            "хмель" to "hops", "фенхел" to "fennel", "душиц" to "oregano", "шалф" to "sage"
+        )
+        return aliases.firstOrNull { n.contains(it.first) }?.second
+            ?: cropIconCatalog.optJSONObject(0)?.optString("id", "generic")
+            ?: "generic"
+    }
+
     private fun setCropIcon(image: ImageView, key: String) {
         try {
             var slug: String? = null
@@ -1575,7 +1603,7 @@ class MainActivity : Activity() {
                 val size = 128
                 val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
                 val canvas = Canvas(bitmap)
-                canvas.drawPicture(svg.renderToPicture(size, size))
+                svg.renderToCanvas(canvas)
                 image.setImageBitmap(bitmap)
                 return
             }
@@ -1733,7 +1761,7 @@ class MainActivity : Activity() {
                         }
                     }
                     tile.addView(ImageView(this).apply {
-                        setImageResource(plantIllustration(p.name)); scaleType = ImageView.ScaleType.FIT_CENTER
+                        setCropIcon(this, cropIconKeyForName(p.name)); scaleType = ImageView.ScaleType.FIT_CENTER
                         setPadding(dp(3),dp(3),dp(3),dp(3))
                         background = roundedBackground(Color.rgb(241,247,237),12f)
                         contentDescription = "Иконка культуры: " + p.name
