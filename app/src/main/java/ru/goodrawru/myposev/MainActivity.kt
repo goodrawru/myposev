@@ -1040,8 +1040,13 @@ class MainActivity : Activity() {
             }.maxByOrNull { it.time }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val provider = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
-                    .firstOrNull { name -> try { manager.isProviderEnabled(name) } catch (_: Exception) { false } }
+                val hasFineLocation = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                val providers = if (hasFineLocation) {
+                    listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
+                } else {
+                    listOf(LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
+                }
+                val provider = providers.firstOrNull { name -> try { manager.isProviderEnabled(name) } catch (_: Exception) { false } }
                 if (provider != null) {
                     manager.getCurrentLocation(provider, null, mainExecutor) { fresh ->
                         val location = fresh ?: lastKnown
@@ -1086,7 +1091,7 @@ class MainActivity : Activity() {
                 val zone: String
                 if (isCrimea) {
                     val city = geocodedCity
-                        ?: nearest?.takeIf { it.region == "Крым" || it.region == "Севастopol" }?.takeIf { nearestDistance <= 45.0 }?.city
+                        ?: nearest?.takeIf { it.region == "Крым" || it.region == "Севастополь" }?.takeIf { nearestDistance <= 45.0 }?.city
                         ?: "Моё местоположение"
                     val isSevastopol = address?.adminArea?.contains("Севастополь", true) == true ||
                         (nearest?.region == "Севастополь" && nearestDistance <= 18.0) ||
