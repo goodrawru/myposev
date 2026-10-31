@@ -12,6 +12,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
+import android.location.Geocoder
 import android.provider.Settings
 import android.text.TextWatcher
 import android.text.Editable
@@ -104,6 +105,32 @@ class MainActivity : Activity() {
         GardenCity("Краснодар","Краснодарский край","Юг",45.0355,38.9753),
         GardenCity("Симферополь","Крым","Юг",44.9521,34.1024),
         GardenCity("Севастополь","Севастополь","Юг",44.6167,33.5254),
+        GardenCity("Ялта","Крым","Юг",44.4952,34.1663),
+        GardenCity("Алушта","Крым","Юг",44.6764,34.4100),
+        GardenCity("Керчь","Крым","Юг",45.3568,36.4674),
+        GardenCity("Евпатория","Крым","Юг",45.1906,33.3669),
+        GardenCity("Феодосия","Крым","Юг",45.0319,35.3824),
+        GardenCity("Судак","Крым","Юг",44.8500,34.9762),
+        GardenCity("Саки","Крым","Юг",45.1342,33.6039),
+        GardenCity("Бахчисарай","Крым","Юг",44.7521,33.8608),
+        GardenCity("Джанкой","Крым","Юг",45.7092,34.3931),
+        GardenCity("Армянск","Крым","Юг",46.1059,33.6921),
+        GardenCity("Красноперекопск","Крым","Юг",45.9572,33.7965),
+        GardenCity("Белогорск","Крым","Юг",45.0546,34.5999),
+        GardenCity("Старый Крым","Крым","Юг",45.0292,35.0917),
+        GardenCity("Щёлкино","Крым","Юг",45.4289,35.8251),
+        GardenCity("Черноморское","Крым","Юг",45.5066,32.6977),
+        GardenCity("Инкерман","Севастополь","Юг",44.6131,33.6090),
+        GardenCity("Балаклава","Севастополь","Юг",44.5008,33.5982),
+        GardenCity("Алупка","Крым","Юг",44.4180,34.0450),
+        GardenCity("Гурзуф","Крым","Юг",44.5460,34.2780),
+        GardenCity("Коктебель","Крым","Юг",44.9615,35.2477),
+        GardenCity("Нижнегорский","Крым","Юг",45.4479,34.7384),
+        GardenCity("Советский","Крым","Юг",45.3425,34.9241),
+        GardenCity("Первомайское","Крым","Юг",45.7178,33.8553),
+        GardenCity("Красногвардейское","Крым","Юг",45.5035,34.2936),
+        GardenCity("Кировское","Крым","Юг",45.2296,35.2034),
+        GardenCity("Раздольное","Крым","Юг",45.7681,33.4878),
         GardenCity("Ростов-на-Дону","Ростовская область","Юг",47.2357,39.7015),
         GardenCity("Ставрополь","Ставропольский край","Юг",45.0445,41.9690),
         GardenCity("Волгоград","Волгоградская область","Поволжье",48.7080,44.5133),
@@ -749,10 +776,131 @@ class MainActivity : Activity() {
         card("🌙 Лунный календарь",lunarSummary(Calendar.getInstance()),{showCalendar()})
         card("📅 Выбрать дату","Откройте календарь, чтобы посмотреть сезонные подсказки и заметки.",{showCalendar()})
         card("🌱 Каталог культур","Овощи, зелень, ягоды и цветы — сроки, глубина посева и советы.",{showPlants("")})
-        card("🔔 Напоминания","Ежедневное локальное напоминание запланировано на 09:00.")
+        card("🔔 Напоминания",reminderSettingsSummary(),{showReminderSettings()})
         card("ℹ️ Важно","Это стартовая база. Универсальных дат посева для всей России не существует.")
     }
 
+
+    private val reminderCategoryOptions = listOf(
+        "Сезонные работы", "Посев и рассада", "Уход и полив", "Подкормка",
+        "Защита растений", "Сбор урожая", "Лунная фаза", "Мои задачи", "Мои заметки"
+    )
+
+    private fun defaultReminderCategories(): Set<String> = reminderCategoryOptions.toSet()
+
+    private fun reminderSettingsSummary(): String {
+        val enabled = prefs.getBoolean("reminder_enabled", true)
+        val hour = prefs.getInt("reminder_hour", 9).coerceIn(0, 23)
+        val minute = prefs.getInt("reminder_minute", 0).coerceIn(0, 59)
+        val selected = prefs.getStringSet("reminder_categories", null) ?: defaultReminderCategories()
+        val count = prefs.getStringSet("reminder_crop_ids", null)?.size ?: cropIconCatalog.length()
+        return if (enabled) "Каждый день примерно в %02d:%02d · категорий: %d · культур: %d. Нажмите, чтобы настроить."
+            .format(Locale.US, hour, minute, selected.size, count)
+        else "Ежедневные уведомления выключены. Нажмите, чтобы настроить."
+    }
+
+    private fun showReminderSettings() {
+        baseLayout("Ежедневные напоминания")
+        content.addView(txt("Приложение будет готовить локальный план на текущий день. Интернет для календарных рекомендаций не нужен; точное время доставки зависит от ограничений Android.", 14f))
+        val enabled = CheckBox(this).apply {
+            text = "Включить ежедневные уведомления"
+            isChecked = prefs.getBoolean("reminder_enabled", true)
+            textSize = 16f
+        }
+        content.addView(enabled)
+        var hour = prefs.getInt("reminder_hour", 9).coerceIn(0, 23)
+        var minute = prefs.getInt("reminder_minute", 0).coerceIn(0, 59)
+        val timeButton = Button(this).apply {
+            text = "Время: %02d:%02d".format(Locale.US, hour, minute)
+            isAllCaps = false
+            setOnClickListener {
+                android.app.TimePickerDialog(this@MainActivity, { _, h, m ->
+                    hour = h; minute = m
+                    text = "Время: %02d:%02d".format(Locale.US, hour, minute)
+                }, hour, minute, true).show()
+            }
+        }
+        content.addView(timeButton, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+
+        content.addView(txt("Категории рекомендаций", 17f, true))
+        val savedCategories = prefs.getStringSet("reminder_categories", null) ?: defaultReminderCategories()
+        val categoryChecks = linkedMapOf<String, CheckBox>()
+        reminderCategoryOptions.forEach { category ->
+            val check = CheckBox(this).apply {
+                text = category
+                isChecked = category in savedCategories
+            }
+            categoryChecks[category] = check
+            content.addView(check)
+        }
+
+        val cropCount = prefs.getStringSet("reminder_crop_ids", null)?.size ?: cropIconCatalog.length()
+        val cropSummary = txt("Выбрано культур: $cropCount из ${cropIconCatalog.length()}", 14f)
+        content.addView(cropSummary)
+        button("Выбрать культуры") {
+            showReminderCropPicker {
+                cropSummary.text = "Выбрано культур: ${prefs.getStringSet("reminder_crop_ids", emptySet())?.size ?: cropIconCatalog.length()} из ${cropIconCatalog.length()}"
+            }
+        }
+
+        content.addView(txt("Сколько рекомендаций показывать", 17f, true))
+        val limitSpinner = Spinner(this)
+        val limits = listOf(2, 3, 4, 5, 6)
+        limitSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, limits.map { "$it пункта" })
+        limitSpinner.setSelection((limits.indexOf(prefs.getInt("reminder_limit", 4))).coerceAtLeast(0))
+        content.addView(limitSpinner)
+
+        button("Сохранить настройки") {
+            val categories = categoryChecks.filterValues { it.isChecked }.keys.toSet()
+            prefs.edit()
+                .putBoolean("reminder_enabled", enabled.isChecked)
+                .putInt("reminder_hour", hour)
+                .putInt("reminder_minute", minute)
+                .putStringSet("reminder_categories", categories)
+                .putInt("reminder_limit", limits[limitSpinner.selectedItemPosition])
+                .apply()
+            scheduleDailyReminder()
+            Toast.makeText(this, if (enabled.isChecked) "Настройки напоминаний сохранены" else "Напоминания выключены", Toast.LENGTH_SHORT).show()
+            showHome()
+        }
+        button("Отправить тестовое уведомление") {
+            sendBroadcast(Intent(this, ReminderReceiver::class.java).setAction(ReminderReceiver.ACTION_TEST))
+            Toast.makeText(this, "Тестовое уведомление отправлено, если разрешения Android включены.", Toast.LENGTH_LONG).show()
+        }
+        button("← Назад") { showHome() }
+    }
+
+    private fun showReminderCropPicker(onSaved: () -> Unit) {
+        val options = mutableListOf<Pair<String, String>>()
+        for (i in 0 until cropIconCatalog.length()) {
+            val crop = cropIconCatalog.optJSONObject(i) ?: continue
+            val id = crop.optString("id")
+            val name = crop.optString("name")
+            if (id.isNotBlank() && name.isNotBlank()) options.add(id to name)
+        }
+        if (options.isEmpty()) {
+            Toast.makeText(this, "Каталог культур недоступен.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val stored = prefs.getStringSet("reminder_crop_ids", null)
+        val selected = (stored ?: options.map { it.first }.toSet()).toMutableSet()
+        val checked = BooleanArray(options.size) { options[it].first in selected }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Культуры для напоминаний")
+            .setMultiChoiceItems(options.map { it.second }.toTypedArray(), checked) { _, which, isChecked ->
+                if (isChecked) selected.add(options[which].first) else selected.remove(options[which].first)
+            }
+            .setPositiveButton("Сохранить") { _, _ ->
+                prefs.edit().putStringSet("reminder_crop_ids", selected.toSet()).apply()
+                onSaved()
+            }
+            .setNeutralButton("Выбрать все") { _, _ ->
+                prefs.edit().putStringSet("reminder_crop_ids", options.map { it.first }.toSet()).apply()
+                onSaved()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
 
     private fun showAbout() {
         baseLayout("О программе")
@@ -887,34 +1035,81 @@ class MainActivity : Activity() {
     private fun resolveGardenLocation() {
         try {
             val manager = getSystemService(LOCATION_SERVICE) as LocationManager
-            val location = manager.getProviders(true).mapNotNull { provider ->
-                try { manager.getLastKnownLocation(provider) } catch (_:SecurityException) { null }
+            val lastKnown = manager.getProviders(true).mapNotNull { provider ->
+                try { manager.getLastKnownLocation(provider) } catch (_: SecurityException) { null }
             }.maxByOrNull { it.time }
-            if(location == null) {
-                android.app.AlertDialog.Builder(this).setTitle("Местоположение пока недоступно")
-                    .setMessage("Включите геолокацию на телефоне и попробуйте снова. Либо выберите город вручную.")
-                    .setPositiveButton("Настройки") { _,_ -> startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
-                    .setNegativeButton("Выбрать город") { _,_ -> showCityPicker() }.show()
-                return
-            }
-            val nearest = cities.minByOrNull { distanceKm(location.latitude,location.longitude,it.latitude,it.longitude) }
-            if(nearest != null && distanceKm(location.latitude,location.longitude,nearest.latitude,nearest.longitude) <= 180.0) {
-                saveGardenLocation(nearest.city,nearest.region,nearest.zone,location.latitude,location.longitude)
-            } else {
-                val zone = when {
-                    location.latitude >= 63 -> "Север"
-                    location.latitude >= 57 -> "Сибирь"
-                    location.latitude <= 48 -> "Юг"
-                    else -> "Центральный"
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val provider = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
+                    .firstOrNull { name -> try { manager.isProviderEnabled(name) } catch (_: Exception) { false } }
+                if (provider != null) {
+                    manager.getCurrentLocation(provider, null, mainExecutor) { fresh ->
+                        val location = fresh ?: lastKnown
+                        if (location != null) resolveGardenLocationName(location) else showLocationUnavailable()
+                    }
+                    return
                 }
-                saveGardenLocation("Моё местоположение","Определено по GPS",zone,location.latitude,location.longitude)
             }
-            showHome()
-        } catch (_:SecurityException) {
+            if (lastKnown != null) resolveGardenLocationName(lastKnown) else showLocationUnavailable()
+        } catch (_: SecurityException) {
             Toast.makeText(this,"Не удалось получить геолокацию. Выберите город вручную.",Toast.LENGTH_LONG).show()
-        } catch (_:Exception) {
+        } catch (_: Exception) {
             Toast.makeText(this,"Ошибка определения местоположения. Выберите город вручную.",Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun showLocationUnavailable() {
+        runOnUiThread {
+            android.app.AlertDialog.Builder(this).setTitle("Местоположение пока недоступно")
+                .setMessage("Не удалось получить координаты. Включите геолокацию и попробуйте ещё раз. Если GPS пока не определил место, можно выбрать город вручную.")
+                .setPositiveButton("Настройки") { _,_ -> startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
+                .setNegativeButton("Выбрать город") { _,_ -> showCityPicker() }.show()
+        }
+    }
+
+    private fun resolveGardenLocationName(location: Location) {
+        Thread {
+            val address = try {
+                if (Geocoder.isPresent()) Geocoder(this, Locale("ru")).getFromLocation(location.latitude, location.longitude, 1)?.firstOrNull()
+                else null
+            } catch (_: Exception) { null }
+            runOnUiThread {
+                val lat = location.latitude
+                val lon = location.longitude
+                val isCrimea = lat in 44.2..46.3 && lon in 32.3..36.9
+                val nearest = cities.minByOrNull { distanceKm(lat, lon, it.latitude, it.longitude) }
+                val nearestDistance = nearest?.let { distanceKm(lat, lon, it.latitude, it.longitude) } ?: Double.MAX_VALUE
+                val geocodedCity = listOf(address?.locality, address?.subLocality)
+                    .firstOrNull { !it.isNullOrBlank() }?.trim()
+                val locationLabel: String
+                val region: String
+                val zone: String
+                if (isCrimea) {
+                    val city = geocodedCity
+                        ?: nearest?.takeIf { it.region == "Крым" || it.region == "Севастopol" }?.takeIf { nearestDistance <= 45.0 }?.city
+                        ?: "Моё местоположение"
+                    val isSevastopol = address?.adminArea?.contains("Севастополь", true) == true ||
+                        (nearest?.region == "Севастополь" && nearestDistance <= 18.0) ||
+                        city.contains("Севастополь", true)
+                    locationLabel = city
+                    region = if (isSevastopol) "Севастополь" else "Крым"
+                    zone = "Юг"
+                } else {
+                    locationLabel = geocodedCity ?: nearest?.takeIf { nearestDistance <= 180.0 }?.city ?: "Моё местоположение"
+                    region = address?.adminArea?.takeIf { it.isNotBlank() }
+                        ?: nearest?.takeIf { nearestDistance <= 180.0 }?.region
+                        ?: "Определено по геолокации"
+                    zone = nearest?.takeIf { nearestDistance <= 180.0 }?.zone ?: when {
+                        lat >= 63 -> "Север"
+                        lat >= 57 -> "Сибирь"
+                        lat <= 48 -> "Юг"
+                        else -> "Центральный"
+                    }
+                }
+                saveGardenLocation(locationLabel, region, zone, lat, lon)
+                showHome()
+            }
+        }.start()
     }
 
     private fun distanceKm(lat1:Double,lon1:Double,lat2:Double,lon2:Double):Double {
@@ -1913,13 +2108,19 @@ class MainActivity : Activity() {
         }
     }
     private fun scheduleDailyReminder() {
-        val alarm=getSystemService(ALARM_SERVICE) as AlarmManager
-        val intent=Intent(this,ReminderReceiver::class.java)
-        val pending=PendingIntent.getBroadcast(this,91,intent,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val calendar=Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY,9); set(Calendar.MINUTE,0); set(Calendar.SECOND,0)
-            if(before(Calendar.getInstance())) add(Calendar.DAY_OF_YEAR,1)
+        val alarm = getSystemService(ALARM_SERVICE) as AlarmManager
+        val intent = Intent(this, ReminderReceiver::class.java)
+        val pending = PendingIntent.getBroadcast(this, 91, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        if (!prefs.getBoolean("reminder_enabled", true)) {
+            alarm.cancel(pending)
+            return
         }
-        alarm.setInexactRepeating(AlarmManager.RTC_WAKEUP,calendar.timeInMillis,AlarmManager.INTERVAL_DAY,pending)
+        val hour = prefs.getInt("reminder_hour", 9).coerceIn(0, 23)
+        val minute = prefs.getInt("reminder_minute", 0).coerceIn(0, 59)
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+            if (before(Calendar.getInstance())) add(Calendar.DAY_OF_YEAR, 1)
+        }
+        alarm.setInexactRepeating(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, AlarmManager.INTERVAL_DAY, pending)
     }
 }
