@@ -1045,7 +1045,10 @@ class MainActivity : Activity() {
         }
         val cachedSummary = prefs.getString("weather_summary", null)
         val cacheExpires = prefs.getLong("weather_summary_expires", 0L)
-        if (!cachedSummary.isNullOrBlank() && System.currentTimeMillis() < cacheExpires) {
+        val cachedLat = prefs.getString("weather_summary_lat", null)?.toDoubleOrNull()
+        val cachedLon = prefs.getString("weather_summary_lon", null)?.toDoubleOrNull()
+        if (!cachedSummary.isNullOrBlank() && cachedLat == lat && cachedLon == lon &&
+            System.currentTimeMillis() < cacheExpires) {
             renderWeatherForecast(city, cachedSummary, lat, lon)
             return
         }
@@ -1122,7 +1125,7 @@ class MainActivity : Activity() {
                 val summary = lines.joinToString("\n\n") +
                     if (frost) "\n\n⚠️ Возможен заморозок. Защитите теплолюбивые растения." else
                     "\n\nСверяйте прогноз с условиями именно вашего участка."
-                prefs.edit().putString("weather_summary", summary).putLong("weather_summary_expires", cacheUntil).apply()
+                prefs.edit().putString("weather_summary", summary).putLong("weather_summary_expires", cacheUntil).putString("weather_summary_lat", lat.toString()).putString("weather_summary_lon", lon.toString()).apply()
                 runOnUiThread {
                     if (!isFinishing && weatherForecastOpen) renderWeatherForecast(city, summary, lat, lon)
                 }
