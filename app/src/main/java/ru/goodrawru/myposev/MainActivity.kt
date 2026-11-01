@@ -46,6 +46,15 @@ class MainActivity : Activity() {
     private val prefs by lazy { getSharedPreferences("moi_posevnoy", Context.MODE_PRIVATE) }
     private lateinit var content: LinearLayout
     private var selectedDate = Calendar.getInstance()
+    // Temporary payloads retained while Android document picker is open.
+    private var pendingPdfBytes: ByteArray? = null
+    private var pendingBackupBytes: ByteArray? = null
+    // Weather screen state; coordinates are null until a forecast location is selected.
+    private var weatherLatitude: Double? = null
+    private var weatherLongitude: Double? = null
+    private var weatherPageOpen = false
+    private var weatherForecastOpen = false
+
     private val green = Color.rgb(39, 91, 57)
     private val pale = Color.rgb(239, 246, 235)
     private val cities = listOf(
