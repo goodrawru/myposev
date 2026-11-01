@@ -15,8 +15,8 @@ android {
         applicationId = "ru.goodrawru.myposev"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
-        versionName = "1.3.3"
+        versionCode = 16
+        versionName = "1.3.4"
     }
 
     // Release signing is enabled only when GitHub Actions secrets are supplied.
