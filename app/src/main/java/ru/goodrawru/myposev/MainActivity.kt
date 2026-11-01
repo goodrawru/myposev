@@ -1134,7 +1134,9 @@ class MainActivity : Activity() {
                     if (!isFinishing && weatherForecastOpen) {
                         content.removeAllViews()
                         val savedForecast = prefs.getString("weather_summary", null)
-                        if (!savedForecast.isNullOrBlank()) {
+                        val savedLat = prefs.getString("weather_summary_lat", null)?.toDoubleOrNull()
+                        val savedLon = prefs.getString("weather_summary_lon", null)?.toDoubleOrNull()
+                        if (!savedForecast.isNullOrBlank() && savedLat == lat && savedLon == lon) {
                             content.addView(txt("Не удалось обновить прогноз. Показаны последние сохранённые данные.", 15f, true))
                             savedForecast.split("\n\n").forEachIndexed { index, part ->
                                 card(if (index == 0) "Последний сохранённый прогноз" else "Информация", part)
