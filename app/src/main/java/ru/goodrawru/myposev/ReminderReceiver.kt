@@ -89,10 +89,10 @@ class ReminderReceiver : BroadcastReceiver() {
         val month = adjustedMonth(now.get(Calendar.MONTH), zone)
         val cropExamples = when (month) {
             Calendar.FEBRUARY, Calendar.MARCH, Calendar.APRIL -> crops
-                .filter { it.third in setOf("Овощи", "Корнеплоды", "Капустные", "Тыквенные", "Бобовые", "Зелень", "Пряные травы", "Цветы", "Сидераты") }
+                .filter { it.third in setOf("Овощи", "Корнеплоды", "Капустные", "Тыквенные", "Бобовые", "Луковые", "Зерновые и овощи", "Зелень", "Пряные травы", "Цветы", "Сидераты", "Другое") }
                 .take(3).map { it.second }
             Calendar.JUNE, Calendar.JULY, Calendar.AUGUST, Calendar.SEPTEMBER, Calendar.OCTOBER -> crops
-                .filter { it.third in setOf("Овощи", "Корнеплоды", "Капустные", "Тыквенные", "Бобовые", "Зелень", "Ягоды", "Ягоды и лианы", "Плодовые деревья", "Плодовые кустарники") }
+                .filter { it.third in setOf("Овощи", "Корнеплоды", "Капустные", "Тыквенные", "Бобовые", "Луковые", "Зерновые и овощи", "Зелень", "Пряные травы", "Цветы", "Сидераты", "Другое", "Ягоды", "Ягоды и лианы", "Плодовые деревья", "Плодовые кустарники") }
                 .take(3).map { it.second }
             else -> crops.take(3).map { it.second }
         }
