@@ -238,7 +238,7 @@ class MainActivity : Activity() {
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val yearInput = EditText(this).apply { hint = "Год"; setText(currentYear.toString()); inputType = android.text.InputType.TYPE_CLASS_NUMBER; setSingleLine(true) }
         content.addView(txt("Год календаря", 16f, true)); content.addView(yearInput)
-        val choices = listOf("calendar" to "Посевной календарь", "work" to "Сезонные рекомендации и работы", "tasks" to "Мои задачи и статус выполнения", "plants" to "Каталог культур", "notes" to "Мои заметки", "blank" to "Страницы для записей")
+        val choices = listOf("calendar" to "Посевной календарь", "work" to "Сезонные рекомендации и работы", "tasks" to "Мои задачи и статус выполнения", "plants" to "Каталог культур (культуры с доступными значками)", "notes" to "Мои заметки", "blank" to "Страницы для записей")
         val checks = mutableMapOf<String, CheckBox>()
         choices.forEachIndexed { index, item -> val cb = CheckBox(this).apply { text = item.second; isChecked = index < 4; setTextColor(Color.rgb(42,55,43)) }; checks[item.first] = cb; content.addView(cb) }
         val period = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("Весь год", "Весна (март–май)", "Лето (июнь–август)", "Осень (сентябрь–ноябрь)", "Зима (декабрь–февраль)")) }
@@ -256,7 +256,7 @@ class MainActivity : Activity() {
                 startActivityForResult(intent, 2027)
             } catch (e: Exception) { pendingPdfBytes = null; Toast.makeText(this, "Ошибка подготовки PDF: " + (e.message ?: "неизвестная ошибка"), Toast.LENGTH_LONG).show() }
         }
-        card("Что попадёт в документ", "Календарь с датами и фазами Луны, рекомендации по месяцам, задачи с культурой/грядкой и статусом, каталог культур и выбранные заметки. Длинные разделы переносятся на следующие страницы.")
+        card("Что попадёт в документ", "Календарь с датами и фазами Луны, рекомендации по месяцам, задачи с культурой/грядкой и статусом, доступные встроенные культуры и выбранные заметки. Длинные разделы переносятся на следующие страницы.")
     }
 
     private fun buildPaperPdf(year: Int, periodIndex: Int, selected: Set<String>, colorMode: Boolean): ByteArray {
@@ -654,9 +654,17 @@ class MainActivity : Activity() {
         val options = mutableListOf<Pair<String, String>>()
         for (i in 0 until cropIconCatalog.length()) {
             val crop = cropIconCatalog.optJSONObject(i) ?: continue
+            if (!crop.optBoolean("available", true)) continue
             val id = crop.optString("id")
             val name = crop.optString("name")
             if (id.isNotBlank() && name.isNotBlank()) options.add(id to name)
+        }
+        val customCrops = userCrops()
+        for (i in 0 until customCrops.length()) {
+            val crop = customCrops.optJSONObject(i) ?: continue
+            val id = crop.optString("id")
+            val name = crop.optString("name")
+            if (id.isNotBlank() && name.isNotBlank() && options.none { it.first == id }) options.add(id to name)
         }
         if (options.isEmpty()) {
             Toast.makeText(this, "Каталог культур недоступен.", Toast.LENGTH_SHORT).show()
