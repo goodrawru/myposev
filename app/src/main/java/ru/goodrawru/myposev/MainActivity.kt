@@ -1043,6 +1043,12 @@ class MainActivity : Activity() {
             weatherForecastOpen = false
             showHome()
         }
+        val cachedSummary = prefs.getString("weather_summary", null)
+        val cacheExpires = prefs.getLong("weather_summary_expires", 0L)
+        if (!cachedSummary.isNullOrBlank() && System.currentTimeMillis() < cacheExpires) {
+            renderWeatherForecast(city, cachedSummary, lat, lon)
+            return
+        }
         content.addView(txt("Загружаю прогноз…", 15f))
         Thread {
             try {
@@ -1056,6 +1062,9 @@ class MainActivity : Activity() {
                 connection.setRequestProperty("Accept", "application/json")
                 val status = connection.responseCode
                 if (status !in 200..299) throw java.io.IOException("HTTP " + status)
+                val cacheUntil = connection.getHeaderFieldDate("Expires", 0L)
+                    .takeIf { it > System.currentTimeMillis() }
+                    ?: (System.currentTimeMillis() + 30 * 60 * 1000L)
                 val body = connection.inputStream.bufferedReader().use { it.readText() }
                 connection.disconnect()
                 val timeseries = JSONObject(body).getJSONObject("properties").getJSONArray("timeseries")
@@ -1113,7 +1122,7 @@ class MainActivity : Activity() {
                 val summary = lines.joinToString("\n\n") +
                     if (frost) "\n\n⚠️ Возможен заморозок. Защитите теплолюбивые растения." else
                     "\n\nСверяйте прогноз с условиями именно вашего участка."
-                prefs.edit().putString("weather_summary", summary).apply()
+                prefs.edit().putString("weather_summary", summary).putLong("weather_summary_expires", cacheUntil).apply()
                 runOnUiThread {
                     if (!isFinishing && weatherForecastOpen) renderWeatherForecast(city, summary, lat, lon)
                 }
