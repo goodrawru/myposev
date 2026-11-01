@@ -315,7 +315,7 @@ class MainActivity : Activity() {
             for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; val date = item.optString("date", ""); if (date.length < 7 || date.substring(0,4).toIntOrNull() != year || (date.substring(5,7).toIntOrNull()?.minus(1) !in months)) continue; count++; section(date + " • " + item.optString("title", "Задача")); line("Тип работы: " + item.optString("type", "Уход")); val crop = item.optString("crop", "").trim(); if (crop.isNotEmpty()) line("Культура/грядка: " + crop); line("Статус: " + if (item.optBoolean("done", false)) "Выполнено" else "Запланировано") }
             if (count == 0) line("На выбранный период задач нет.")
         }
-        if ("plants" in selected) { newPage("Каталог культур"); plants.forEach { p -> section(p.name); line("Группа: " + p.group); line("Срок посева: " + p.sowing); line("Глубина: " + p.depth); line("Всходы: " + p.sprouts); line(p.advice) } }
+        if ("plants" in selected) { newPage("Каталог культур"); builtInPlants.forEach { p -> section(p.name); line("Группа: " + p.group); line("Срок посева: " + p.sowing); line("Глубина: " + p.depth); line("Всходы: " + p.sprouts); line(p.advice) } }
         if ("notes" in selected) { newPage("Мои заметки"); val notes = prefs.all.filter { it.key.startsWith("note_") && it.value is String && (it.value as String).isNotBlank() }.toSortedMap(); if (notes.isEmpty()) line("Сохранённых заметок нет."); notes.forEach { entry -> section(entry.key.removePrefix("note_")); line(entry.value.toString()) } }
         if ("blank" in selected) repeat(3) { index -> newPage("Свободные записи " + (index + 1)); repeat(22) { canvas!!.drawLine(left, y, right, y, footerPaint); y += 30f } }
         if (page != null) { canvas!!.drawText("Мой Посевной • " + year + " • стр. " + pageNo, left, 822f, footerPaint); doc.finishPage(page!!) }
@@ -1525,6 +1525,29 @@ class MainActivity : Activity() {
         } catch (_: Exception) { JSONArray() }
     }
 
+    // All catalog entries with a bundled icon are visible in the built-in catalog.
+    // Detailed agronomic records override conservative, clearly qualified fallback guidance.
+    private val builtInPlants: List<Plant> by lazy {
+        val detailedByName = plants.associateBy { it.name.lowercase(Locale.ROOT) }
+        val result = mutableListOf<Plant>()
+        for (i in 0 until cropIconCatalog.length()) {
+            val crop = cropIconCatalog.optJSONObject(i) ?: continue
+            if (!crop.optBoolean("available", true)) continue
+            val name = crop.optString("name").trim()
+            if (name.isBlank()) continue
+            val category = crop.optString("category").ifBlank { "Культуры" }
+            val detailed = detailedByName[name.lowercase(Locale.ROOT)]
+            result.add(detailed ?: Plant(
+                name, category,
+                "Уточняйте по сорту, региону и способу выращивания",
+                "Зависит от культуры и размера посадочного материала",
+                "Зависит от вида, температуры и влажности",
+                "Это общая карточка без сортовой нормы. Сверяйте сроки, глубину и условия выращивания с упаковкой семян и местными агрономическими рекомендациями."
+            ))
+        }
+        result
+    }
+
     private fun cropIconChoices(): List<Pair<String, String>> {
         val choices = mutableListOf("generic" to "Росток")
         for (i in 0 until cropIconCatalog.length()) {
@@ -1743,7 +1766,7 @@ class MainActivity : Activity() {
                 addTileRows(results,userTiles)
             }
 
-            val builtIns = plants.filter { it.name.contains(filter,true) || it.group.contains(filter,true) }
+            val builtIns = builtInPlants.filter { it.name.contains(filter,true) || it.group.contains(filter,true) }
             val shouldExpand = filter.isNotBlank() || builtInCatalogExpanded
             val heading = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0,dp(4),0,dp(4)) }
             heading.addView(txt("Встроенные культуры (${builtIns.size})",19f,true),LinearLayout.LayoutParams(0,-2,1f))
