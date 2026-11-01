@@ -63,7 +63,7 @@ class ReminderReceiver : BroadcastReceiver() {
         val result = mutableListOf<String>()
         val now = Calendar.getInstance()
         val todayIso = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(now.time)
-        val todayNoteKey = SimpleDateFormat("d MMMM yyyy", Locale("ru")).format(now.time)
+        val todayNoteKey = todayIso
 
         if ("Мои задачи" in categories) {
             val tasks = try { JSONArray(prefs.getString("care_tasks", "[]")) } catch (_: Exception) { JSONArray() }
