@@ -15,8 +15,8 @@ android {
         applicationId = "ru.goodrawru.myposev"
         minSdk = 26
         targetSdk = 35
-        versionCode = 14
-        versionName = "1.3.2"
+        versionCode = 15
+        versionName = "1.3.3"
     }
 
     // Release signing is enabled only when GitHub Actions secrets are supplied.
@@ -61,9 +61,5 @@ android {
 }
 
 dependencies {
-    // Media3 1.5.1 is compatible with this project's compileSdk 35 / AGP 8.7.3.
-    val media3Version = "1.5.1"
-    implementation("androidx.media3:media3-exoplayer:$media3Version")
-    implementation("androidx.media3:media3-session:$media3Version")
     implementation("com.caverock:androidsvg-aar:1.4")
 }
