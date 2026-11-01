@@ -1748,42 +1748,7 @@ class MainActivity : Activity() {
                 addTileRows(results,userTiles)
             }
 
-            val builtIns = builtInPlants.filter { it.name.contains(filter,true) || it.group.contains(filter,true) }
-            val shouldExpand = filter.isNotBlank() || builtInCatalogExpanded
-            val heading = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0,dp(4),0,dp(4)) }
-            heading.addView(txt("Встроенные культуры (${builtIns.size})",19f,true),LinearLayout.LayoutParams(0,-2,1f))
-            heading.addView(Button(this).apply {
-                text = if(shouldExpand) "Свернуть ▲" else "Показать ▼"; textSize = 11f; isAllCaps = false
-                setOnClickListener { builtInCatalogExpanded = !shouldExpand; fill(search.text.toString()) }
-            })
-            results.addView(heading)
-
-            if (shouldExpand) {
-                val builtInTiles = builtIns.map { p ->
-                    val tile = LinearLayout(this).apply {
-                        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
-                        setPadding(dp(8),dp(10),dp(8),dp(10))
-                        background = roundedBackground(Color.WHITE,14f,Color.rgb(220,230,216))
-                        elevation = dp(1).toFloat(); isClickable = true; isFocusable = true
-                        setOnClickListener {
-                            android.app.AlertDialog.Builder(this@MainActivity).setTitle(p.name)
-                                .setMessage("${p.group}\n\nПосев: ${p.sowing}\nГлубина: ${p.depth}\nВсходы: ${p.sprouts}\n\n${p.advice}")
-                                .setPositiveButton("Закрыть",null).show()
-                        }
-                    }
-                    tile.addView(ImageView(this).apply {
-                        setCropIcon(this, cropIconKeyForName(p.name)); scaleType = ImageView.ScaleType.FIT_CENTER
-                        setPadding(dp(3),dp(3),dp(3),dp(3))
-                        background = roundedBackground(Color.rgb(241,247,237),12f)
-                        contentDescription = "Иконка культуры: " + p.name
-                    },LinearLayout.LayoutParams(dp(82),dp(82)).apply { bottomMargin = dp(5) })
-                    tile.addView(txt(p.name,15f,true).apply { gravity = Gravity.CENTER; maxLines = 2 })
-                    tile.addView(txt(p.group,12f).apply { gravity = Gravity.CENTER })
-                    tile
-                }
-                addTileRows(results,builtInTiles)
-            }
-            if (results.childCount == 0) results.addView(txt("Ничего не найдено. Попробуйте другое название."))
+            if (results.childCount == 0) results.addView(txt(if (filter.isBlank()) "Здесь будут отображаться ваши собственные культуры." else "Свои культуры не найдены. Введите название в форме посадки, чтобы выбрать встроенную культуру."))
         }
         fill(query)
         search.addTextChangedListener(object:android.text.TextWatcher {
@@ -1798,11 +1763,71 @@ class MainActivity : Activity() {
         content.addView(txt("Мои посадки",20f,true))
         content.addView(txt("Записывайте сорт, место выращивания и заметки. Данные сохраняются на устройстве.",14f))
         val name=EditText(this@MainActivity).apply { hint="Культура (например, томат)"; setSingleLine(true) }
+        val cropSuggestions = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(name)
+        content.addView(cropSuggestions)
+        fun updateCropSuggestions(query: String) {
+            cropSuggestions.removeAllViews()
+            val q = query.trim()
+            if (q.isBlank()) {
+                cropSuggestions.visibility = View.GONE
+                return
+            }
+            val mine = userCrops()
+            val customMatches = (0 until mine.length()).mapNotNull { mine.optJSONObject(it) }
+                .filter { it.optString("name").contains(q, true) }
+            val customNames = customMatches.map { it.optString("name").lowercase(Locale.ROOT) }.toSet()
+            val builtMatches = builtInPlants.filter {
+                it.name.contains(q, true) && it.name.lowercase(Locale.ROOT) !in customNames
+            }
+            val suggestions = customMatches.map { crop ->
+                Triple(crop.optString("name"), crop.optString("icon", "generic"), true)
+            } + builtMatches.map { plant ->
+                Triple(plant.name, cropIconKeyForName(plant.name), false)
+            }
+            if (suggestions.isEmpty()) {
+                cropSuggestions.visibility = View.GONE
+                return
+            }
+            cropSuggestions.visibility = View.VISIBLE
+            cropSuggestions.addView(txt("Подходящие культуры", 13f, true))
+            suggestions.take(8).forEach { (cropName, iconKey, isCustom) ->
+                val row = LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(8), dp(5), dp(8), dp(5))
+                    background = roundedBackground(Color.WHITE, 10f, Color.rgb(220,230,216))
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener {
+                        name.setText(cropName)
+                        name.setSelection(name.text.length)
+                        cropSuggestions.removeAllViews()
+                        cropSuggestions.visibility = View.GONE
+                    }
+                }
+                row.addView(ImageView(this@MainActivity).apply {
+                    if (isCustom) setCropIcon(this, iconKey) else setCropIcon(this, iconKey)
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    contentDescription = "Иконка культуры $cropName"
+                }, LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginEnd = dp(10) })
+                row.addView(txt(cropName, 15f, true), LinearLayout.LayoutParams(0, -2, 1f))
+                row.addView(txt("Выбрать", 12f))
+                cropSuggestions.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(5) })
+            }
+        }
+        name.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                updateCropSuggestions(s?.toString().orEmpty())
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
         val variety=EditText(this@MainActivity).apply { hint="Сорт"; setSingleLine(true) }
         val sowing=EditText(this@MainActivity).apply { hint="Дата посева (дд.мм.гггг)"; setText(SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(Date())); setSingleLine(true) }
         val place=EditText(this@MainActivity).apply { hint="Место (теплица, грядка №1, балкон)"; setSingleLine(true) }
         val notes=EditText(this@MainActivity).apply { hint="Заметки (необязательно)"; minLines=2; maxLines=4 }
-        content.addView(name); content.addView(variety); content.addView(sowing); content.addView(place); content.addView(notes)
+        content.addView(variety); content.addView(sowing); content.addView(place); content.addView(notes)
         button("Добавить посадку") {
             val crop=name.text.toString().trim()
             val date=sowing.text.toString().trim()
