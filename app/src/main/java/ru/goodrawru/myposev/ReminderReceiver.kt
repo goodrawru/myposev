@@ -135,13 +135,24 @@ class ReminderReceiver : BroadcastReceiver() {
         return try {
             val text = context.assets.open("crop-icons/catalog.json").bufferedReader().use { it.readText() }
             val array = JSONObject(text).optJSONArray("crops") ?: JSONArray()
-            (0 until array.length()).mapNotNull { i ->
+            val builtIns = (0 until array.length()).mapNotNull { i ->
                 val item = array.optJSONObject(i) ?: return@mapNotNull null
+                if (!item.optBoolean("available", true)) return@mapNotNull null
                 val id = item.optString("id")
                 val name = item.optString("name")
                 val category = item.optString("category")
                 if (id.isBlank() || name.isBlank()) null else Triple(id, name, category)
             }
+            val prefs = context.getSharedPreferences("moi_posevnoy", Context.MODE_PRIVATE)
+            val customJson = try { JSONArray(prefs.getString("user_crops", "[]")) } catch (_: Exception) { JSONArray() }
+            val custom = (0 until customJson.length()).mapNotNull { i ->
+                val item = customJson.optJSONObject(i) ?: return@mapNotNull null
+                val id = item.optString("id")
+                val name = item.optString("name")
+                val category = item.optString("category", "Другое")
+                if (id.isBlank() || name.isBlank()) null else Triple(id, name, category)
+            }
+            builtIns + custom
         } catch (_: Exception) { emptyList() }
     }
 
