@@ -557,7 +557,7 @@ class MainActivity : Activity() {
         card("🌿 План на сегодня",regionalTodayAdvice())
         card("🧤 Задачи по уходу",todayTasksSummary(),{showTasks()})
         button("Политика конфиденциальности") { showPrivacyPolicy() }
-        card("🌦️ Погода на 7 дней","Бесплатный прогноз по дням: температура, осадки, ветер и предупреждение о заморозках.",{loadWeather()})
+        card("🌦️ Погода на 7 дней","Прогноз по дням: температура, облачность, осадки и ветер.",{loadWeather()})
         card("🪴 Полезный принцип","Посевные сроки — ориентир, а не гарантия. Сверяйте рекомендации с прогнозом заморозков, температурой почвы и условиями конкретной грядки.")
         card("🌙 Лунный календарь",lunarSummary(Calendar.getInstance()),{showCalendar()})
         card("📅 Выбрать дату","Откройте календарь, чтобы посмотреть сезонные подсказки и заметки.",{showCalendar()})
@@ -961,143 +961,141 @@ class MainActivity : Activity() {
         val city = prefs.getString("garden_city", "Выбранное место") ?: "Выбранное место"
         baseLayout("Погода на 7 дней")
         content.addView(txt("📍 " + city, 17f, true))
-        content.addView(txt("Бесплатный прогноз MET Norway. Регистрация и ключ API не нужны.", 13f))
-        button("Источник данных: MET Norway") { openExternalLink("https://api.met.no/") }
-        button("Условия использования") { openExternalLink("https://api.met.no/doc/TermsOfService") }
+        content.addView(txt("Прогноз погоды на 7 дней.", 13f))
+        button("Источник данных: 7Timer!") { openExternalLink("https://www.7timer.info/doc.php?lang=en") }
         button("← На главную") {
             weatherForecastOpen = false
             showHome()
         }
-        val cachedSummary = prefs.getString("weather_summary_metno", null)
-        val cacheExpires = prefs.getLong("weather_summary_metno_expires", 0L)
-        val cachedLat = prefs.getString("weather_summary_metno_lat", null)?.toDoubleOrNull()
-        val cachedLon = prefs.getString("weather_summary_metno_lon", null)?.toDoubleOrNull()
+
+        val cachedSummary = prefs.getString("weather_summary_7timer", null)
+        val cacheExpires = prefs.getLong("weather_summary_7timer_expires", 0L)
+        val cachedLat = prefs.getString("weather_summary_7timer_lat", null)?.toDoubleOrNull()
+        val cachedLon = prefs.getString("weather_summary_7timer_lon", null)?.toDoubleOrNull()
         if (!cachedSummary.isNullOrBlank() && cachedLat == lat && cachedLon == lon &&
             System.currentTimeMillis() < cacheExpires) {
             renderWeatherForecast(city, cachedSummary, lat, lon)
             return
         }
+
         content.addView(txt("Загружаю прогноз…", 15f))
         Thread {
+            var connection: java.net.HttpURLConnection? = null
             try {
                 val url = String.format(
                     Locale.US,
-                    "https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=%.4f&lon=%.4f",
-                    lat, lon
+                    "https://www.7timer.info/bin/api.pl?lon=%.3f&lat=%.3f&product=civil&output=json",
+                    lon, lat
                 )
-                val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
                 connection.connectTimeout = 15000
                 connection.readTimeout = 15000
                 connection.requestMethod = "GET"
                 connection.setRequestProperty("Accept", "application/json")
-                // MET Norway requires a descriptive User-Agent; generic Android clients may be blocked.
                 connection.setRequestProperty("User-Agent", "MoiPosevnoy/1.3 (https://github.com/goodrawru/myposev)")
                 val status = connection.responseCode
                 if (status !in 200..299) throw java.io.IOException("HTTP " + status)
                 val body = connection.inputStream.bufferedReader().use { it.readText() }
-                val expiresHeader = connection.getHeaderField("Expires")
                 connection.disconnect()
+                connection = null
 
-                val timeseries = JSONObject(body).getJSONObject("properties").getJSONArray("timeseries")
+                val root = JSONObject(body)
+                val series = root.optJSONArray("dataseries") ?: throw java.io.IOException("Нет данных прогноза")
+                val initParser = SimpleDateFormat("yyyyMMddHH", Locale.US).apply {
+                    timeZone = java.util.TimeZone.getTimeZone("UTC")
+                }
+                val initDate = initParser.parse(root.optString("init"))
+                    ?: throw java.io.IOException("Не удалось определить время прогноза")
                 val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
                 val displayFormat = SimpleDateFormat("EEE, d MMM", Locale("ru"))
                 val grouped = linkedMapOf<String, MutableList<JSONObject>>()
-                val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-                    timeZone = java.util.TimeZone.getTimeZone("UTC")
-                }
-                for (i in 0 until timeseries.length()) {
-                    val item = timeseries.optJSONObject(i) ?: continue
-                    val time = item.optString("time")
-                    val parsed = try { parser.parse(time) } catch (_: Exception) { null } ?: continue
-                    val key = dayFormat.format(parsed)
+                for (i in 0 until series.length()) {
+                    val item = series.optJSONObject(i) ?: continue
+                    val timepoint = item.optInt("timepoint", -1)
+                    if (timepoint < 0) continue
+                    val forecastDate = Date(initDate.time + timepoint * 60L * 60L * 1000L)
+                    val key = dayFormat.format(forecastDate)
                     if (!grouped.containsKey(key)) grouped[key] = mutableListOf()
                     grouped[key]!!.add(item)
                 }
+
                 val result = mutableListOf<String>()
                 var frost = false
                 for ((dateText, items) in grouped.entries.take(7)) {
                     var minTemp = Double.POSITIVE_INFINITY
                     var maxTemp = Double.NEGATIVE_INFINITY
-                    var maxWind = 0.0
-                    var rain = 0.0
-                    var symbol = "cloudy"
-                    var symbolScore = -1
+                    var maxWindCode = 0
+                    var windDirection = ""
+                    val weatherCounts = linkedMapOf<String, Int>()
+                    val precipTypes = linkedSetOf<String>()
                     var parsedDate: Date? = null
+
                     for (item in items) {
-                        val instant = try { parser.parse(item.optString("time")) } catch (_: Exception) { null }
-                        if (parsedDate == null) parsedDate = instant
-                        val details = item.optJSONObject("data")?.optJSONObject("instant")?.optJSONObject("details")
-                        val temp = details?.optDouble("air_temperature", Double.NaN) ?: Double.NaN
+                        val timepoint = item.optInt("timepoint", 0)
+                        if (parsedDate == null) parsedDate = Date(initDate.time + timepoint * 60L * 60L * 1000L)
+                        val temp = item.optDouble("temp2m", Double.NaN)
                         if (temp.isFinite()) {
                             minTemp = minOf(minTemp, temp)
                             maxTemp = maxOf(maxTemp, temp)
                         }
-                        val wind = details?.optDouble("wind_speed", Double.NaN) ?: Double.NaN
-                        if (wind.isFinite()) maxWind = maxOf(maxWind, wind)
-                        val next1 = item.optJSONObject("data")?.optJSONObject("next_1_hours")
-                        val next6 = item.optJSONObject("data")?.optJSONObject("next_6_hours")
-                        val next12 = item.optJSONObject("data")?.optJSONObject("next_12_hours")
-                        val precip = next1?.optJSONObject("details")?.optDouble("precipitation_amount", Double.NaN)
-                            ?: next6?.optJSONObject("details")?.optDouble("precipitation_amount", Double.NaN)
-                            ?: next12?.optJSONObject("details")?.optDouble("precipitation_amount", Double.NaN)
-                        if (precip != null && precip.isFinite() && precip >= 0) rain += precip
-                        val candidate = next1?.optJSONObject("summary")?.optString(" symbol_code")?.takeIf { it.isNotBlank() }
-                            ?: next1?.optJSONObject("summary")?.optString("symbol_code")?.takeIf { it.isNotBlank() }
-                            ?: next6?.optJSONObject("summary")?.optString("symbol_code")?.takeIf { it.isNotBlank() }
-                            ?: next12?.optJSONObject("summary")?.optString("symbol_code")?.takeIf { it.isNotBlank() }
-                        if (candidate != null) {
-                            val score = when {
-                                candidate.contains("thunder") -> 5
-                                candidate.contains("snow") || candidate.contains("sleet") -> 4
-                                candidate.contains("rain") || candidate.contains("shower") -> 3
-                                candidate.contains("fog") -> 2
-                                candidate.contains("cloud") -> 1
-                                else -> 0
-                            }
-                            if (score > symbolScore) { symbolScore = score; symbol = candidate }
+                        val wind = item.optJSONObject("wind10m")
+                        val windCode = wind?.optInt("speed", 0) ?: 0
+                        if (windCode > maxWindCode) {
+                            maxWindCode = windCode
+                            windDirection = wind?.optString("direction", "").orEmpty()
+                        }
+                        val weather = item.optString("weather", "cloudy")
+                        weatherCounts[weather] = (weatherCounts[weather] ?: 0) + 1
+                        when (item.optString("prec_type", "none").lowercase(Locale.US)) {
+                            "rain" -> precipTypes.add("дождь")
+                            "snow" -> precipTypes.add("снег")
+                            "freezing rain" -> precipTypes.add("ледяной дождь")
                         }
                     }
+
                     if (parsedDate == null || !minTemp.isFinite() || !maxTemp.isFinite()) continue
                     if (minTemp <= 0.0) frost = true
                     val labelDate = try { dayFormat.parse(dateText) } catch (_: Exception) { null }
-                    val label = (labelDate?.let { displayFormat.format(it) } ?: dateText).replaceFirstChar { it.uppercase(Locale("ru")) }
-                    val rainText = if (rain >= 0.5) " · осадки ~" + String.format(Locale.US, "%.1f", rain) + " мм" else " · без существенных осадков"
-                    result.add(label + "\n" + metNoSymbolRu(symbol) + "\n" +
-                        "🌡 " + minTemp.toInt() + "…"+ maxTemp.toInt() + " °C" +
-                        "   💨 до " + String.format(Locale.US, "%.0f", maxWind) + " м/с" + rainText)
+                    val label = (labelDate?.let { displayFormat.format(it) } ?: dateText)
+                        .replaceFirstChar { it.uppercase(Locale("ru")) }
+                    val mainWeather = weatherCounts.maxByOrNull { it.value }?.key ?: "cloudy"
+                    val windText = if (maxWindCode > 0) {
+                        "💨 ветер " + windDirectionRu(windDirection) + ", " + windSpeedRange(maxWindCode)
+                    } else "💨 ветер: нет данных"
+                    val precipText = if (precipTypes.isEmpty()) "Осадки: не ожидаются" else "Осадки: " + precipTypes.joinToString(", ")
+                    result.add(label + "\n" + sevenTimerWeatherRu(mainWeather) + "\n" +
+                        "🌡 " + minTemp.toInt() + "…"+ maxTemp.toInt() + " °C\n" +
+                        windText + "\n" + precipText)
                 }
                 if (result.isEmpty()) throw java.io.IOException("Пустой прогноз")
                 val summary = result.joinToString("\n\n") + if (frost) {
-                    "\n\n⚠️ В один или несколько дней возможна температура 0 °C или ниже. Защитите теплолюбивые растения."
-                } else {
-                    "\n\nСверяйте прогноз с условиями именно вашего участка."
-                }
-                // Cache for at least 60 minutes; MET Norway asks clients to respect its Expires header.
+                    "\n\n⚠️ В один или несколько дней возможна температура 0 °C или ниже."
+                } else ""
                 val cacheUntil = System.currentTimeMillis() + 60 * 60 * 1000L
                 prefs.edit()
-                    .putString("weather_summary_metno", summary)
-                    .putLong("weather_summary_metno_expires", cacheUntil)
-                    .putString("weather_summary_metno_lat", lat.toString())
-                    .putString("weather_summary_metno_lon", lon.toString())
+                    .putString("weather_summary_7timer", summary)
+                    .putLong("weather_summary_7timer_expires", cacheUntil)
+                    .putString("weather_summary_7timer_lat", lat.toString())
+                    .putString("weather_summary_7timer_lon", lon.toString())
                     .apply()
                 runOnUiThread {
                     if (!isFinishing && weatherForecastOpen) renderWeatherForecast(city, summary, lat, lon)
                 }
             } catch (e: Exception) {
+                connection?.disconnect()
                 runOnUiThread {
                     if (!isFinishing && weatherForecastOpen) {
                         content.removeAllViews()
-                        val savedForecast = prefs.getString("weather_summary_metno", null)
-                        val savedLat = prefs.getString("weather_summary_metno_lat", null)?.toDoubleOrNull()
-                        val savedLon = prefs.getString("weather_summary_metno_lon", null)?.toDoubleOrNull()
+                        val savedForecast = prefs.getString("weather_summary_7timer", null)
+                        val savedLat = prefs.getString("weather_summary_7timer_lat", null)?.toDoubleOrNull()
+                        val savedLon = prefs.getString("weather_summary_7timer_lon", null)?.toDoubleOrNull()
                         if (!savedForecast.isNullOrBlank() && savedLat == lat && savedLon == lon) {
                             content.addView(txt("Не удалось обновить прогноз. Показаны последние сохранённые данные.", 15f, true))
                             savedForecast.split("\n\n").forEachIndexed { index, part ->
-                                card(if (index < 7) "Прогноз MET Norway" else "Совет для огорода", part)
+                                card(if (index < 7) "Прогноз погоды" else "Предупреждение", part)
                             }
                         } else {
-                            content.addView(txt("MET Norway сейчас недоступен. Проверьте интернет-соединение. Если сервис недоступен из вашей сети, повторите попытку позже.", 15f))
-                            content.addView(txt("Техническая ошибка: " + (e.message ?: "нет ответа"), 12f))
+                            content.addView(txt("Не удалось загрузить прогноз. Проверьте интернет-соединение и повторите попытку.", 15f))
                         }
                         button("↻ Повторить загрузку") { loadWeatherForecast(lat, lon) }
                         button("← На главную") {
@@ -1113,15 +1111,14 @@ class MainActivity : Activity() {
     private fun renderWeatherForecast(city: String, summary: String, lat: Double, lon: Double) {
         baseLayout("Погода на 7 дней")
         content.addView(txt("📍 " + city, 17f, true))
-        content.addView(txt("Источник: MET Norway · прогноз по координатам · бесплатно, без ключа API", 12f))
-        button("Источник данных: MET Norway") { openExternalLink("https://api.met.no/") }
-        button("Условия использования") { openExternalLink("https://api.met.no/doc/TermsOfService") }
+        content.addView(txt("Источник прогноза: 7Timer!", 12f))
+        button("Источник данных: 7Timer!") { openExternalLink("https://www.7timer.info/doc.php?lang=en") }
         val parts = summary.split("\n\n")
         parts.forEachIndexed { index, part ->
-            if (index == parts.lastIndex && (part.startsWith("⚠️") || part.startsWith("Сверяйте"))) {
-                card("🌱 Совет для огорода", part)
+            if (part.startsWith("⚠️")) {
+                card("🌡️ Температура", part)
             } else {
-                card(if (index == 0) "🌤️ Ближайший прогноз" else "📅 День " + (index + 1), part)
+                card(if (index == 0) "🌤️ Сегодня" else "📅 Прогноз", part)
             }
         }
         button("↻ Обновить прогноз") { loadWeatherForecast(lat, lon) }
@@ -1131,24 +1128,42 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun metNoSymbolRu(code: String): String {
+    private fun sevenTimerWeatherRu(code: String): String {
         val c = code.lowercase(Locale.US)
         return when {
-            c.contains("thunder") -> "⛈️ Гроза"
-            c.contains("snow") || c.contains("sleet") -> "🌨️ Снег / мокрый снег"
+            c.contains("tstorm") || c == "ts" || c.contains("thunder") -> "⛈️ Гроза"
+            c.contains("snow") -> "🌨️ Снег"
             c.contains("rain") || c.contains("shower") -> "🌧️ Дождь"
             c.contains("fog") -> "🌫️ Туман"
-            c.contains("partlycloudy") -> "⛅ Переменная облачность"
+            c.contains("clear") -> "☀️ Ясно"
+            c.contains("pcloudy") -> "⛅ Переменная облачность"
+            c.contains("mcloudy") -> "🌥️ Облачно с прояснениями"
             c.contains("cloudy") -> "☁️ Облачно"
-            c.contains("clearsky") || c.contains("fair") -> "☀️ Ясно"
+            c.contains("humid") -> "💧 Высокая влажность"
             else -> "🌥️ Переменная облачность"
         }
+    }
+
+    private fun windDirectionRu(direction: String): String = when (direction.uppercase(Locale.US)) {
+        "N" -> "северный"; "NNE" -> "северо-северо-восточный"; "NE" -> "северо-восточный"
+        "ENE" -> "восточно-северо-восточный"; "E" -> "восточный"; "ESE" -> "восточно-юго-восточный"
+        "SE" -> "юго-восточный"; "SSE" -> "юго-юго-восточный"; "S" -> "южный"
+        "SSW" -> "юго-юго-западный"; "SW" -> "юго-западный"; "WSW" -> "западно-юго-западный"
+        "W" -> "западный"; "WNW" -> "западно-северо-западный"; "NW" -> "северо-западный"
+        "NNW" -> "северо-северо-западный"; else -> "направление не определено"
+    }
+
+    private fun windSpeedRange(code: Int): String = when (code.coerceIn(1, 12)) {
+        1 -> "штиль / до 0,3 м/с"; 2 -> "0,3–1,6 м/с"; 3 -> "1,6–3,4 м/с"
+        4 -> "3,4–5,5 м/с"; 5 -> "5,5–8 м/с"; 6 -> "8–10,8 м/с"
+        7 -> "10,8–13,9 м/с"; 8 -> "13,9–17,2 м/с"; 9 -> "17,2–20,8 м/с"
+        10 -> "20,8–24,5 м/с"; 11 -> "24,5–28,5 м/с"; else -> "от 28,5 м/с"
     }
 
     private fun showPrivacyPolicy() {
         android.app.AlertDialog.Builder(this)
             .setTitle("Конфиденциальность")
-            .setMessage("Приложение не требует учётной записи и не содержит рекламы или аналитических трекеров. Задачи, заметки и выбранный город хранятся локально на устройстве. При запросе прогноза координаты выбранного места передаются сервису MET Norway. Источник и условия использования указаны на экране прогноза.\n\nПолная политика конфиденциальности доступна в репозитории проекта.")
+            .setMessage("Приложение не требует учётной записи и не содержит рекламы или аналитических трекеров. Задачи, заметки и выбранный город хранятся локально на устройстве. При запросе прогноза координаты выбранного места передаются сервису 7Timer!. Источник данных указан на экране прогноза.\n\nПолная политика конфиденциальности доступна в репозитории проекта.")
             .setPositiveButton("Открыть политику") { _, _ ->
                 openExternalLink("https://github.com/goodrawru/myposev/blob/rustore/PRIVACY_POLICY.md")
             }
