@@ -872,9 +872,8 @@
       "id": "lovage",
       "name": "Любисток",
       "category": "Пряные травы",
-      "sourceSlug": "parsley",
-      "available": true,
-      "iconMatch": "representative"
+      "sourceSlug": "lovage",
+      "available": true
     },
     {
       "id": "marjoram",
