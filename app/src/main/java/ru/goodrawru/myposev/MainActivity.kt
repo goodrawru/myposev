@@ -1131,7 +1131,8 @@ class MainActivity : Activity() {
     private fun sevenTimerWeatherRu(code: String): String {
         val c = code.lowercase(Locale.US)
         return when {
-            c.contains("tstorm") || c == "ts" || c.contains("thunder") -> "⛈️ Гроза"
+            c.startsWith("ts") || c.contains("tstorm") || c.contains("thunder") -> "⛈️ Гроза"
+            c.contains("rainsnow") -> "🌨️ Мокрый снег"
             c.contains("snow") -> "🌨️ Снег"
             c.contains("rain") || c.contains("shower") -> "🌧️ Дождь"
             c.contains("fog") -> "🌫️ Туман"
@@ -1153,11 +1154,10 @@ class MainActivity : Activity() {
         "NNW" -> "северо-северо-западный"; else -> "направление не определено"
     }
 
-    private fun windSpeedRange(code: Int): String = when (code.coerceIn(1, 12)) {
-        1 -> "штиль / до 0,3 м/с"; 2 -> "0,3–1,6 м/с"; 3 -> "1,6–3,4 м/с"
-        4 -> "3,4–5,5 м/с"; 5 -> "5,5–8 м/с"; 6 -> "8–10,8 м/с"
-        7 -> "10,8–13,9 м/с"; 8 -> "13,9–17,2 м/с"; 9 -> "17,2–20,8 м/с"
-        10 -> "20,8–24,5 м/с"; 11 -> "24,5–28,5 м/с"; else -> "от 28,5 м/с"
+    private fun windSpeedRange(code: Int): String = when (code.coerceIn(1, 8)) {
+        1 -> "до 0,3 м/с"; 2 -> "0,3–3,4 м/с"; 3 -> "3,4–8 м/с"
+        4 -> "8–10,8 м/с"; 5 -> "10,8–17,2 м/с"; 6 -> "17,2–24,5 м/с"
+        7 -> "24,5–32,6 м/с"; else -> "свыше 32,6 м/с"
     }
 
     private fun showPrivacyPolicy() {
