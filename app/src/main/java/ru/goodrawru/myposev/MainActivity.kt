@@ -2543,7 +2543,7 @@ class MainActivity : Activity() {
             results.removeAllViews()
             val mine = userCrops()
             val matches = (0 until mine.length()).mapNotNull { mine.optJSONObject(it) }
-                .filter { it.optString("name").contains(filter,true) || it.optString("category").contains(filter,true) }
+                .filter { it.optString("name").contains(filter,true) || tr(it.optString("name")).contains(filter,true) || it.optString("category").contains(filter,true) || tr(it.optString("category")).contains(filter,true) }
             if (matches.isNotEmpty()) {
                 results.addView(txt("Мои культуры",19f,true))
                 val userTiles = matches.map { crop ->
@@ -2564,7 +2564,7 @@ class MainActivity : Activity() {
                         text = tr("Подробнее"); textSize = 11f; isAllCaps = false
                         setOnClickListener {
                             val details = listOf("Сроки посева" to "sowing","Глубина" to "depth","Всходы" to "sprouts","Советы" to "advice")
-                                .mapNotNull { (label,key) -> crop.optString(key).takeIf { it.isNotBlank() }?.let { "$label: $it" } }
+                                .mapNotNull { (label,key) -> crop.optString(key).takeIf { it.isNotBlank() }?.let { tr("$label: $it") } }
                                 .joinToString("\n\n")
                             android.app.AlertDialog.Builder(this@MainActivity)
                                 .setTitle(tr(crop.optString("name")))
@@ -2573,7 +2573,7 @@ class MainActivity : Activity() {
                                 .setNegativeButton(tr("Закрыть"),null)
                                 .setPositiveButton(tr("Удалить")) { _,_ ->
                                     android.app.AlertDialog.Builder(this@MainActivity).setTitle(tr("Удалить культуру?"))
-                                        .setMessage(crop.optString("name")).setNegativeButton(tr("Отмена"),null)
+                                        .setMessage(tr(crop.optString("name"))).setNegativeButton(tr("Отмена"),null)
                                         .setPositiveButton(tr("Удалить")) { _,_ ->
                                             val next = JSONArray()
                                             for (i in 0 until mine.length()) { val v = mine.optJSONObject(i) ?: continue; if (v.optString("id") != crop.optString("id")) next.put(v) }
