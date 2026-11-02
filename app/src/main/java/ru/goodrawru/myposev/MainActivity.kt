@@ -161,7 +161,7 @@ class MainActivity : Activity() {
             }
         }
         root.addView(TextView(this).apply {
-            text = "🌱  " + tr(title); textSize=25f; setTextColor(Color.WHITE); setBackgroundColor(green)
+            text = tr("🌱  ") + tr(title); textSize=25f; setTextColor(Color.WHITE); setBackgroundColor(green)
             setPadding(20,22,20,22); gravity=Gravity.CENTER_VERTICAL
         })
         val sectionRow = LinearLayout(this).apply {
@@ -241,7 +241,7 @@ class MainActivity : Activity() {
         baseLayout("Бумажный вариант")
         card("📘 Бумажный вариант огородного дневника", "Выберите разделы и период. PDF будет многостраничным, с переносом длинного текста и календарём по месяцам.")
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
-        val yearInput = EditText(this).apply { hint = "Год"; setText(currentYear.toString()); inputType = android.text.InputType.TYPE_CLASS_NUMBER; setSingleLine(true) }
+        val yearInput = EditText(this).apply { hint = tr("Год"); setText(currentYear.toString()); inputType = android.text.InputType.TYPE_CLASS_NUMBER; setSingleLine(true) }
         content.addView(txt("Год календаря", 16f, true)); content.addView(yearInput)
         val choices = listOf("calendar" to "Посевной календарь", "work" to "Сезонные рекомендации и работы", "tasks" to "Мои задачи и статус выполнения", "plants" to "Каталог культур (культуры с доступными значками)", "notes" to "Мои заметки", "blank" to "Страницы для записей")
         val checks = mutableMapOf<String, CheckBox>()
@@ -252,14 +252,14 @@ class MainActivity : Activity() {
         content.addView(txt("Оформление", 16f, true)); content.addView(colorMode)
         button("Сформировать и сохранить PDF") {
             val year = yearInput.text.toString().toIntOrNull()
-            if (year == null || year !in 2000..2100) { Toast.makeText(this, "Введите год от 2000 до 2100", Toast.LENGTH_LONG).show(); return@button }
+            if (year == null || year !in 2000..2100) { Toast.makeText(this, tr("Введите год от 2000 до 2100"), Toast.LENGTH_LONG).show(); return@button }
             val selected = checks.filterValues { it.isChecked }.keys.toSet()
-            if (selected.isEmpty()) { Toast.makeText(this, "Выберите хотя бы один раздел", Toast.LENGTH_LONG).show(); return@button }
+            if (selected.isEmpty()) { Toast.makeText(this, tr("Выберите хотя бы один раздел"), Toast.LENGTH_LONG).show(); return@button }
             try {
                 pendingPdfBytes = buildPaperPdf(year, period.selectedItemPosition, selected, colorMode.selectedItemPosition == 0)
                 val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "application/pdf"; putExtra(Intent.EXTRA_TITLE, "Мой_Посевной_" + year + ".pdf") }
                 startActivityForResult(intent, 2027)
-            } catch (e: Exception) { pendingPdfBytes = null; Toast.makeText(this, "Ошибка подготовки PDF: " + (e.message ?: "неизвестная ошибка"), Toast.LENGTH_LONG).show() }
+            } catch (e: Exception) { pendingPdfBytes = null; Toast.makeText(this, tr("Ошибка подготовки PDF: ") + (e.message ?: "неизвестная ошибка"), Toast.LENGTH_LONG).show() }
         }
         card("Что попадёт в документ", "Календарь с датами и фазами Луны, рекомендации по месяцам, задачи с культурой/грядкой и статусом, доступные встроенные культуры и выбранные заметки. Длинные разделы переносятся на следующие страницы.")
     }
@@ -332,17 +332,17 @@ class MainActivity : Activity() {
         if (requestCode == 2401) {
             val bytes = pendingBackupBytes; pendingBackupBytes = null
             if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) return
-            try { contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }; Toast.makeText(this, "Резервная копия сохранена", Toast.LENGTH_LONG).show() }
-            catch (e: Exception) { Toast.makeText(this, "Ошибка сохранения копии", Toast.LENGTH_LONG).show() }
+            try { contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }; Toast.makeText(this, tr("Резервная копия сохранена"), Toast.LENGTH_LONG).show() }
+            catch (e: Exception) { Toast.makeText(this, tr("Ошибка сохранения копии"), Toast.LENGTH_LONG).show() }
             return
         }
         if (requestCode == 2402) {
             if (resultCode == Activity.RESULT_OK && data?.data != null) {
                 android.app.AlertDialog.Builder(this)
-                    .setTitle("Заменить данные приложения?")
-                    .setMessage("Восстановление заменит текущие настройки, задачи, заметки и каталог культур данными из резервной копии.")
-                    .setNegativeButton("Отмена", null)
-                    .setPositiveButton("Восстановить") { _, _ -> importBackup(data.data!!) }
+                    .setTitle(tr("Заменить данные приложения?"))
+                    .setMessage(tr("Восстановление заменит текущие настройки, задачи, заметки и каталог культур данными из резервной копии."))
+                    .setNegativeButton(tr("Отмена"), null)
+                    .setPositiveButton(tr("Восстановить")) { _, _ -> importBackup(data.data!!) }
                     .show()
             }
             return
@@ -354,9 +354,9 @@ class MainActivity : Activity() {
             try {
                 contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }
                     ?: throw IllegalStateException("Не удалось открыть файл")
-                Toast.makeText(this, "PDF сохранён", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, tr("PDF сохранён"), Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
-                Toast.makeText(this, "Ошибка сохранения: " + (e.message ?: "неизвестная ошибка"), Toast.LENGTH_LONG).show()
+                Toast.makeText(this, tr("Ошибка сохранения: ") + (e.message ?: "неизвестная ошибка"), Toast.LENGTH_LONG).show()
             }
             return
         }
@@ -826,6 +826,28 @@ class MainActivity : Activity() {
             "Мои задачи" to "My tasks",
             "Фаза Луны" to "Moon phase",
             "Что делать в этом месяце" to "What to do this month",
+            "Заменить данные приложения?" to "Replace app data?",
+            "Добро пожаловать в «Мой Посевной»! 🌱" to "Welcome to My Sowing Calendar! 🌱",
+            "Культуры для напоминаний" to "Crops for reminders",
+            "Выберите город" to "Choose a city",
+            "Местоположение пока недоступно" to "Location is not available yet",
+            "Конфиденциальность" to "Privacy",
+            "Очистить журнал урожая?" to "Clear the harvest log?",
+            "Планируйте посевы и садовые работы, ведите заметки, добавляйте культуры, создавайте PDF и сохраняйте резервные копии. Ваши данные хранятся на устройстве." to "Plan sowing and garden work, keep notes, add crops, create PDFs and save backups. Your data is stored on your device.",
+            "• Каталог расширен до всех встроенных культур с доступными значками.\\n• Исправлены напоминания по личным заметкам и восстановлению резервной копии.\\n• Удалён неиспользуемый аудиоплеер и его зависимости.\\n• Обновлён источник прогноза погоды: 7Timer!." to "• The catalog now includes all built-in crops with available icons.\\n• Reminders for personal notes and backup restoration have been fixed.\\n• The unused audio player and its dependencies have been removed.\\n• Weather forecast source updated: 7Timer!.",
+            "Не удалось получить координаты. Включите геолокацию и попробуйте ещё раз. Если GPS пока не определил место, можно выбрать город вручную." to "Could not obtain coordinates. Enable location services and try again. If GPS has not determined your location, you can choose a city manually.",
+            "Приложение не требует учётной записи и не содержит рекламы или аналитических трекеров. Задачи, заметки и выбранный город хранятся локально на устройстве. При запросе прогноза координаты выбранного места передаются сервису 7Timer!. Источник данных указан на экране прогноза.\\n\\nПолная политика конфиденциальности доступна в репозитории проекта." to "The app does not require an account and contains no ads or analytics trackers. Tasks, notes and the selected city are stored locally on the device. When a forecast is requested, the selected location's coordinates are sent to 7Timer!. The data source is shown on the forecast screen.\\n\\nThe full privacy policy is available in the project repository.",
+            "Начать работу" to "Get started",
+            "Понятно" to "Got it",
+            "Настройки" to "Settings",
+            "Открыть политику" to "Open policy",
+            "Выбрать все" to "Select all",
+            "Год" to "Year",
+            "Поиск города или региона" to "Search city or region",
+            "Например, проверить грядки" to "For example, inspect garden beds",
+            "Культура (например, томат)" to "Crop (e.g. tomato)",
+            "Включить ежедневные уведомления" to "Enable daily notifications",
+            "Иконка Мой Посевной" to "My Sowing Calendar icon",
             "Да" to "Yes",
             "Нет" to "No"
         )
@@ -833,6 +855,10 @@ class MainActivity : Activity() {
         if (value.contains("Климатическая зона: ") || value.contains("Нажмите, чтобы изменить место.")) {
             return value.replace("Климатическая зона: ", "Climate zone: ").replace("Нажмите, чтобы изменить место.", "Tap to change location.")
         }
+        if (value.startsWith("Что нового · версия ")) return "What's new · version " + value.removePrefix("Что нового · версия ")
+        if (value.startsWith("Запланировать на ")) return "Schedule for " + value.removePrefix("Запланировать на ")
+        if (value.startsWith("Время: ")) return "Time: " + value.removePrefix("Время: ")
+        if (value.startsWith("Иконка культуры ")) return "Crop icon " + tr(value.removePrefix("Иконка культуры "))
         if (value.startsWith("Посевной календарь · ")) return "Sowing calendar · " + value.removePrefix("Посевной календарь · ")
         if (value.startsWith("План огородника на ")) return "Gardener's plan for " + value.removePrefix("План огородника на ")
         if (value.startsWith("Сформировано: ")) return "Generated: " + value.removePrefix("Сформировано: ")
@@ -907,9 +933,9 @@ class MainActivity : Activity() {
     private fun showFirstRunOrUpdateNotice() {
         if (!prefs.getBoolean("welcome_shown", false)) {
             prefs.edit().putBoolean("welcome_shown", true).putString("last_seen_version", BuildConfig.VERSION_NAME).apply()
-            android.app.AlertDialog.Builder(this).setTitle("Добро пожаловать в «Мой Посевной»! 🌱")
-                .setMessage("Планируйте посевы и садовые работы, ведите заметки, добавляйте культуры, создавайте PDF и сохраняйте резервные копии. Ваши данные хранятся на устройстве.")
-                .setPositiveButton("Начать работу", null).show()
+            android.app.AlertDialog.Builder(this).setTitle(tr("Добро пожаловать в «Мой Посевной»! 🌱"))
+                .setMessage(tr("Планируйте посевы и садовые работы, ведите заметки, добавляйте культуры, создавайте PDF и сохраняйте резервные копии. Ваши данные хранятся на устройстве."))
+                .setPositiveButton(tr("Начать работу"), null).show()
             return
         }
         if (prefs.getString("last_seen_version", "") != BuildConfig.VERSION_NAME) {
@@ -919,9 +945,9 @@ class MainActivity : Activity() {
     }
 
     private fun showUpdateNotes(manual: Boolean) {
-        android.app.AlertDialog.Builder(this).setTitle("Что нового · версия " + BuildConfig.VERSION_NAME)
-            .setMessage("• Каталог расширен до всех встроенных культур с доступными значками.\n• Исправлены напоминания по личным заметкам и восстановлению резервной копии.\n• Удалён неиспользуемый аудиоплеер и его зависимости.\n• Обновлён источник прогноза погоды: 7Timer!.")
-            .setPositiveButton("Понятно", null).show()
+        android.app.AlertDialog.Builder(this).setTitle(tr("Что нового · версия ") + BuildConfig.VERSION_NAME)
+            .setMessage(tr("• Каталог расширен до всех встроенных культур с доступными значками.\n• Исправлены напоминания по личным заметкам и восстановлению резервной копии.\n• Удалён неиспользуемый аудиоплеер и его зависимости.\n• Обновлён источник прогноза погоды: 7Timer!."))
+            .setPositiveButton(tr("Понятно"), null).show()
     }
 
     private fun createBackup() {
@@ -935,7 +961,7 @@ class MainActivity : Activity() {
             pendingBackupBytes = bytes.toByteArray()
             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "application/zip"; putExtra(Intent.EXTRA_TITLE, "Moi_Posevnoy_backup.zip") }
             startActivityForResult(intent, 2401)
-        } catch (e: Exception) { Toast.makeText(this, "Ошибка создания копии: " + (e.message ?: "ошибка"), Toast.LENGTH_LONG).show() }
+        } catch (e: Exception) { Toast.makeText(this, tr("Ошибка создания копии: ") + (e.message ?: "ошибка"), Toast.LENGTH_LONG).show() }
     }
     private fun restoreBackup() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -944,7 +970,7 @@ class MainActivity : Activity() {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         try { startActivityForResult(intent, 2402) }
-        catch (_: Exception) { Toast.makeText(this, "Не удалось открыть выбор файла", Toast.LENGTH_LONG).show() }
+        catch (_: Exception) { Toast.makeText(this, tr("Не удалось открыть выбор файла"), Toast.LENGTH_LONG).show() }
     }
 
     private fun importBackup(uri: Uri) {
@@ -1032,10 +1058,10 @@ class MainActivity : Activity() {
             if (!editor.commit()) throw IllegalStateException("Android не смог сохранить восстановленные данные")
             migrateLegacyNoteKeys()
             scheduleDailyReminder()
-            Toast.makeText(this, "Копия восстановлена. Данные загружены.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, tr("Копия восстановлена. Данные загружены."), Toast.LENGTH_LONG).show()
             showHome()
         } catch (e: Exception) {
-            Toast.makeText(this, "Не удалось восстановить копию: ${e.message ?: "неверный архив"}. Текущие данные не изменены.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, tr("Не удалось восстановить копию: ${e.message ?: ")неверный архив"}. Текущие данные не изменены.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -1082,7 +1108,7 @@ class MainActivity : Activity() {
         baseLayout("Ежедневные напоминания")
         content.addView(txt("Приложение будет готовить локальный план на текущий день. Интернет для календарных рекомендаций не нужен; точное время доставки зависит от ограничений Android.", 14f))
         val enabled = CheckBox(this).apply {
-            text = "Включить ежедневные уведомления"
+            text = tr("Включить ежедневные уведомления")
             isChecked = prefs.getBoolean("reminder_enabled", false)
             textSize = 16f
         }
@@ -1090,12 +1116,12 @@ class MainActivity : Activity() {
         var hour = prefs.getInt("reminder_hour", 9).coerceIn(0, 23)
         var minute = prefs.getInt("reminder_minute", 0).coerceIn(0, 59)
         val timeButton = Button(this).apply {
-            text = "Время: %02d:%02d".format(Locale.US, hour, minute)
+            text = tr("Время: %02d:%02d").format(Locale.US, hour, minute)
             isAllCaps = false
             setOnClickListener {
                 android.app.TimePickerDialog(this@MainActivity, { _, h, m ->
                     hour = h; minute = m
-                    text = "Время: %02d:%02d".format(Locale.US, hour, minute)
+                    text = tr("Время: %02d:%02d").format(Locale.US, hour, minute)
                 }, hour, minute, true).show()
             }
         }
@@ -1118,7 +1144,7 @@ class MainActivity : Activity() {
         content.addView(cropSummary)
         button("Выбрать культуры") {
             showReminderCropPicker {
-                cropSummary.text = "Выбрано культур: ${prefs.getStringSet("reminder_crop_ids", emptySet())?.size ?: cropIconCatalog.length()} из ${cropIconCatalog.length()}"
+                cropSummary.text = tr("Выбрано культур: ${prefs.getStringSet(")reminder_crop_ids", emptySet())?.size ?: cropIconCatalog.length()} из ${cropIconCatalog.length()}"
             }
         }
 
@@ -1152,7 +1178,7 @@ class MainActivity : Activity() {
         }
         button("Отправить тестовое уведомление") {
             sendBroadcast(Intent(this, ReminderReceiver::class.java).setAction(ReminderReceiver.ACTION_TEST))
-            Toast.makeText(this, "Тестовое уведомление отправлено, если разрешения Android включены.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, tr("Тестовое уведомление отправлено, если разрешения Android включены."), Toast.LENGTH_LONG).show()
         }
         button("← Назад") { showHome() }
     }
@@ -1174,26 +1200,26 @@ class MainActivity : Activity() {
             if (id.isNotBlank() && name.isNotBlank() && options.none { it.first == id }) options.add(id to name)
         }
         if (options.isEmpty()) {
-            Toast.makeText(this, "Каталог культур недоступен.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, tr("Каталог культур недоступен."), Toast.LENGTH_SHORT).show()
             return
         }
         val stored = prefs.getStringSet("reminder_crop_ids", null)
         val selected = (stored ?: options.map { it.first }.toSet()).toMutableSet()
         val checked = BooleanArray(options.size) { options[it].first in selected }
         android.app.AlertDialog.Builder(this)
-            .setTitle("Культуры для напоминаний")
+            .setTitle(tr("Культуры для напоминаний"))
             .setMultiChoiceItems(options.map { it.second }.toTypedArray(), checked) { _, which, isChecked ->
                 if (isChecked) selected.add(options[which].first) else selected.remove(options[which].first)
             }
-            .setPositiveButton("Сохранить") { _, _ ->
+            .setPositiveButton(tr("Сохранить")) { _, _ ->
                 prefs.edit().putStringSet("reminder_crop_ids", selected.toSet()).apply()
                 onSaved()
             }
-            .setNeutralButton("Выбрать все") { _, _ ->
+            .setNeutralButton(tr("Выбрать все")) { _, _ ->
                 prefs.edit().putStringSet("reminder_crop_ids", options.map { it.first }.toSet()).apply()
                 onSaved()
             }
-            .setNegativeButton("Отмена", null)
+            .setNegativeButton(tr("Отмена"), null)
             .show()
     }
 
@@ -1227,12 +1253,12 @@ class MainActivity : Activity() {
         }
         val logo = ImageView(this).apply {
             setImageResource(R.drawable.ic_launcher_foreground)
-            contentDescription = "Иконка Мой Посевной"
+            contentDescription = tr("Иконка Мой Посевной")
             scaleType = ImageView.ScaleType.FIT_CENTER
         }
         hero.addView(logo, LinearLayout.LayoutParams(dp(124), dp(124)))
         hero.addView(TextView(this).apply {
-            text = "Мой Посевной"
+            text = tr("Мой Посевной")
             textSize = 27f
             setTypeface(null, android.graphics.Typeface.BOLD)
             setTextColor(green)
@@ -1240,7 +1266,7 @@ class MainActivity : Activity() {
             setPadding(0, dp(8), 0, dp(3))
         })
         hero.addView(TextView(this).apply {
-            text = "Ваш помощник в саду и огороде"
+            text = tr("Ваш помощник в саду и огороде")
             textSize = 15f
             setTextColor(Color.rgb(79, 99, 79))
             gravity = Gravity.CENTER
@@ -1257,13 +1283,13 @@ class MainActivity : Activity() {
             try {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://tips.tips/000490423")))
             } catch (_: Exception) {
-                Toast.makeText(this, "Не удалось открыть страницу поддержки", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, tr("Не удалось открыть страницу поддержки"), Toast.LENGTH_LONG).show()
             }
         }
         button("Политика конфиденциальности") { showPrivacyPolicy() }
         button("← На главный экран") { showHome() }
         content.addView(TextView(this).apply {
-            text = "Спасибо, что выбрали «Мой Посевной». Пусть ваши труды дают добрые всходы, а урожай радует каждый год!\n\nВерсия ${BuildConfig.VERSION_NAME}"
+            text = tr("Спасибо, что выбрали «Мой Посевной». Пусть ваши труды дают добрые всходы, а урожай радует каждый год!\n\nВерсия ${BuildConfig.VERSION_NAME}")
             textSize = 13f
             setTextColor(Color.rgb(93, 108, 91))
             gravity = Gravity.CENTER
@@ -1285,14 +1311,14 @@ class MainActivity : Activity() {
 
     private fun showCityPicker() {
         val wrap = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(20,12,20,4) }
-        val search = EditText(this).apply { hint="Поиск города или региона"; setSingleLine(true) }
+        val search = EditText(this).apply { hint=tr("Поиск города или региона"); setSingleLine(true) }
         val list = ListView(this)
         val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1,
             cities.sortedBy { it.city }.map { it.city + " — " + it.region + " · " + it.zone })
         list.adapter = adapter
         wrap.addView(search)
         wrap.addView(list,LinearLayout.LayoutParams(-1,520))
-        val dialog = android.app.AlertDialog.Builder(this).setTitle("Выберите город").setView(wrap).setNegativeButton("Отмена",null).create()
+        val dialog = android.app.AlertDialog.Builder(this).setTitle(tr("Выберите город")).setView(wrap).setNegativeButton(tr("Отмена"),null).create()
         fun refreshCities(query:String) {
             val filtered = cities.filter { it.city.contains(query,true) || it.region.contains(query,true) || it.zone.contains(query,true) }.sortedBy { it.city }
             adapter.clear()
@@ -1318,7 +1344,7 @@ class MainActivity : Activity() {
     private fun saveGardenLocation(city:String,region:String,zone:String,lat:Double,lon:Double) {
         prefs.edit().putString("garden_city",city).putString("garden_region",region).putString("garden_zone",zone)
             .putString("garden_lat",lat.toString()).putString("garden_lon",lon.toString()).putBoolean("garden_location_set",true).apply()
-        Toast.makeText(this,"Место сохранено: $city",Toast.LENGTH_SHORT).show()
+        Toast.makeText(this,tr("Место сохранено: $city"),Toast.LENGTH_SHORT).show()
     }
 
     private fun requestGardenLocation() {
@@ -1342,7 +1368,7 @@ class MainActivity : Activity() {
         }
         if(requestCode == 2002) {
             if(grantResults.any { it == PackageManager.PERMISSION_GRANTED }) resolveGardenLocation()
-            else Toast.makeText(this,"Без разрешения на геолокацию выберите город вручную.",Toast.LENGTH_LONG).show()
+            else Toast.makeText(this,tr("Без разрешения на геолокацию выберите город вручную."),Toast.LENGTH_LONG).show()
         }
     }
 
@@ -1371,18 +1397,18 @@ class MainActivity : Activity() {
             }
             if (lastKnown != null) resolveGardenLocationName(lastKnown) else showLocationUnavailable()
         } catch (_: SecurityException) {
-            Toast.makeText(this,"Не удалось получить геолокацию. Выберите город вручную.",Toast.LENGTH_LONG).show()
+            Toast.makeText(this,tr("Не удалось получить геолокацию. Выберите город вручную."),Toast.LENGTH_LONG).show()
         } catch (_: Exception) {
-            Toast.makeText(this,"Ошибка определения местоположения. Выберите город вручную.",Toast.LENGTH_LONG).show()
+            Toast.makeText(this,tr("Ошибка определения местоположения. Выберите город вручную."),Toast.LENGTH_LONG).show()
         }
     }
 
     private fun showLocationUnavailable() {
         runOnUiThread {
-            android.app.AlertDialog.Builder(this).setTitle("Местоположение пока недоступно")
-                .setMessage("Не удалось получить координаты. Включите геолокацию и попробуйте ещё раз. Если GPS пока не определил место, можно выбрать город вручную.")
-                .setPositiveButton("Настройки") { _,_ -> startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
-                .setNegativeButton("Выбрать город") { _,_ -> showCityPicker() }.show()
+            android.app.AlertDialog.Builder(this).setTitle(tr("Местоположение пока недоступно"))
+                .setMessage(tr("Не удалось получить координаты. Включите геолокацию и попробуйте ещё раз. Если GPS пока не определил место, можно выбрать город вручную."))
+                .setPositiveButton(tr("Настройки")) { _,_ -> startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
+                .setNegativeButton(tr("Выбрать город")) { _,_ -> showCityPicker() }.show()
         }
     }
 
@@ -1460,7 +1486,7 @@ class MainActivity : Activity() {
         val lat = prefs.getString("garden_lat", null)?.toDoubleOrNull()
         val lon = prefs.getString("garden_lon", null)?.toDoubleOrNull()
         if (lat == null || lon == null) {
-            Toast.makeText(this, "Сначала выберите город или определите местоположение.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, tr("Сначала выберите город или определите местоположение."), Toast.LENGTH_LONG).show()
             showLocationSettings()
             return
         }
@@ -1682,22 +1708,22 @@ class MainActivity : Activity() {
 
     private fun showPrivacyPolicy() {
         android.app.AlertDialog.Builder(this)
-            .setTitle("Конфиденциальность")
-            .setMessage("Приложение не требует учётной записи и не содержит рекламы или аналитических трекеров. Задачи, заметки и выбранный город хранятся локально на устройстве. При запросе прогноза координаты выбранного места передаются сервису 7Timer!. Источник данных указан на экране прогноза.\n\nПолная политика конфиденциальности доступна в репозитории проекта.")
-            .setPositiveButton("Открыть политику") { _, _ ->
+            .setTitle(tr("Конфиденциальность"))
+            .setMessage(tr("Приложение не требует учётной записи и не содержит рекламы или аналитических трекеров. Задачи, заметки и выбранный город хранятся локально на устройстве. При запросе прогноза координаты выбранного места передаются сервису 7Timer!. Источник данных указан на экране прогноза.\n\nПолная политика конфиденциальности доступна в репозитории проекта."))
+            .setPositiveButton(tr("Открыть политику")) { _, _ ->
                 openExternalLink("https://github.com/goodrawru/myposev/blob/rustore/PRIVACY_POLICY.md")
             }
-            .setNegativeButton("Закрыть", null)
+            .setNegativeButton(tr("Закрыть"), null)
             .show()
     }
 
     private fun showTasks() {
         baseLayout("Задачи по уходу")
         content.addView(txt("Добавляйте планы и отмечайте выполненное. Для посева и пересадки показываем срок до даты или возраст посадки. Все даты указаны в формате день.месяц.год.",14f))
-        val titleInput=EditText(this).apply { hint="Задача (например, посеять томаты)"; setSingleLine(true) }
-        val cropInput=EditText(this).apply { hint="Культура или грядка (необязательно)"; setSingleLine(true) }
+        val titleInput=EditText(this).apply { hint=tr("Задача (например, посеять томаты)"); setSingleLine(true) }
+        val cropInput=EditText(this).apply { hint=tr("Культура или грядка (необязательно)"); setSingleLine(true) }
         val dateInput=EditText(this).apply {
-            hint="Дата (дд.мм.гггг)"; setSingleLine(true); isFocusable=false; isClickable=true
+            hint=tr("Дата (дд.мм.гггг)"); setSingleLine(true); isFocusable=false; isClickable=true
             setText(SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(Date()))
             setOnClickListener {
                 val initial=parseTaskDate(text.toString()) ?: Calendar.getInstance()
@@ -1718,8 +1744,8 @@ class MainActivity : Activity() {
         button("Добавить задачу") {
             val title=titleInput.text.toString().trim()
             val date=parseTaskDate(dateInput.text.toString().trim())
-            if(title.isBlank()) { Toast.makeText(this,"Введите название задачи",Toast.LENGTH_SHORT).show(); return@button }
-            if(date==null) { Toast.makeText(this,"Выберите корректную дату",Toast.LENGTH_SHORT).show(); return@button }
+            if(title.isBlank()) { Toast.makeText(this,tr("Введите название задачи"),Toast.LENGTH_SHORT).show(); return@button }
+            if(date==null) { Toast.makeText(this,tr("Выберите корректную дату"),Toast.LENGTH_SHORT).show(); return@button }
             val storedDate=SimpleDateFormat("yyyy-MM-dd",Locale.US).format(date.time)
             val all=tasksArray()
             all.put(JSONObject().put("id",System.currentTimeMillis()).put("title",title).put("crop",cropInput.text.toString().trim())
@@ -1842,7 +1868,7 @@ class MainActivity : Activity() {
             val cellView = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(dp(1), dp(2), dp(1), dp(2)); background = roundedBackground(cellFill, 8f, cellStroke); isClickable = true; isFocusable = true; setOnClickListener { selectedDate = day.clone() as Calendar; showCalendar() } }
             val dayHeader = FrameLayout(this)
             dayHeader.addView(TextView(this).apply { text = lunarGlyph(day) + " " + number.toString(); textSize = 14f; gravity = Gravity.CENTER; setTextColor(Color.rgb(35,48,38)); setTypeface(null, if (isToday || isSelected) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL) }, FrameLayout.LayoutParams(-1, -1))
-            dayHeader.addView(TextView(this).apply { text = "●"; textSize = 10f; gravity = Gravity.TOP or Gravity.END; setTextColor(dayIndicatorColor(day)); setPadding(0, 0, dp(2), 0); contentDescription = when (dayIndicatorColor(day)) { Color.rgb(46,139,87) -> "Условно благоприятный день"; Color.rgb(232,174,35) -> "Смешанный день"; else -> "День для осторожного планирования" } }, FrameLayout.LayoutParams(-1, -1))
+            dayHeader.addView(TextView(this).apply { text = tr("●"); textSize = 10f; gravity = Gravity.TOP or Gravity.END; setTextColor(dayIndicatorColor(day)); setPadding(0, 0, dp(2), 0); contentDescription = when (dayIndicatorColor(day)) { Color.rgb(46,139,87) -> "Условно благоприятный день"; Color.rgb(232,174,35) -> "Смешанный день"; else -> "День для осторожного планирования" } }, FrameLayout.LayoutParams(-1, -1))
             cellView.addView(dayHeader, LinearLayout.LayoutParams(-1, 0, 1f))
             cellView.addView(TextView(this).apply { text = (if (count > 0) "● $count" else "") + if (note) " ◆" else ""; textSize = 9f; gravity = Gravity.CENTER; setTextColor(if (count > 0 || note) Color.rgb(39,91,57) else Color.rgb(100,110,100)) }, LinearLayout.LayoutParams(-1, dp(14)))
             grid.addView(cellView, lp)
@@ -1856,7 +1882,7 @@ class MainActivity : Activity() {
             Triple(Color.rgb(210,65,65), "Красная точка", "Для осторожного планирования")
         ).forEach { item ->
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-            row.addView(TextView(this).apply { text = "●"; textSize = 20f; setTextColor(item.first); setPadding(0, 0, dp(10), 0) })
+            row.addView(TextView(this).apply { text = tr("●"); textSize = 20f; setTextColor(item.first); setPadding(0, 0, dp(10), 0) })
             row.addView(txt(item.second + " — " + item.third, 13f))
             legend.addView(row)
         }
@@ -1868,10 +1894,10 @@ class MainActivity : Activity() {
         button("Добавить заметку") {
             val displayDate = dateString(selectedDate)
             val key = noteKey(selectedDate)
-            val input = EditText(this).apply { hint = "Заметка на выбранную дату"; setText(noteForDate(selectedDate)) }
+            val input = EditText(this).apply { hint = tr("Заметка на выбранную дату"); setText(noteForDate(selectedDate)) }
             android.app.AlertDialog.Builder(this).setTitle(displayDate).setView(input)
-                .setNegativeButton("Отмена", null)
-                .setPositiveButton("Сохранить") { _, _ ->
+                .setNegativeButton(tr("Отмена"), null)
+                .setPositiveButton(tr("Сохранить")) { _, _ ->
                     val value = input.text.toString().trim()
                     val editor = prefs.edit()
                     if (value.isBlank()) editor.remove(key) else editor.putString(key, value)
@@ -1888,32 +1914,32 @@ class MainActivity : Activity() {
         for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; if (item.optString("date") == key) { val crop = item.optString("crop", "").trim(); val taskLine = (if (item.optBoolean("done", false)) "✓ " else "• ") + item.optString("title", "Задача") + " — " + item.optString("type", "Уход"); lines.add(if (crop.isBlank()) taskLine else "$taskLine\n  Культура/грядка: $crop") } }
         val note = noteForDate(day)
         val body = dateString(day) + "\n\n" + lunarSummary(day) + "\n\n" + seasonalAdvice(day) + "\n\nЗадачи:\n" + (if (lines.isEmpty()) "На эту дату задач нет." else lines.joinToString("\n")) + "\n\nЗаметка: " + if (note.isBlank()) "нет" else note
-        android.app.AlertDialog.Builder(this).setTitle("Календарь на день").setMessage(body).setPositiveButton("Добавить задачу") { _, _ -> addTaskForDate(day) }.setNegativeButton("Закрыть", null).show()
+        android.app.AlertDialog.Builder(this).setTitle(tr("Календарь на день")).setMessage(body).setPositiveButton(tr("Добавить задачу")) { _, _ -> addTaskForDate(day) }.setNegativeButton(tr("Закрыть"), null).show()
     }
 
     private fun addTaskForDate(date:Calendar) {
         val wrap=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(24,8,24,0) }
-        val title=EditText(this).apply { hint="Например, проверить грядки"; setSingleLine(true) }
-        val crop=EditText(this).apply { hint="Культура или грядка (необязательно)" }
+        val title=EditText(this).apply { hint=tr("Например, проверить грядки"); setSingleLine(true) }
+        val crop=EditText(this).apply { hint=tr("Культура или грядка (необязательно)") }
         val types=listOf("Уход","Посев","Полив","Подкормка","Прополка","Пересадка","Защита растений","Сбор урожая")
         val type=Spinner(this).apply { adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,types) }
         val dateText=SimpleDateFormat("yyyy-MM-dd",Locale.US).format(date.time)
         wrap.addView(title); wrap.addView(crop); wrap.addView(type)
-        android.app.AlertDialog.Builder(this).setTitle("Запланировать на "+dateString(date)).setView(wrap)
-            .setNegativeButton("Отмена",null).setPositiveButton("Сохранить") { _,_ ->
+        android.app.AlertDialog.Builder(this).setTitle(tr("Запланировать на ")+dateString(date)).setView(wrap)
+            .setNegativeButton(tr("Отмена"),null).setPositiveButton(tr("Сохранить")) { _,_ ->
                 val name=title.text.toString().trim()
-                if(name.isBlank()) { Toast.makeText(this,"Введите название действия",Toast.LENGTH_SHORT).show(); return@setPositiveButton }
+                if(name.isBlank()) { Toast.makeText(this,tr("Введите название действия"),Toast.LENGTH_SHORT).show(); return@setPositiveButton }
                 val all=tasksArray()
                 all.put(JSONObject().put("id",System.currentTimeMillis()).put("title",name).put("crop",crop.text.toString().trim())
                     .put("type",type.selectedItem.toString()).put("date",dateText).put("done",false))
                 prefs.edit().putString("care_tasks",all.toString()).apply()
-                Toast.makeText(this,"Задача добавлена",Toast.LENGTH_SHORT).show()
+                Toast.makeText(this,tr("Задача добавлена"),Toast.LENGTH_SHORT).show()
             }.show()
     }
 
     private fun openExternalLink(url:String) {
         try { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
-        catch (_:Exception) { Toast.makeText(this,"Не удалось открыть браузер.",Toast.LENGTH_LONG).show() }
+        catch (_:Exception) { Toast.makeText(this,tr("Не удалось открыть браузер."),Toast.LENGTH_LONG).show() }
     }
     private fun dateString(c:Calendar)=SimpleDateFormat("d MMMM yyyy",Locale("ru")).format(c.time)
     private fun noteKey(c: Calendar): String = "note_" + SimpleDateFormat("yyyy-MM-dd", Locale.US).format(c.time)
@@ -2211,12 +2237,12 @@ class MainActivity : Activity() {
     private fun userCrops(): JSONArray = try { JSONArray(prefs.getString("user_crops", "[]")) } catch (_: Exception) { JSONArray() }
 
     private fun addUserCrop(existing: JSONObject? = null) {
-        val name = EditText(this).apply { hint = "Название культуры *"; setText(existing?.optString("name", "") ?: "") }
+        val name = EditText(this).apply { hint = tr("Название культуры *"); setText(existing?.optString("name", "") ?: "") }
         val category = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("Овощи","Зелень","Ягоды","Цветы","Другое")); setSelection((listOf("Овощи","Зелень","Ягоды","Цветы","Другое").indexOf(existing?.optString("category")).coerceAtLeast(0))) }
-        val sowing = EditText(this).apply { hint = "Сроки посева"; setText(existing?.optString("sowing", "") ?: "") }
-        val depth = EditText(this).apply { hint = "Глубина посева"; setText(existing?.optString("depth", "") ?: "") }
-        val sprouts = EditText(this).apply { hint = "Сроки всходов"; setText(existing?.optString("sprouts", "") ?: "") }
-        val advice = EditText(this).apply { hint = "Советы по выращиванию"; setText(existing?.optString("advice", "") ?: ""); minLines = 2 }
+        val sowing = EditText(this).apply { hint = tr("Сроки посева"); setText(existing?.optString("sowing", "") ?: "") }
+        val depth = EditText(this).apply { hint = tr("Глубина посева"); setText(existing?.optString("depth", "") ?: "") }
+        val sprouts = EditText(this).apply { hint = tr("Сроки всходов"); setText(existing?.optString("sprouts", "") ?: "") }
+        val advice = EditText(this).apply { hint = tr("Советы по выращиванию"); setText(existing?.optString("advice", "") ?: ""); minLines = 2 }
         val iconChoices = cropIconChoices()
         val legacyIconKey = when (existing?.optString("icon", "")) {
             "pepper" -> "sweet_pepper"
@@ -2240,7 +2266,7 @@ class MainActivity : Activity() {
         val iconPreview = ImageView(this).apply {
             run { val key = iconChoices[iconPicker.selectedItemPosition].first; setCropIcon(this, key) }
             scaleType = ImageView.ScaleType.FIT_CENTER
-            contentDescription = "Предпросмотр иконки культуры"
+            contentDescription = tr("Предпросмотр иконки культуры")
         }
         val nameRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -2272,7 +2298,7 @@ class MainActivity : Activity() {
         form.addView(nameRow)
         listOf<View>(category, sowing, depth, sprouts, advice, txt("Цветная иконка культуры",14f,true), iconPicker).forEach { form.addView(it) }
         val dialog = android.app.AlertDialog.Builder(this).setTitle(if(existing == null) "Добавить свою культуру" else "Изменить культуру")
-            .setView(ScrollView(this).apply { addView(form) }).setNegativeButton("Отмена", null).setPositiveButton("Сохранить", null).create()
+            .setView(ScrollView(this).apply { addView(form) }).setNegativeButton(tr("Отмена"), null).setPositiveButton(tr("Сохранить"), null).create()
         dialog.setOnShowListener {
             dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val cropName = name.text.toString().trim()
@@ -2293,9 +2319,9 @@ class MainActivity : Activity() {
 
     private fun showPlants(query:String) {
         baseLayout("Каталог культур")
-        val search = EditText(this).apply { hint = "Найти культуру или группу"; setSingleLine(true); setText(query) }
+        val search = EditText(this).apply { hint = tr("Найти культуру или группу"); setSingleLine(true); setText(query) }
         content.addView(search)
-        content.addView(Button(this).apply { text = "＋ Добавить свою культуру"; isAllCaps = false; setOnClickListener { addUserCrop() } })
+        content.addView(Button(this).apply { text = tr("＋ Добавить свою культуру"); isAllCaps = false; setOnClickListener { addUserCrop() } })
         val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(results)
 
@@ -2325,12 +2351,12 @@ class MainActivity : Activity() {
                     tile.addView(ImageView(this).apply {
                         run { val key = crop.optString("icon", "generic"); setCropIcon(this, key) }
                         scaleType = ImageView.ScaleType.FIT_CENTER
-                        contentDescription = "Иконка культуры " + crop.optString("name")
+                        contentDescription = tr("Иконка культуры ") + crop.optString("name")
                     }, LinearLayout.LayoutParams(dp(76),dp(76)).apply { bottomMargin = dp(4) })
                     tile.addView(txt(crop.optString("name"),15f,true).apply { gravity = Gravity.CENTER; maxLines = 2 })
                     tile.addView(txt(crop.optString("category"),12f).apply { gravity = Gravity.CENTER })
                     tile.addView(Button(this).apply {
-                        text = "Подробнее"; textSize = 11f; isAllCaps = false
+                        text = tr("Подробнее"); textSize = 11f; isAllCaps = false
                         setOnClickListener {
                             val details = listOf("Сроки посева" to "sowing","Глубина" to "depth","Всходы" to "sprouts","Советы" to "advice")
                                 .mapNotNull { (label,key) -> crop.optString(key).takeIf { it.isNotBlank() }?.let { "$label: $it" } }
@@ -2338,12 +2364,12 @@ class MainActivity : Activity() {
                             android.app.AlertDialog.Builder(this@MainActivity)
                                 .setTitle(crop.optString("name"))
                                 .setMessage(crop.optString("category") + if(details.isBlank()) "" else "\n\n$details")
-                                .setNeutralButton("Изменить") { _,_ -> addUserCrop(crop) }
-                                .setNegativeButton("Закрыть",null)
-                                .setPositiveButton("Удалить") { _,_ ->
-                                    android.app.AlertDialog.Builder(this@MainActivity).setTitle("Удалить культуру?")
-                                        .setMessage(crop.optString("name")).setNegativeButton("Отмена",null)
-                                        .setPositiveButton("Удалить") { _,_ ->
+                                .setNeutralButton(tr("Изменить")) { _,_ -> addUserCrop(crop) }
+                                .setNegativeButton(tr("Закрыть"),null)
+                                .setPositiveButton(tr("Удалить")) { _,_ ->
+                                    android.app.AlertDialog.Builder(this@MainActivity).setTitle(tr("Удалить культуру?"))
+                                        .setMessage(crop.optString("name")).setNegativeButton(tr("Отмена"),null)
+                                        .setPositiveButton(tr("Удалить")) { _,_ ->
                                             val next = JSONArray()
                                             for (i in 0 until mine.length()) { val v = mine.optJSONObject(i) ?: continue; if (v.optString("id") != crop.optString("id")) next.put(v) }
                                             prefs.edit().putString("user_crops",next.toString()).apply()
@@ -2371,7 +2397,7 @@ class MainActivity : Activity() {
         baseLayout("Мой огород")
         content.addView(txt("Мои посадки",20f,true))
         content.addView(txt("Записывайте сорт, место выращивания и заметки. Данные сохраняются на устройстве.",14f))
-        val name=EditText(this@MainActivity).apply { hint="Культура (например, томат)"; setSingleLine(true) }
+        val name=EditText(this@MainActivity).apply { hint=tr("Культура (например, томат)"); setSingleLine(true) }
         val cropSuggestions = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL }
         content.addView(name)
         content.addView(cropSuggestions)
@@ -2418,7 +2444,7 @@ class MainActivity : Activity() {
                 row.addView(ImageView(this@MainActivity).apply {
                     if (isCustom) setCropIcon(this, iconKey) else setCropIcon(this, iconKey)
                     scaleType = ImageView.ScaleType.FIT_CENTER
-                    contentDescription = "Иконка культуры $cropName"
+                    contentDescription = tr("Иконка культуры $cropName")
                 }, LinearLayout.LayoutParams(dp(42), dp(42)).apply { marginEnd = dp(10) })
                 row.addView(txt(cropName, 15f, true), LinearLayout.LayoutParams(0, -2, 1f))
                 row.addView(txt("Выбрать", 12f))
@@ -2432,10 +2458,10 @@ class MainActivity : Activity() {
             }
             override fun afterTextChanged(s: Editable?) {}
         })
-        val variety=EditText(this@MainActivity).apply { hint="Сорт"; setSingleLine(true) }
-        val sowing=EditText(this@MainActivity).apply { hint="Дата посева (дд.мм.гггг)"; setText(SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(Date())); setSingleLine(true) }
-        val place=EditText(this@MainActivity).apply { hint="Место (теплица, грядка №1, балкон)"; setSingleLine(true) }
-        val notes=EditText(this@MainActivity).apply { hint="Заметки (необязательно)"; minLines=2; maxLines=4 }
+        val variety=EditText(this@MainActivity).apply { hint=tr("Сорт"); setSingleLine(true) }
+        val sowing=EditText(this@MainActivity).apply { hint=tr("Дата посева (дд.мм.гггг)"); setText(SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(Date())); setSingleLine(true) }
+        val place=EditText(this@MainActivity).apply { hint=tr("Место (теплица, грядка №1, балкон)"); setSingleLine(true) }
+        val notes=EditText(this@MainActivity).apply { hint=tr("Заметки (необязательно)"); minLines=2; maxLines=4 }
         content.addView(variety); content.addView(sowing); content.addView(place); content.addView(notes)
         button("Добавить посадку") {
             val crop=name.text.toString().trim()
@@ -2484,10 +2510,10 @@ class MainActivity : Activity() {
             legacy.forEach { card("🌿 $it","Запись из прежней версии дневника.") }
         }
         content.addView(txt("Журнал урожая",20f,true))
-        val harvestCrop=EditText(this@MainActivity).apply { hint="Что собрали?"; setSingleLine(true) }
-        val harvestAmount=EditText(this@MainActivity).apply { hint="Количество (например, 2,5 кг)"; setSingleLine(true) }
-        val harvestDate=EditText(this@MainActivity).apply { hint="Дата сбора"; setText(SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(Date())); setSingleLine(true) }
-        val harvestNotes=EditText(this@MainActivity).apply { hint="Примечание (необязательно)"; setSingleLine(true) }
+        val harvestCrop=EditText(this@MainActivity).apply { hint=tr("Что собрали?"); setSingleLine(true) }
+        val harvestAmount=EditText(this@MainActivity).apply { hint=tr("Количество (например, 2,5 кг)"); setSingleLine(true) }
+        val harvestDate=EditText(this@MainActivity).apply { hint=tr("Дата сбора"); setText(SimpleDateFormat("dd.MM.yyyy",Locale("ru")).format(Date())); setSingleLine(true) }
+        val harvestNotes=EditText(this@MainActivity).apply { hint=tr("Примечание (необязательно)"); setSingleLine(true) }
         content.addView(harvestCrop); content.addView(harvestAmount); content.addView(harvestDate); content.addView(harvestNotes)
         button("Записать урожай") {
             val crop=harvestCrop.text.toString().trim()
@@ -2511,16 +2537,16 @@ class MainActivity : Activity() {
             card("🧺 ${h.optString("crop","Урожай")}",desc)
         }
         button("Очистить дневник посадок") {
-            android.app.AlertDialog.Builder(this@MainActivity).setTitle("Очистить посадки?")
-                .setMessage("Удалятся подробные и старые записи о посадках. Журнал урожая останется.")
-                .setNegativeButton("Отмена",null)
-                .setPositiveButton("Очистить") { _,_ -> prefs.edit().remove("plantings").remove("planting_records").apply(); showDiary() }.show()
+            android.app.AlertDialog.Builder(this@MainActivity).setTitle(tr("Очистить посадки?"))
+                .setMessage(tr("Удалятся подробные и старые записи о посадках. Журнал урожая останется."))
+                .setNegativeButton(tr("Отмена"),null)
+                .setPositiveButton(tr("Очистить")) { _,_ -> prefs.edit().remove("plantings").remove("planting_records").apply(); showDiary() }.show()
         }
         button("Очистить журнал урожая") {
-            android.app.AlertDialog.Builder(this@MainActivity).setTitle("Очистить журнал урожая?")
-                .setMessage("Все записи о собранном урожае будут удалены.")
-                .setNegativeButton("Отмена",null)
-                .setPositiveButton("Очистить") { _,_ -> prefs.edit().remove("harvest_records").apply(); showDiary() }.show()
+            android.app.AlertDialog.Builder(this@MainActivity).setTitle(tr("Очистить журнал урожая?"))
+                .setMessage(tr("Все записи о собранном урожае будут удалены."))
+                .setNegativeButton(tr("Отмена"),null)
+                .setPositiveButton(tr("Очистить")) { _,_ -> prefs.edit().remove("harvest_records").apply(); showDiary() }.show()
         }
     }
 
