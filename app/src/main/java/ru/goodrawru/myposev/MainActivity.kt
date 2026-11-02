@@ -246,9 +246,10 @@ class MainActivity : Activity() {
         val choices = listOf("calendar" to "Посевной календарь", "work" to "Сезонные рекомендации и работы", "tasks" to "Мои задачи и статус выполнения", "plants" to "Каталог культур (культуры с доступными значками)", "notes" to "Мои заметки", "blank" to "Страницы для записей")
         val checks = mutableMapOf<String, CheckBox>()
         choices.forEachIndexed { index, item -> val cb = CheckBox(this).apply { text = item.second; isChecked = index < 4; setTextColor(Color.rgb(42,55,43)) }; checks[item.first] = cb; content.addView(cb) }
-        val period = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("Весь год", "Весна (март–май)", "Лето (июнь–август)", "Осень (сентябрь–ноябрь)", "Зима (декабрь–февраль)")) }
+        val periodLabels = listOf("Весь год", "Весна (март–май)", "Лето (июнь–август)", "Осень (сентябрь–ноябрь)", "Зима (декабрь–февраль)")
+        val period = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, periodLabels.map { tr(it) }) }
         content.addView(txt("Период", 16f, true)); content.addView(period)
-        val colorMode = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("Цветной", "Чёрно-белый, экономный")) }
+        val colorMode = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("Цветной", "Чёрно-белый, экономный").map { tr(it) }) }
         content.addView(txt("Оформление", 16f, true)); content.addView(colorMode)
         button("Сформировать и сохранить PDF") {
             val year = yearInput.text.toString().toIntOrNull()
@@ -1754,9 +1755,9 @@ class MainActivity : Activity() {
                 },initial.get(Calendar.YEAR),initial.get(Calendar.MONTH),initial.get(Calendar.DAY_OF_MONTH)).show()
             }
         }
+        val taskTypes = listOf("Уход","Посев","Полив","Подкормка","Прополка","Пересадка","Защита растений","Сбор урожая")
         val type=Spinner(this).apply {
-            adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,
-                listOf("Уход","Посев","Полив","Подкормка","Прополка","Пересадка","Защита растений","Сбор урожая").map { tr(it) })
+            adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,taskTypes.map { tr(it) })
         }
         content.addView(titleInput); content.addView(cropInput); content.addView(dateInput); content.addView(type)
         button("Добавить задачу") {
@@ -1767,7 +1768,7 @@ class MainActivity : Activity() {
             val storedDate=SimpleDateFormat("yyyy-MM-dd",Locale.US).format(date.time)
             val all=tasksArray()
             all.put(JSONObject().put("id",System.currentTimeMillis()).put("title",title).put("crop",cropInput.text.toString().trim())
-                .put("type",type.selectedItem.toString()).put("date",storedDate).put("done",false))
+                .put("type",taskTypes[type.selectedItemPosition]).put("date",storedDate).put("done",false))
             prefs.edit().putString("care_tasks",all.toString()).apply()
             showTasks()
         }
@@ -1940,7 +1941,7 @@ class MainActivity : Activity() {
         val title=EditText(this).apply { hint=tr("Например, проверить грядки"); setSingleLine(true) }
         val crop=EditText(this).apply { hint=tr("Культура или грядка (необязательно)") }
         val types=listOf("Уход","Посев","Полив","Подкормка","Прополка","Пересадка","Защита растений","Сбор урожая")
-        val type=Spinner(this).apply { adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,types) }
+        val type=Spinner(this).apply { adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,types.map { tr(it) }) }
         val dateText=SimpleDateFormat("yyyy-MM-dd",Locale.US).format(date.time)
         wrap.addView(title); wrap.addView(crop); wrap.addView(type)
         android.app.AlertDialog.Builder(this).setTitle(tr("Запланировать на ")+dateString(date)).setView(wrap)
@@ -1949,7 +1950,7 @@ class MainActivity : Activity() {
                 if(name.isBlank()) { Toast.makeText(this,tr("Введите название действия"),Toast.LENGTH_SHORT).show(); return@setPositiveButton }
                 val all=tasksArray()
                 all.put(JSONObject().put("id",System.currentTimeMillis()).put("title",name).put("crop",crop.text.toString().trim())
-                    .put("type",type.selectedItem.toString()).put("date",dateText).put("done",false))
+                    .put("type",types[type.selectedItemPosition]).put("date",dateText).put("done",false))
                 prefs.edit().putString("care_tasks",all.toString()).apply()
                 Toast.makeText(this,tr("Задача добавлена"),Toast.LENGTH_SHORT).show()
             }.show()
@@ -2256,7 +2257,8 @@ class MainActivity : Activity() {
 
     private fun addUserCrop(existing: JSONObject? = null) {
         val name = EditText(this).apply { hint = tr("Название культуры *"); setText(existing?.optString("name", "") ?: "") }
-        val category = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("Овощи","Зелень","Ягоды","Цветы","Другое")); setSelection((listOf("Овощи","Зелень","Ягоды","Цветы","Другое").indexOf(existing?.optString("category")).coerceAtLeast(0))) }
+        val cropCategories = listOf("Овощи","Зелень","Ягоды","Цветы","Другое")
+        val category = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, cropCategories.map { tr(it) }); setSelection(cropCategories.indexOf(existing?.optString("category")).coerceAtLeast(0)) }
         val sowing = EditText(this).apply { hint = tr("Сроки посева"); setText(existing?.optString("sowing", "") ?: "") }
         val depth = EditText(this).apply { hint = tr("Глубина посева"); setText(existing?.optString("depth", "") ?: "") }
         val sprouts = EditText(this).apply { hint = tr("Сроки всходов"); setText(existing?.optString("sprouts", "") ?: "") }
@@ -2322,7 +2324,7 @@ class MainActivity : Activity() {
                 val cropName = name.text.toString().trim()
                 if (cropName.isBlank()) { name.error = "Введите название"; return@setOnClickListener }
                 val all = userCrops(); val id = existing?.optString("id") ?: java.util.UUID.randomUUID().toString()
-                val item = JSONObject().put("id",id).put("name",cropName).put("category",category.selectedItem.toString()).put("sowing",sowing.text.toString()).put("depth",depth.text.toString()).put("sprouts",sprouts.text.toString()).put("advice",advice.text.toString()).put("icon",iconChoices[iconPicker.selectedItemPosition].first).put("emoji",plantEmoji(cropName))
+                val item = JSONObject().put("id",id).put("name",cropName).put("category",cropCategories[category.selectedItemPosition]).put("sowing",sowing.text.toString()).put("depth",depth.text.toString()).put("sprouts",sprouts.text.toString()).put("advice",advice.text.toString()).put("icon",iconChoices[iconPicker.selectedItemPosition].first).put("emoji",plantEmoji(cropName))
                 val next = JSONArray(); var replaced = false
                 for(i in 0 until all.length()) { val old = all.optJSONObject(i) ?: continue; if(old.optString("id")==id) { next.put(item); replaced=true } else next.put(old) }
                 if(!replaced) next.put(item)
