@@ -858,6 +858,25 @@ class MainActivity : Activity() {
             "Сидераты" to "Green manure",
             "Ягоды и лианы" to "Berries and vines",
             "Плодовые кустарники" to "Fruit bushes",
+            "Введите год от 2000 до 2100" to "Enter a year from 2000 to 2100",
+            "Выберите хотя бы один раздел" to "Select at least one section",
+            "Резервная копия сохранена" to "Backup saved",
+            "Ошибка сохранения копии" to "Could not save the backup",
+            "Восстановление заменит текущие настройки, задачи, заметки и каталог культур данными из резервной копии." to "Restoring will replace current settings, tasks, notes and crop catalog with data from the backup.",
+            "Восстановить" to "Restore",
+            "PDF сохранён" to "PDF saved",
+            "Ошибка создания копии: " to "Backup creation error: ",
+            "Не удалось открыть выбор файла" to "Could not open the file picker",
+            "Копия восстановлена. Данные загружены." to "Backup restored. Data loaded.",
+            "Тестовое уведомление отправлено, если разрешения Android включены." to "Test notification sent, provided Android notification permission is enabled.",
+            "Каталог культур недоступен." to "Crop catalog is unavailable.",
+            "Без разрешения на геолокацию выберите город вручную." to "Choose a city manually if you do not grant location permission.",
+            "Не удалось получить геолокацию. Выберите город вручную." to "Could not get your location. Choose a city manually.",
+            "Ошибка определения местоположения. Выберите город вручную." to "Location detection failed. Choose a city manually.",
+            "Выбрать город" to "Choose city",
+            "Сначала выберите город или определите местоположение." to "Choose a city or detect your location first.",
+            "Задача добавлена" to "Task added",
+            "Не удалось открыть браузер." to "Could not open the browser.",
             "Да" to "Yes",
             "Нет" to "No"
         )
@@ -879,6 +898,10 @@ class MainActivity : Activity() {
         if (value.startsWith("После даты посадки прошло ")) return "Time since planting: " + translateDayCount(value.removePrefix("После даты посадки прошло "))
         if (value.startsWith("Просрочено на ")) return "Overdue by " + translateDayCount(value.removePrefix("Просрочено на "))
         if (value.endsWith(" пункта") && value.removeSuffix(" пункта").toIntOrNull() != null) return value.removeSuffix(" пункта") + " items"
+        if (value.startsWith("Ошибка подготовки PDF: ")) return "PDF preparation error: " + value.removePrefix("Ошибка подготовки PDF: ")
+        if (value.startsWith("Ошибка сохранения: ")) return "Save error: " + value.removePrefix("Ошибка сохранения: ")
+        if (value.startsWith("Ошибка создания копии: ")) return "Backup creation error: " + value.removePrefix("Ошибка создания копии: ")
+        if (value.startsWith("Место сохранено: ")) return "Location saved: " + tr(value.removePrefix("Место сохранено: "))
         if (value.startsWith("Что нового · версия ")) return "What's new · version " + value.removePrefix("Что нового · версия ")
         if (value.startsWith("Запланировать на ")) return "Schedule for " + value.removePrefix("Запланировать на ")
         if (value.startsWith("Время: ")) return "Time: " + value.removePrefix("Время: ")
