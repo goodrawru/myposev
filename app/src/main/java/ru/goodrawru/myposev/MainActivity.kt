@@ -590,7 +590,7 @@ class MainActivity : Activity() {
         content.addView(txt("Приложение будет готовить локальный план на текущий день. Интернет для календарных рекомендаций не нужен; точное время доставки зависит от ограничений Android.", 14f))
         val enabled = CheckBox(this).apply {
             text = "Включить ежедневные уведомления"
-            isChecked = prefs.getBoolean("reminder_enabled", true)
+            isChecked = prefs.getBoolean("reminder_enabled", false)
             textSize = 16f
         }
         content.addView(enabled)
@@ -2030,7 +2030,7 @@ class MainActivity : Activity() {
         val alarm = getSystemService(ALARM_SERVICE) as AlarmManager
         val intent = Intent(this, ReminderReceiver::class.java)
         val pending = PendingIntent.getBroadcast(this, 91, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        if (!prefs.getBoolean("reminder_enabled", true)) {
+        if (!prefs.getBoolean("reminder_enabled", false)) {
             alarm.cancel(pending)
             return
         }
