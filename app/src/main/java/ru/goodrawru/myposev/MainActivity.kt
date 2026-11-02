@@ -823,10 +823,16 @@ class MainActivity : Activity() {
             "Мой Посевной" to "My Sowing Calendar",
             "Мой Посевной — бумажный вариант" to "My Sowing Calendar — printable planner",
             "Условно благоприятный день" to "Tentatively favorable day",
+            "Мои задачи" to "My tasks",
+            "Фаза Луны" to "Moon phase",
+            "Что делать в этом месяце" to "What to do this month",
             "Да" to "Yes",
             "Нет" to "No"
         )
         exact[value]?.let { return it }
+        if (value.contains("Климатическая зона: ") || value.contains("Нажмите, чтобы изменить место.")) {
+            return value.replace("Климатическая зона: ", "Climate zone: ").replace("Нажмите, чтобы изменить место.", "Tap to change location.")
+        }
         if (value.startsWith("Посевной календарь · ")) return "Sowing calendar · " + value.removePrefix("Посевной календарь · ")
         if (value.startsWith("План огородника на ")) return "Gardener's plan for " + value.removePrefix("План огородника на ")
         if (value.startsWith("Сформировано: ")) return "Generated: " + value.removePrefix("Сформировано: ")
@@ -856,7 +862,7 @@ class MainActivity : Activity() {
         if (value.startsWith("Сбор: ")) return "Harvest: " + value.removePrefix("Сбор: ")
         if (value.startsWith("Количество: ")) return "Amount: " + value.removePrefix("Количество: ")
         if (value.startsWith("Примечание: ")) return "Comment: " + value.removePrefix("Примечание: ")
-        if (value.startsWith("Удалить посадку: ")) return "Delete planting: " + value.removePrefix("Удалить посадку: ")
+        if (value.startsWith("Удалить посадку: ")) return "Delete planting: " + tr(value.removePrefix("Удалить посадку: "))
         return value
     }
 
