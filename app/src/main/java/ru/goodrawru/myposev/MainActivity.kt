@@ -161,7 +161,7 @@ class MainActivity : Activity() {
             }
         }
         root.addView(TextView(this).apply {
-            text = "🌱  " + title; textSize=25f; setTextColor(Color.WHITE); setBackgroundColor(green)
+            text = "🌱  " + tr(title); textSize=25f; setTextColor(Color.WHITE); setBackgroundColor(green)
             setPadding(20,22,20,22); gravity=Gravity.CENTER_VERTICAL
         })
         val sectionRow = LinearLayout(this).apply {
@@ -171,13 +171,13 @@ class MainActivity : Activity() {
             background = roundedBackground(Color.rgb(248, 251, 245), 14f, Color.rgb(213, 229, 207))
         }
         sectionRow.addView(TextView(this).apply {
-            text = "Раздел: $title"
+            text = tr("Раздел: $title")
             textSize = 12f
             setTextColor(Color.rgb(65, 78, 67))
             maxLines = 2
         }, LinearLayout.LayoutParams(0, -2, 1f))
         sectionRow.addView(Button(this).apply {
-            text = "О программе"
+            text = tr("О программе")
             textSize = 12f
             isAllCaps = false
             minWidth = dp(72)
@@ -198,7 +198,7 @@ class MainActivity : Activity() {
         val nav = LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; setBackgroundColor(Color.WHITE) }
         listOf("Сегодня","Календарь","Культуры","Задачи","Огород").forEach { label ->
             nav.addView(Button(this).apply {
-                text=label
+                text=tr(label)
                 textSize=12f
                 isAllCaps=false
                 minWidth=dp(72)
@@ -373,14 +373,107 @@ class MainActivity : Activity() {
         return shape
     }
 
+    // First-stage built-in localization. User data and persisted keys are never translated.
+    private fun isEnglish(): Boolean = prefs.getString("app_language", "ru") == "en"
+
+    private fun tr(value: String): String {
+        if (!isEnglish()) return value
+        val exact = mapOf(
+            "Сегодня" to "Today",
+            "Календарь" to "Calendar",
+            "Культуры" to "Crops",
+            "Задачи" to "Tasks",
+            "Огород" to "Garden",
+            "Раздел: " to "Section: ",
+            "О программе" to "About",
+            "Каталог культур" to "Crop catalog",
+            "Мой огород" to "My garden",
+            "Бумажный вариант" to "Printable planner",
+            "Открыть погоду" to "Open weather",
+            "Посевной календарь" to "Sowing calendar",
+            "Мои культуры" to "My crops",
+            "Мои посадки" to "My plantings",
+            "Мои заметки" to "My notes",
+            "Сохранённые посадки" to "Saved plantings",
+            "Журнал урожая" to "Harvest log",
+            "Добавить свою культуру" to "Add a custom crop",
+            "＋ Добавить свою культуру" to "＋ Add a custom crop",
+            "Найти культуру или группу" to "Search crops or groups",
+            "Подробнее" to "Details",
+            "Выбрать" to "Select",
+            "Сорт" to "Variety",
+            "Дата посева (дд.мм.гггг)" to "Sowing date (dd.mm.yyyy)",
+            "Место (теплица, грядка №1, балкон)" to "Location (greenhouse, bed #1, balcony)",
+            "Заметки (необязательно)" to "Notes (optional)",
+            "Добавить посадку" to "Add planting",
+            "Введите название культуры" to "Enter a crop name",
+            "Введите дату в формате дд.мм.гггг" to "Enter the date as dd.mm.yyyy",
+            "Пока нет подробных посадок. Добавьте первую запись." to "No detailed plantings yet. Add your first entry.",
+            "Что собрали?" to "What did you harvest?",
+            "Количество (например, 2,5 кг)" to "Amount (e.g. 2.5 kg)",
+            "Дата сбора" to "Harvest date",
+            "Примечание (необязательно)" to "Comment (optional)",
+            "Записать урожай" to "Record harvest",
+            "Укажите культуру и количество" to "Enter the crop and amount",
+            "Проверьте дату сбора" to "Check the harvest date",
+            "Записей об урожае пока нет." to "No harvest records yet.",
+            "Очистить дневник посадок" to "Clear planting diary",
+            "Очистить журнал урожая" to "Clear harvest log",
+            "Очистить посадки?" to "Clear plantings?",
+            "Удалятся подробные и старые записи о посадках. Журнал урожая останется." to "Detailed and older planting records will be deleted. The harvest log will remain.",
+            "Все записи о собранном урожае будут удалены." to "All harvest records will be deleted.",
+            "Отмена" to "Cancel",
+            "Очистить" to "Clear",
+            "Сохранить" to "Save",
+            "Изменить" to "Edit",
+            "Закрыть" to "Close",
+            "Удалить" to "Delete",
+            "Удалить культуру?" to "Delete crop?",
+            "Версия " to "Version ",
+            "Номер сборки: " to "Build number: ",
+            "Что нового в версии" to "What's new",
+            "📄 Создать PDF-планировщик" to "📄 Create PDF planner",
+            "📦 Создать резервную копию" to "📦 Create backup",
+            "♻️ Восстановить резервную копию" to "♻️ Restore backup",
+            "Политика конфиденциальности" to "Privacy policy",
+            "← На главный экран" to "← Home",
+            "Язык / Language" to "Language / Язык",
+            "Выберите язык приложения" to "Choose app language",
+            "Русский" to "Russian",
+            "Английский" to "English",
+            "Применить язык можно после перезапуска раздела." to "The language is applied when the screen reloads.",
+            "Календарь с индикаторами дней, собственные культуры, PDF с заметками и резервное копирование." to "Calendar with day indicators, custom crops, PDF planner with notes, and backups.",
+            "Ваш помощник в саду и огороде" to "Your gardening companion",
+            "🌱 Всё для заботы об урожае" to "🌱 Everything for a better harvest",
+            "📵 Без рекламы" to "📵 No ads",
+            "☕ Поддержать разработку" to "☕ Support development",
+            "☕ Поблагодарить разработчика" to "☕ Thank the developer",
+            "Не удалось открыть страницу поддержки" to "Could not open the support page",
+            "Спасибо, что выбрали «Мой Посевной». Пусть ваши труды дают добрые всходы, а урожай радует каждый год!" to "Thank you for choosing My Sowing Calendar. May your efforts sprout well and bring a great harvest every year!"
+        )
+        exact[value]?.let { return it }
+        if (value.startsWith("Раздел: ")) return "Section: " + tr(value.removePrefix("Раздел: "))
+        if (value.startsWith("Возраст: ")) return "Age: " + value.removePrefix("Возраст: ").replace(" дн.", " days")
+        if (value.startsWith("До посева: ")) return "Until sowing: " + value.removePrefix("До посева: ").replace(" дн.", " days")
+        if (value.startsWith("Посев: ")) return "Sowing: " + value.removePrefix("Посев: ")
+        if (value.startsWith("Сорт: ")) return "Variety: " + value.removePrefix("Сорт: ")
+        if (value.startsWith("Место: ")) return "Location: " + value.removePrefix("Место: ")
+        if (value.startsWith("Заметки: ")) return "Notes: " + value.removePrefix("Заметки: ")
+        if (value.startsWith("Сбор: ")) return "Harvest: " + value.removePrefix("Сбор: ")
+        if (value.startsWith("Количество: ")) return "Amount: " + value.removePrefix("Количество: ")
+        if (value.startsWith("Примечание: ")) return "Comment: " + value.removePrefix("Примечание: ")
+        if (value.startsWith("Удалить посадку: ")) return "Delete planting: " + value.removePrefix("Удалить посадку: ")
+        return value
+    }
+
     private fun txt(value:String,size:Float=16f,bold:Boolean=false)=TextView(this).apply {
-        text=value; textSize=size; setTextColor(Color.rgb(35,48,38))
+        text=tr(value); textSize=size; setTextColor(Color.rgb(35,48,38))
         if(bold) setTypeface(null,android.graphics.Typeface.BOLD)
         setPadding(0,dp(7),0,dp(7))
     }
     private fun button(label:String, action:()->Unit) {
         val b = Button(this).apply {
-            text=label
+            text=tr(label)
             isAllCaps=false
             textSize=14f
             minHeight=dp(48)
@@ -709,6 +802,17 @@ class MainActivity : Activity() {
         content.addView(txt("Версия ${BuildConfig.VERSION_NAME}", 16f, true))
         content.addView(txt("Номер сборки: ${BuildConfig.VERSION_CODE}", 13f))
         content.addView(txt("Календарь с индикаторами дней, собственные культуры, PDF с заметками и резервное копирование.", 14f))
+        button("Язык / Language") {
+            val labels = arrayOf("Русский", "English")
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Выберите язык приложения")
+                .setItems(labels) { _, which ->
+                    prefs.edit().putString("app_language", if (which == 1) "en" else "ru").apply()
+                    showAbout()
+                }
+                .setNegativeButton("Отмена", null)
+                .show()
+        }
         button("Что нового в версии") { showUpdateNotes(true) }
         button("📄 Создать PDF-планировщик") { showPaperPlanner() }
         button("📦 Создать резервную копию") { createBackup() }
