@@ -855,10 +855,10 @@ class MainActivity : Activity() {
         if (value.contains("Климатическая зона: ") || value.contains("Нажмите, чтобы изменить место.")) {
             return value.replace("Климатическая зона: ", "Climate zone: ").replace("Нажмите, чтобы изменить место.", "Tap to change location.")
         }
-        if (value.contains("\\nВыполнено")) return value.replace("\\nВыполнено", "\\nCompleted")
+        if (value.contains("\nВыполнено")) return value.replace("\nВыполнено", "\nCompleted")
         if (value.startsWith("Спасибо, что выбрали «Мой Посевной».")) {
-            val version = value.substringAfter("\\n\\nВерсия ", "")
-            return "Thank you for choosing My Sowing Calendar. May your efforts sprout well and bring a great harvest every year!" + if (version.isBlank()) "" else "\\n\\nVersion $version"
+            val version = value.substringAfter("\n\nВерсия ", "")
+            return "Thank you for choosing My Sowing Calendar. May your efforts sprout well and bring a great harvest every year!" + if (version.isBlank()) "" else "\n\nVersion $version"
         }
         if (value.startsWith("Новолуние. Фаза вычислена приближённо.")) return "New moon. The phase is approximate. Lunar advice is traditional and does not replace agronomic recommendations."
         if (value.startsWith("Растущая Луна. Фаза вычислена приближённо.")) return "Waxing moon. The phase is approximate. Lunar advice is traditional and does not replace agronomic recommendations."
