@@ -1565,7 +1565,13 @@ class MainActivity : Activity() {
     }
 
     private fun cropIconKeyForName(name: String): String {
-        val n = name.lowercase(Locale.ROOT)
+        val n = name.trim().lowercase(Locale.ROOT).replace('ё', 'е').replace(Regex("\\s+"), " ")
+        // Prefer an exact catalog-name match before applying aliases.
+        for (i in 0 until cropIconCatalog.length()) {
+            val crop = cropIconCatalog.optJSONObject(i) ?: continue
+            val catalogName = crop.optString("name").trim().lowercase(Locale.ROOT).replace('ё', 'е').replace(Regex("\\s+"), " ")
+            if (catalogName == n) return crop.optString("id", "generic")
+        }
         val aliases = listOf(
             "томат" to "tomato", "огур" to "cucumber", "ревень" to "rhubarb", "любисток" to "lovage", "перец слад" to "sweet_pepper",
             "перец ост" to "hot_pepper", "перец" to "sweet_pepper", "баклаж" to "eggplant",
@@ -1646,7 +1652,8 @@ class MainActivity : Activity() {
         }
         val iconPicker = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, iconChoices.map { it.second })
-            val index = iconChoices.indexOfFirst { it.first == legacyIconKey }.let { if (it >= 0) it else 0 }
+            val initialKey = if (existing == null) cropIconKeyForName(name.text.toString()) else legacyIconKey
+            val index = iconChoices.indexOfFirst { it.first == initialKey }.let { if (it >= 0) it else 0 }
             setSelection(index)
         }
         val iconPreview = ImageView(this).apply {
@@ -1660,6 +1667,21 @@ class MainActivity : Activity() {
                 setCropIcon(iconPreview, iconChoices[position].first)
             }
         }
+        // Automatically select a matching catalog icon while the user types a crop name.
+        // Unknown names keep the generic sprout; manual icon selection remains available.
+        name.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val key = cropIconKeyForName(s?.toString().orEmpty())
+                val index = iconChoices.indexOfFirst { it.first == key }
+                if (index >= 0 && iconPicker.selectedItemPosition != index) {
+                    iconPicker.setSelection(index)
+                } else if (index < 0 && iconPicker.selectedItemPosition != 0) {
+                    iconPicker.setSelection(0)
+                }
+            }
+            override fun afterTextChanged(s: android.text.Editable?) {}
+        })
         val form = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(4), dp(18), dp(4)) }
         listOf<View>(name, category, sowing, depth, sprouts, advice, txt("Цветная иконка культуры",14f,true), iconPreview, iconPicker).forEach { form.addView(it) }
         val dialog = android.app.AlertDialog.Builder(this).setTitle(if(existing == null) "Добавить свою культуру" else "Изменить культуру")
