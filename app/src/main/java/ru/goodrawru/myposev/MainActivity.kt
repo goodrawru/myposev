@@ -139,8 +139,6 @@ class MainActivity : Activity() {
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_UNCHANGED)
         migrateLegacyNoteKeys()
         createNotificationChannel()
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
         scheduleDailyReminder()
         showHome()
         showFirstRunOrUpdateNotice()
@@ -577,7 +575,7 @@ class MainActivity : Activity() {
     private fun defaultReminderCategories(): Set<String> = reminderCategoryOptions.toSet()
 
     private fun reminderSettingsSummary(): String {
-        val enabled = prefs.getBoolean("reminder_enabled", true)
+        val enabled = prefs.getBoolean("reminder_enabled", false)
         val hour = prefs.getInt("reminder_hour", 9).coerceIn(0, 23)
         val minute = prefs.getInt("reminder_minute", 0).coerceIn(0, 59)
         val selected = prefs.getStringSet("reminder_categories", null) ?: defaultReminderCategories()
@@ -640,15 +638,23 @@ class MainActivity : Activity() {
 
         button("Сохранить настройки") {
             val categories = categoryChecks.filterValues { it.isChecked }.keys.toSet()
+            val wantsEnabled = enabled.isChecked
+            val needsPermission = wantsEnabled && Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
             prefs.edit()
-                .putBoolean("reminder_enabled", enabled.isChecked)
+                .putBoolean("reminder_enabled", wantsEnabled && !needsPermission)
+                .putBoolean("reminder_pending_enable", needsPermission)
                 .putInt("reminder_hour", hour)
                 .putInt("reminder_minute", minute)
                 .putStringSet("reminder_categories", categories)
                 .putInt("reminder_limit", limits[limitSpinner.selectedItemPosition])
                 .apply()
             scheduleDailyReminder()
-            Toast.makeText(this, if (enabled.isChecked) "Настройки напоминаний сохранены" else "Напоминания выключены", Toast.LENGTH_SHORT).show()
+            if (needsPermission) {
+                requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
+                return@button
+            }
+            Toast.makeText(this, if (wantsEnabled) "Настройки напоминаний сохранены" else "Напоминания выключены", Toast.LENGTH_SHORT).show()
             showHome()
         }
         button("Отправить тестовое уведомление") {
@@ -822,6 +828,14 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode:Int, permissions:Array<out String>, grantResults:IntArray) {
         super.onRequestPermissionsResult(requestCode,permissions,grantResults)
+        if (requestCode == 1001) {
+            val granted = grantResults.any { it == PackageManager.PERMISSION_GRANTED }
+            val wasPending = prefs.getBoolean("reminder_pending_enable", false)
+            prefs.edit().putBoolean("reminder_pending_enable", false)
+                .putBoolean("reminder_enabled", granted && wasPending).apply()
+            scheduleDailyReminder()
+            Toast.makeText(this, if (granted && wasPending) "Ежедневные напоминания включены." else "Уведомления не разрешены. Напоминания оставлены выключенными.", Toast.LENGTH_LONG).show()
+        }
         if(requestCode == 2002) {
             if(grantResults.any { it == PackageManager.PERMISSION_GRANTED }) resolveGardenLocation()
             else Toast.makeText(this,"Без разрешения на геолокацию выберите город вручную.",Toast.LENGTH_LONG).show()
