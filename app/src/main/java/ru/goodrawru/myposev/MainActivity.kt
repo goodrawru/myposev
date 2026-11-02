@@ -539,6 +539,7 @@ class MainActivity : Activity() {
                 }
             }
             if (!editor.commit()) throw IllegalStateException("Android не смог сохранить восстановленные данные")
+            migrateLegacyNoteKeys()
             scheduleDailyReminder()
             Toast.makeText(this, "Копия восстановлена. Данные загружены.", Toast.LENGTH_LONG).show()
             showHome()
