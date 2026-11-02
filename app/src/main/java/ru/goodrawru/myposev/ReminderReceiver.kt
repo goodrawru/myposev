@@ -20,7 +20,7 @@ class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val prefs = context.getSharedPreferences("moi_posevnoy", Context.MODE_PRIVATE)
         val isTest = intent?.action == ACTION_TEST
-        if (!isTest && !prefs.getBoolean("reminder_enabled", true)) return
+        if (!isTest && !prefs.getBoolean("reminder_enabled", false)) return
         if (Build.VERSION.SDK_INT >= 33 &&
             context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
 
@@ -213,7 +213,7 @@ class BootReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val prefs = context.getSharedPreferences("moi_posevnoy", Context.MODE_PRIVATE)
-        if (!prefs.getBoolean("reminder_enabled", true)) {
+        if (!prefs.getBoolean("reminder_enabled", false)) {
             alarm.cancel(pending)
             return
         }
