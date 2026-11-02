@@ -61,6 +61,8 @@ class ReminderReceiver : BroadcastReceiver() {
     private fun translateReminder(value: String): String {
         val exact = mapOf(
             "Планируйте сорта и закупку семян. Зимний посев требует подходящих условий и досветки." to "Plan varieties and seed purchases. Winter sowing requires suitable conditions and supplemental lighting.",
+            "Планируйте семена и сроки посева; ранний посев нужен только культурам с длинным рассадным периодом." to "Plan seed purchases and sowing dates; early sowing is only needed for crops with a long seedling period.",
+            "Проверьте сроки созревания выбранных культур и заранее подготовьте тару для сбора." to "Check maturity dates for selected crops and prepare harvest containers in advance.",
             "Проверьте сроки посева культур с длинным рассадным периодом и подготовьте ёмкости." to "Check sowing dates for crops with a long seedling period and prepare containers.",
             "Планируйте рассаду, обеспечьте достаточное освещение и умеренный полив." to "Plan seedling production, provide enough light and water moderately.",
             "Подготовьте грядки; посев холодостойких культур сверяйте с состоянием почвы." to "Prepare garden beds; check soil conditions before sowing cold-hardy crops.",
@@ -93,6 +95,7 @@ class ReminderReceiver : BroadcastReceiver() {
         )
         for ((ru, en) in prefixes) if (result.startsWith(ru)) { result = en + result.removePrefix(ru); break }
         result = result
+            .replace(". Лунная подсказка традиционная и не заменяет агротехнические сроки.", ". Lunar guidance is traditional and does not replace agronomic timing.")
             .replace(" и проверьте влажность почвы; полив корректируйте по осадкам и состоянию растений.", " and check soil moisture; adjust watering for rainfall and plant condition.")
             .replace(". Учитывайте сорт, температуру почвы и прогноз заморозков.", ". Consider the variety, soil temperature and frost forecast.")
             .replace(". Учитывайте признаки зрелости конкретного сорта.", ". Use the ripeness indicators for the specific variety.")
