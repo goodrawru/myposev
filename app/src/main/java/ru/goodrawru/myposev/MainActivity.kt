@@ -272,7 +272,7 @@ class MainActivity : Activity() {
         val footerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 8f; color = android.graphics.Color.GRAY }
         var page: PdfDocument.Page? = null; var canvas: android.graphics.Canvas? = null; var y = 0f; var pageNo = 0
         fun newPage(title: String? = null) {
-            if (page != null) { canvas!!.drawText("Мой Посевной • " + year + " • стр. " + pageNo, left, 822f, footerPaint); doc.finishPage(page!!) }
+            if (page != null) { canvas!!.drawText(if (isEnglish()) "My Sowing Calendar • $year • page $pageNo" else "Мой Посевной • $year • стр. $pageNo", left, 822f, footerPaint); doc.finishPage(page!!) }
             pageNo++; page = doc.startPage(PdfDocument.PageInfo.Builder(width, height, pageNo).create()); canvas = page!!.canvas; canvas!!.drawColor(android.graphics.Color.WHITE); y = 48f
             if (title != null) { canvas!!.drawText(tr(title), left, y, titlePaint); y += 28f; canvas!!.drawLine(left, y, right, y, headPaint); y += 20f }
         }
@@ -323,7 +323,7 @@ class MainActivity : Activity() {
         if ("plants" in selected) { newPage("Каталог культур"); builtInPlants.forEach { p -> section(p.name); line("Группа: " + p.group); line("Срок посева: " + p.sowing); line("Глубина: " + p.depth); line("Всходы: " + p.sprouts); line(p.advice) } }
         if ("notes" in selected) { newPage("Мои заметки"); val notes = prefs.all.filter { it.key.startsWith("note_") && it.value is String && (it.value as String).isNotBlank() }.toSortedMap(); if (notes.isEmpty()) line("Сохранённых заметок нет."); notes.forEach { entry -> section(entry.key.removePrefix("note_")); line(entry.value.toString()) } }
         if ("blank" in selected) repeat(3) { index -> newPage("Свободные записи " + (index + 1)); repeat(22) { canvas!!.drawLine(left, y, right, y, footerPaint); y += 30f } }
-        if (page != null) { canvas!!.drawText("Мой Посевной • " + year + " • стр. " + pageNo, left, 822f, footerPaint); doc.finishPage(page!!) }
+        if (page != null) { canvas!!.drawText(if (isEnglish()) "My Sowing Calendar • $year • page $pageNo" else "Мой Посевной • $year • стр. $pageNo", left, 822f, footerPaint); doc.finishPage(page!!) }
         val out = java.io.ByteArrayOutputStream(); doc.writeTo(out); doc.close(); return out.toByteArray()
     }
     @Deprecated("Uses the document picker to support older Android versions")
@@ -820,11 +820,19 @@ class MainActivity : Activity() {
             "лето" to "summer",
             "осень" to "autumn",
             "зима" to "winter",
+            "Мой Посевной" to "My Sowing Calendar",
+            "Мой Посевной — бумажный вариант" to "My Sowing Calendar — printable planner",
+            "Условно благоприятный день" to "Tentatively favorable day",
             "Да" to "Yes",
             "Нет" to "No"
         )
         exact[value]?.let { return it }
         if (value.startsWith("Посевной календарь · ")) return "Sowing calendar · " + value.removePrefix("Посевной календарь · ")
+        if (value.startsWith("План огородника на ")) return "Gardener's plan for " + value.removePrefix("План огородника на ")
+        if (value.startsWith("Сформировано: ")) return "Generated: " + value.removePrefix("Сформировано: ")
+        if (value.startsWith("Период: ")) return "Period: " + tr(value.removePrefix("Период: "))
+        if (value.startsWith("Календарь — ")) return "Calendar — " + value.removePrefix("Календарь — ")
+        if (value.startsWith("Свободные записи ")) return "Blank notes " + value.removePrefix("Свободные записи ")
         if (value.startsWith("Прогноз на ")) return "Forecast for " + value.removePrefix("Прогноз на ")
         if (value.startsWith("Раздел: ")) return "Section: " + tr(value.removePrefix("Раздел: "))
         if (value.startsWith("Климатическая зона: ")) return "Climate zone: " + tr(value.removePrefix("Климатическая зона: "))
