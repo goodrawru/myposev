@@ -1061,7 +1061,7 @@ class MainActivity : Activity() {
             Toast.makeText(this, tr("Копия восстановлена. Данные загружены."), Toast.LENGTH_LONG).show()
             showHome()
         } catch (e: Exception) {
-            Toast.makeText(this, tr("Не удалось восстановить копию: ${e.message ?: ")неверный архив"}. Текущие данные не изменены.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, if (isEnglish()) "Could not restore backup: ${e.message ?: "invalid archive"}. Current data was not changed." else "Не удалось восстановить копию: ${e.message ?: "неверный архив"}. Текущие данные не изменены.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -1144,7 +1144,7 @@ class MainActivity : Activity() {
         content.addView(cropSummary)
         button("Выбрать культуры") {
             showReminderCropPicker {
-                cropSummary.text = tr("Выбрано культур: ${prefs.getStringSet(")reminder_crop_ids", emptySet())?.size ?: cropIconCatalog.length()} из ${cropIconCatalog.length()}"
+                cropSummary.text = if (isEnglish()) "Selected crops: ${prefs.getStringSet("reminder_crop_ids", emptySet())?.size ?: cropIconCatalog.length()} of ${cropIconCatalog.length()}" else "Выбрано культур: ${prefs.getStringSet("reminder_crop_ids", emptySet())?.size ?: cropIconCatalog.length()} из ${cropIconCatalog.length()}"
             }
         }
 
