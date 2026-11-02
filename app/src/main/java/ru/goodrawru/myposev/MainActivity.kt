@@ -2341,13 +2341,14 @@ class MainActivity : Activity() {
     }
 
     private fun cropIconChoices(): List<Pair<String, String>> {
-        val choices = mutableListOf("generic" to "Росток")
+        // Translate only the picker labels. Keep stable icon IDs unchanged for storage and backups.
+        val choices = mutableListOf("generic" to tr("Росток"))
         for (i in 0 until cropIconCatalog.length()) {
             val crop = cropIconCatalog.optJSONObject(i) ?: continue
             if (!crop.optBoolean("available", true)) continue
             val id = crop.optString("id")
             val name = crop.optString("name")
-            if (id.isNotBlank() && name.isNotBlank()) choices.add(id to name)
+            if (id.isNotBlank() && name.isNotBlank()) choices.add(id to tr(name))
         }
         return choices
     }
