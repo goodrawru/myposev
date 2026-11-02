@@ -265,7 +265,7 @@ class MainActivity : Activity() {
     }
 
     private fun buildPaperPdf(year: Int, periodIndex: Int, selected: Set<String>, colorMode: Boolean): ByteArray {
-        val doc = PdfDocument(); val width = 595; val height = 842; val left = 42f; val right = 553f; val bottom = 795f
+        val pdfLocale = if (isEnglish()) Locale.ENGLISH else Locale("ru"); val doc = PdfDocument(); val width = 595; val height = 842; val left = 42f; val right = 553f; val bottom = 795f
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 19f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); color = if (colorMode) android.graphics.Color.rgb(39,91,57) else android.graphics.Color.BLACK }
         val headPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 12f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); color = if (colorMode) android.graphics.Color.rgb(39,91,57) else android.graphics.Color.BLACK }
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 9.5f; color = android.graphics.Color.DKGRAY }
@@ -274,22 +274,22 @@ class MainActivity : Activity() {
         fun newPage(title: String? = null) {
             if (page != null) { canvas!!.drawText("Мой Посевной • " + year + " • стр. " + pageNo, left, 822f, footerPaint); doc.finishPage(page!!) }
             pageNo++; page = doc.startPage(PdfDocument.PageInfo.Builder(width, height, pageNo).create()); canvas = page!!.canvas; canvas!!.drawColor(android.graphics.Color.WHITE); y = 48f
-            if (title != null) { canvas!!.drawText(title, left, y, titlePaint); y += 28f; canvas!!.drawLine(left, y, right, y, headPaint); y += 20f }
+            if (title != null) { canvas!!.drawText(tr(title), left, y, titlePaint); y += 28f; canvas!!.drawLine(left, y, right, y, headPaint); y += 20f }
         }
         fun ensure(h: Float = 14f) { if (y + h > bottom) newPage() }
         fun line(value: String, paint: Paint = textPaint, indent: Float = 0f) {
             val maxWidth = right - left - indent; var row = ""
-            for (word in value.split(Regex("\\s+"))) { val candidate = if (row.isEmpty()) word else row + " " + word; if (paint.measureText(candidate) > maxWidth && row.isNotEmpty()) { ensure(paint.textSize + 5f); canvas!!.drawText(row, left + indent, y, paint); y += paint.textSize + 4f; row = word } else row = candidate }
+            for (word in tr(value).split(Regex("\\s+"))) { val candidate = if (row.isEmpty()) word else row + " " + word; if (paint.measureText(candidate) > maxWidth && row.isNotEmpty()) { ensure(paint.textSize + 5f); canvas!!.drawText(row, left + indent, y, paint); y += paint.textSize + 4f; row = word } else row = candidate }
             if (row.isNotEmpty()) { ensure(paint.textSize + 5f); canvas!!.drawText(row, left + indent, y, paint); y += paint.textSize + 4f }
         }
         fun section(value: String) { ensure(25f); y += 5f; line(value, headPaint); y += 3f }
         val months = when (periodIndex) { 1 -> listOf(2,3,4); 2 -> listOf(5,6,7); 3 -> listOf(8,9,10); 4 -> listOf(11,0,1); else -> (0..11).toList() }
-        newPage("Мой Посевной — бумажный вариант"); line("План огородника на " + year, headPaint); line("Сформировано: " + SimpleDateFormat("dd.MM.yyyy", Locale("ru")).format(Date())); line("Период: " + listOf("весь год","весна","лето","осень","зима")[periodIndex]); line("Лунные обозначения — справочная подсказка. Учитывайте регион, погоду и температуру почвы."); y += 12f
+        newPage("Мой Посевной — бумажный вариант"); line("План огородника на " + year, headPaint); line("Сформировано: " + SimpleDateFormat("dd.MM.yyyy", pdfLocale).format(Date())); line("Период: " + listOf("весь год","весна","лето","осень","зима")[periodIndex]); line("Лунные обозначения — справочная подсказка. Учитывайте регион, погоду и температуру почвы."); y += 12f
         section("Содержание"); if ("calendar" in selected) line("Посевной календарь"); if ("work" in selected) line("Сезонные рекомендации"); if ("tasks" in selected) line("Мои задачи"); if ("plants" in selected) line("Каталог культур"); if ("notes" in selected) line("Мои заметки"); if ("blank" in selected) line("Страницы для записей")
         if ("calendar" in selected) months.forEach { month ->
             val actualYear = if (periodIndex == 4 && month == 11) year - 1 else year
             val c = Calendar.getInstance().apply { set(actualYear, month, 1, 12, 0, 0) }
-            newPage("Календарь — " + SimpleDateFormat("LLLL yyyy", Locale("ru")).format(c.time))
+            newPage("Календарь — " + SimpleDateFormat("LLLL yyyy", pdfLocale).format(c.time))
             line("Пн       Вт       Ср       Чт       Пт       Сб       Вс", headPaint)
             val offset = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7; val days = c.getActualMaximum(Calendar.DAY_OF_MONTH); val cells = MutableList(offset) { 0 } + (1..days).toList()
             cells.chunked(7).forEach { row -> val labels = (row + List(7-row.size) { 0 }).map { day -> if (day == 0) "       " else day.toString().padStart(2) + " " + lunarGlyph(Calendar.getInstance().apply { set(actualYear, month, day, 12, 0, 0) }) }; line(labels.joinToString("   ")) }
@@ -309,12 +309,12 @@ class MainActivity : Activity() {
                 monthNotes.forEach { entry ->
                     val rawDate = entry.first.removePrefix("note_")
                     val noteValue = entry.second as String
-                    val displayDate = runCatching { SimpleDateFormat("dd.MM.yyyy", Locale("ru")).format(SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(rawDate)!!) }.getOrDefault(rawDate)
+                    val displayDate = runCatching { SimpleDateFormat("dd.MM.yyyy", pdfLocale).format(SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(rawDate)!!) }.getOrDefault(rawDate)
                     line("$displayDate — $noteValue")
                 }
             }
         }
-        if ("work" in selected) { newPage("Сезонные рекомендации"); months.forEach { month -> val actualYear = if (periodIndex == 4 && month == 11) year - 1 else year; val c = Calendar.getInstance().apply { set(actualYear, month, 15, 12, 0, 0) }; section(SimpleDateFormat("LLLL", Locale("ru")).format(c.time)); line(seasonalAdvice(c)) } }
+        if ("work" in selected) { newPage("Сезонные рекомендации"); months.forEach { month -> val actualYear = if (periodIndex == 4 && month == 11) year - 1 else year; val c = Calendar.getInstance().apply { set(actualYear, month, 15, 12, 0, 0) }; section(SimpleDateFormat("LLLL", pdfLocale).format(c.time)); line(seasonalAdvice(c)) } }
         if ("tasks" in selected) {
             newPage("Мои задачи"); val tasks = tasksArray(); var count = 0
             for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; val date = item.optString("date", ""); if (date.length < 7 || date.substring(0,4).toIntOrNull() != year || (date.substring(5,7).toIntOrNull()?.minus(1) !in months)) continue; count++; section(date + " • " + item.optString("title", "Задача")); line("Тип работы: " + item.optString("type", "Уход")); val crop = item.optString("crop", "").trim(); if (crop.isNotEmpty()) line("Культура/грядка: " + crop); line("Статус: " + if (item.optBoolean("done", false)) "Выполнено" else "Запланировано") }
@@ -793,6 +793,33 @@ class MainActivity : Activity() {
             "Отметить выполненной: " to "Mark as completed: ",
             "Удалить из истории: " to "Remove from history: ",
             "Неверное значение: $key" to "Invalid value: $key",
+            "План огородника на " to "Gardener's plan for ",
+            "Сформировано: " to "Generated: ",
+            "Период: " to "Period: ",
+            "Лунные обозначения — справочная подсказка. Учитывайте регион, погоду и температуру почвы." to "Lunar symbols are for reference only. Consider your region, weather and soil temperature.",
+            "Содержание" to "Contents",
+            "Сезонные рекомендации" to "Seasonal recommendations",
+            "Страницы для записей" to "Blank notes pages",
+            "Календарь — " to "Calendar — ",
+            "Пн       Вт       Ср       Чт       Пт       Сб       Вс" to "Mo       Tu       We       Th       Fr       Sa       Su",
+            "Фазы Луны даны как ориентир; сроки работ корректируйте по местным условиям." to "Moon phases are indicative; adjust work dates to local conditions.",
+            "Заметки к календарю" to "Calendar notes",
+            "Тип работы: " to "Task type: ",
+            "Статус: " to "Status: ",
+            "Запланировано" to "Planned",
+            "На выбранный период задач нет." to "No tasks for the selected period.",
+            "Группа: " to "Group: ",
+            "Срок посева: " to "Sowing time: ",
+            "Глубина: " to "Depth: ",
+            "Всходы: " to "Germination: ",
+            "Сохранённых заметок нет." to "No saved notes.",
+            "Свободные записи " to "Blank notes ",
+            "Весь год" to "Full year",
+            "весь год" to "full year",
+            "весна" to "spring",
+            "лето" to "summer",
+            "осень" to "autumn",
+            "зима" to "winter",
             "Да" to "Yes",
             "Нет" to "No"
         )
