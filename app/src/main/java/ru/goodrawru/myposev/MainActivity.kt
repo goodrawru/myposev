@@ -137,6 +137,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE or android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_UNCHANGED)
+        migrateLegacyNoteKeys()
         createNotificationChannel()
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
@@ -1285,10 +1286,16 @@ class MainActivity : Activity() {
         content.addView(txt("Выберите дату, чтобы увидеть фазу Луны, сезонные работы, задачи и заметки. Лунные подсказки — традиционный ориентир; учитывайте погоду и состояние почвы.", 14f))
         val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         listOf("‹" to -1, "Сегодня" to 0, "›" to 1).forEach { (label, delta) ->
-            controls.addView(Button(this).apply { text = label; isAllCaps = false; setOnClickListener { if (delta == 0) selectedDate = Calendar.getInstance() else selectedDate.add(Calendar.MONTH, delta); showCalendar() } }, LinearLayout.LayoutParams(0, -2, if (delta == 0) 2f else 1f))
+            controls.addView(Button(this).apply {
+                text = label; isAllCaps = false
+                setOnClickListener {
+                    if (delta == 0) selectedDate = Calendar.getInstance() else shiftSelectedMonth(delta)
+                    showCalendar()
+                }
+            }, LinearLayout.LayoutParams(0, -2, if (delta == 0) 2f else 1f))
         }
-        controls.addView(Button(this).apply { text = "Год −"; isAllCaps = false; setOnClickListener { selectedDate.add(Calendar.YEAR, -1); showCalendar() } }, LinearLayout.LayoutParams(0, -2, 1f))
-        controls.addView(Button(this).apply { text = "Год +"; isAllCaps = false; setOnClickListener { selectedDate.add(Calendar.YEAR, 1); showCalendar() } }, LinearLayout.LayoutParams(0, -2, 1f))
+        controls.addView(Button(this).apply { text = "Год −"; isAllCaps = false; setOnClickListener { shiftSelectedYear(-1); showCalendar() } }, LinearLayout.LayoutParams(0, -2, 1f))
+        controls.addView(Button(this).apply { text = "Год +"; isAllCaps = false; setOnClickListener { shiftSelectedYear(1); showCalendar() } }, LinearLayout.LayoutParams(0, -2, 1f))
         content.addView(controls)
         val weekdays = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")
         val header = GridLayout(this).apply { columnCount = 7; rowCount = 1 }
@@ -1307,7 +1314,7 @@ class MainActivity : Activity() {
             val key = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(day.time)
             val isToday = day.get(Calendar.YEAR) == today.get(Calendar.YEAR) && day.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR)
             val isSelected = day.get(Calendar.YEAR) == selectedDate.get(Calendar.YEAR) && day.get(Calendar.DAY_OF_YEAR) == selectedDate.get(Calendar.DAY_OF_YEAR)
-            val note = !prefs.getString("note_" + dateString(day), "").isNullOrBlank()
+            val note = noteForDate(day).isNotBlank()
             var count = 0
             for (i in 0 until tasks.length()) { val task = tasks.optJSONObject(i) ?: continue; if (task.optString("date") == key && !task.optBoolean("done", false)) count++ }
             val cellFill = when { isSelected -> Color.rgb(232,234,232); count > 0 || note -> Color.rgb(226,241,219); else -> Color.WHITE }
@@ -1338,7 +1345,20 @@ class MainActivity : Activity() {
         card("Фаза Луны", lunarSummary(selectedDate))
         card("Что делать в этом месяце", seasonalAdvice(selectedDate))
         button("Подробности выбранного дня") { showCalendarDay(selectedDate) }
-        button("Добавить заметку") { val key = dateString(selectedDate); val input = EditText(this).apply { hint = "Заметка на выбранную дату"; setText(prefs.getString("note_" + key, "")) }; android.app.AlertDialog.Builder(this).setTitle(key).setView(input).setNegativeButton("Отмена", null).setPositiveButton("Сохранить") { _, _ -> prefs.edit().putString("note_" + key, input.text.toString().trim()).apply(); showCalendar() }.show() }
+        button("Добавить заметку") {
+            val displayDate = dateString(selectedDate)
+            val key = noteKey(selectedDate)
+            val input = EditText(this).apply { hint = "Заметка на выбранную дату"; setText(noteForDate(selectedDate)) }
+            android.app.AlertDialog.Builder(this).setTitle(displayDate).setView(input)
+                .setNegativeButton("Отмена", null)
+                .setPositiveButton("Сохранить") { _, _ ->
+                    val value = input.text.toString().trim()
+                    val editor = prefs.edit()
+                    if (value.isBlank()) editor.remove(key) else editor.putString(key, value)
+                    editor.remove("note_" + displayDate).apply()
+                    showCalendar()
+                }.show()
+        }
     }
 
     private fun showCalendarDay(date: Calendar) {
@@ -1346,7 +1366,7 @@ class MainActivity : Activity() {
         val key = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(day.time)
         val tasks = tasksArray(); val lines = mutableListOf<String>()
         for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; if (item.optString("date") == key) { val crop = item.optString("crop", "").trim(); val taskLine = (if (item.optBoolean("done", false)) "✓ " else "• ") + item.optString("title", "Задача") + " — " + item.optString("type", "Уход"); lines.add(if (crop.isBlank()) taskLine else "$taskLine\n  Культура/грядка: $crop") } }
-        val note = prefs.getString("note_" + dateString(day), "").orEmpty()
+        val note = noteForDate(day)
         val body = dateString(day) + "\n\n" + lunarSummary(day) + "\n\n" + seasonalAdvice(day) + "\n\nЗадачи:\n" + (if (lines.isEmpty()) "На эту дату задач нет." else lines.joinToString("\n")) + "\n\nЗаметка: " + if (note.isBlank()) "нет" else note
         android.app.AlertDialog.Builder(this).setTitle("Календарь на день").setMessage(body).setPositiveButton("Добавить задачу") { _, _ -> addTaskForDate(day) }.setNegativeButton("Закрыть", null).show()
     }
@@ -1376,6 +1396,46 @@ class MainActivity : Activity() {
         catch (_:Exception) { Toast.makeText(this,"Не удалось открыть браузер.",Toast.LENGTH_LONG).show() }
     }
     private fun dateString(c:Calendar)=SimpleDateFormat("d MMMM yyyy",Locale("ru")).format(c.time)
+    private fun noteKey(c: Calendar): String = "note_" + SimpleDateFormat("yyyy-MM-dd", Locale.US).format(c.time)
+
+    private fun noteForDate(c: Calendar): String {
+        prefs.getString(noteKey(c), null)?.let { return it }
+        // Compatibility with notes saved by older versions using a localized date in the key.
+        return prefs.getString("note_" + dateString(c), "").orEmpty()
+    }
+
+    private fun migrateLegacyNoteKeys() {
+        val editor = prefs.edit()
+        var changed = false
+        val parser = SimpleDateFormat("d MMMM yyyy", Locale("ru")).apply { isLenient = false }
+        val isoFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        prefs.all.forEach { (key, value) ->
+            if (!key.startsWith("note_") || value !is String) return@forEach
+            val rawDate = key.removePrefix("note_")
+            if (Regex("\\d{4}-\\d{2}-\\d{2}").matches(rawDate)) return@forEach
+            val parsedDate = runCatching { parser.parse(rawDate) }.getOrNull() ?: return@forEach
+            val targetKey = "note_" + isoFormat.format(parsedDate)
+            if (prefs.getString(targetKey, null).isNullOrBlank() && value.isNotBlank()) editor.putString(targetKey, value)
+            editor.remove(key)
+            changed = true
+        }
+        if (changed) editor.apply()
+    }
+
+    private fun shiftSelectedMonth(delta: Int) {
+        val day = selectedDate.get(Calendar.DAY_OF_MONTH)
+        selectedDate.set(Calendar.DAY_OF_MONTH, 1)
+        selectedDate.add(Calendar.MONTH, delta)
+        selectedDate.set(Calendar.DAY_OF_MONTH, minOf(day, selectedDate.getActualMaximum(Calendar.DAY_OF_MONTH)))
+    }
+
+    private fun shiftSelectedYear(delta: Int) {
+        val day = selectedDate.get(Calendar.DAY_OF_MONTH)
+        selectedDate.set(Calendar.DAY_OF_MONTH, 1)
+        selectedDate.add(Calendar.YEAR, delta)
+        selectedDate.set(Calendar.DAY_OF_MONTH, minOf(day, selectedDate.getActualMaximum(Calendar.DAY_OF_MONTH)))
+    }
+
     private fun seasonalAdvice(c:Calendar):String {
         val actualMonth = c.get(Calendar.MONTH)
         val month = if(actualMonth in Calendar.FEBRUARY..Calendar.SEPTEMBER)
