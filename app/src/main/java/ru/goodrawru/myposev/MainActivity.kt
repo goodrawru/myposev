@@ -792,7 +792,7 @@ class MainActivity : Activity() {
             "Запись из прежней версии дневника." to "Entry from an older version of the diary.",
             "Отметить выполненной: " to "Mark as completed: ",
             "Удалить из истории: " to "Remove from history: ",
-            "Неверное значение: $key" to "Invalid value: $key",
+            "Неверное значение: \$key" to "Invalid value: \$key",
             "План огородника на " to "Gardener's plan for ",
             "Сформировано: " to "Generated: ",
             "Период: " to "Period: ",
