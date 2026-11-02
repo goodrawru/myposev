@@ -855,6 +855,19 @@ class MainActivity : Activity() {
         if (value.contains("Климатическая зона: ") || value.contains("Нажмите, чтобы изменить место.")) {
             return value.replace("Климатическая зона: ", "Climate zone: ").replace("Нажмите, чтобы изменить место.", "Tap to change location.")
         }
+        if (value.contains("\\nВыполнено")) return value.replace("\\nВыполнено", "\\nCompleted")
+        if (value.startsWith("Спасибо, что выбрали «Мой Посевной».")) {
+            val version = value.substringAfter("\\n\\nВерсия ", "")
+            return "Thank you for choosing My Sowing Calendar. May your efforts sprout well and bring a great harvest every year!" + if (version.isBlank()) "" else "\\n\\nVersion $version"
+        }
+        if (value.startsWith("Новолуние. Фаза вычислена приближённо.")) return "New moon. The phase is approximate. Lunar advice is traditional and does not replace agronomic recommendations."
+        if (value.startsWith("Растущая Луна. Фаза вычислена приближённо.")) return "Waxing moon. The phase is approximate. Lunar advice is traditional and does not replace agronomic recommendations."
+        if (value.startsWith("Полнолуние. Фаза вычислена приближённо.")) return "Full moon. The phase is approximate. Lunar advice is traditional and does not replace agronomic recommendations."
+        if (value.startsWith("Убывающая Луна. Фаза вычислена приближённо.")) return "Waning moon. The phase is approximate. Lunar advice is traditional and does not replace agronomic recommendations."
+        if (value.startsWith("До посадки: ")) return "Until planting: " + translateDayCount(value.removePrefix("До посадки: "))
+        if (value.startsWith("До задачи: ")) return "Until task: " + translateDayCount(value.removePrefix("До задачи: "))
+        if (value.startsWith("После даты посадки прошло ")) return "Time since planting: " + translateDayCount(value.removePrefix("После даты посадки прошло "))
+        if (value.startsWith("Просрочено на ")) return "Overdue by " + translateDayCount(value.removePrefix("Просрочено на "))
         if (value.startsWith("Что нового · версия ")) return "What's new · version " + value.removePrefix("Что нового · версия ")
         if (value.startsWith("Запланировать на ")) return "Schedule for " + value.removePrefix("Запланировать на ")
         if (value.startsWith("Время: ")) return "Time: " + value.removePrefix("Время: ")
@@ -891,6 +904,11 @@ class MainActivity : Activity() {
         if (value.startsWith("Удалить посадку: ")) return "Delete planting: " + tr(value.removePrefix("Удалить посадку: "))
         return value
     }
+
+    private fun translateDayCount(value: String): String = value
+        .replace(" дней", " days")
+        .replace(" дня", " days")
+        .replace(" день", " day")
 
     private fun txt(value:String,size:Float=16f,bold:Boolean=false)=TextView(this).apply {
         text=tr(value); textSize=size; setTextColor(Color.rgb(35,48,38))
