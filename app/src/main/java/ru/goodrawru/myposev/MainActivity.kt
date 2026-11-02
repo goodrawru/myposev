@@ -877,6 +877,8 @@ class MainActivity : Activity() {
             "Сначала выберите город или определите местоположение." to "Choose a city or detect your location first.",
             "Задача добавлена" to "Task added",
             "Не удалось открыть браузер." to "Could not open the browser.",
+            "• Каталог расширен до всех встроенных культур с доступными значками.\\n• Исправлены напоминания по личным заметкам и восстановлению резервной копии.\\n• Удалён неиспользуемый аудиоплеер и его зависимости.\\n• Обновлён источник прогноза погоды: 7Timer!." to "• The catalog now includes all built-in crops with available icons.\\n• Reminders for personal notes and backup restoration have been fixed.\\n• The unused audio player and its dependencies have been removed.\\n• Weather forecast source updated: 7Timer!.",
+            "Приложение не требует учётной записи и не содержит рекламы или аналитических трекеров. Задачи, заметки и выбранный город хранятся локально на устройстве. При запросе прогноза координаты выбранного места передаются сервису 7Timer!. Источник данных указан на экране прогноза.\\n\\nПолная политика конфиденциальности доступна в репозитории проекта." to "The app does not require an account and contains no ads or analytics trackers. Tasks, notes and the selected city are stored locally on the device. When a forecast is requested, the selected location's coordinates are sent to 7Timer!. The data source is shown on the forecast screen.\\n\\nThe full privacy policy is available in the project repository.",
             "Да" to "Yes",
             "Нет" to "No"
         )
