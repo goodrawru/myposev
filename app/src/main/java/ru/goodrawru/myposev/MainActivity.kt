@@ -1406,7 +1406,7 @@ class MainActivity : Activity() {
         }
         val type=Spinner(this).apply {
             adapter=ArrayAdapter(this@MainActivity,android.R.layout.simple_spinner_dropdown_item,
-                listOf("Уход","Посев","Полив","Подкормка","Прополка","Пересадка","Защита растений","Сбор урожая"))
+                listOf("Уход","Посев","Полив","Подкормка","Прополка","Пересадка","Защита растений","Сбор урожая").map { tr(it) })
         }
         content.addView(titleInput); content.addView(cropInput); content.addView(dateInput); content.addView(type)
         button("Добавить задачу") {
@@ -1500,19 +1500,19 @@ class MainActivity : Activity() {
         val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         listOf("‹" to -1, "Сегодня" to 0, "›" to 1).forEach { (label, delta) ->
             controls.addView(Button(this).apply {
-                text = label; isAllCaps = false
+                text = tr(label); isAllCaps = false
                 setOnClickListener {
                     if (delta == 0) selectedDate = Calendar.getInstance() else shiftSelectedMonth(delta)
                     showCalendar()
                 }
             }, LinearLayout.LayoutParams(0, -2, if (delta == 0) 2f else 1f))
         }
-        controls.addView(Button(this).apply { text = "Год −"; isAllCaps = false; setOnClickListener { shiftSelectedYear(-1); showCalendar() } }, LinearLayout.LayoutParams(0, -2, 1f))
-        controls.addView(Button(this).apply { text = "Год +"; isAllCaps = false; setOnClickListener { shiftSelectedYear(1); showCalendar() } }, LinearLayout.LayoutParams(0, -2, 1f))
+        controls.addView(Button(this).apply { text = tr("Год −"); isAllCaps = false; setOnClickListener { shiftSelectedYear(-1); showCalendar() } }, LinearLayout.LayoutParams(0, -2, 1f))
+        controls.addView(Button(this).apply { text = tr("Год +"); isAllCaps = false; setOnClickListener { shiftSelectedYear(1); showCalendar() } }, LinearLayout.LayoutParams(0, -2, 1f))
         content.addView(controls)
         val weekdays = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")
         val header = GridLayout(this).apply { columnCount = 7; rowCount = 1 }
-        weekdays.forEach { day -> header.addView(TextView(this).apply { text = day; gravity = Gravity.CENTER; textSize = 12f; setTextColor(if (day == "Сб" || day == "Вс") Color.rgb(180,75,55) else green); setTypeface(null, android.graphics.Typeface.BOLD); setPadding(0, dp(6), 0, dp(6)) }, GridLayout.LayoutParams(GridLayout.spec(0), GridLayout.spec(GridLayout.UNDEFINED, 1f)).apply { width = 0 }) }
+        weekdays.forEach { day -> header.addView(TextView(this).apply { text = tr(day); gravity = Gravity.CENTER; textSize = 12f; setTextColor(if (day == "Сб" || day == "Вс") Color.rgb(180,75,55) else green); setTypeface(null, android.graphics.Typeface.BOLD); setPadding(0, dp(6), 0, dp(6)) }, GridLayout.LayoutParams(GridLayout.spec(0), GridLayout.spec(GridLayout.UNDEFINED, 1f)).apply { width = 0 }) }
         content.addView(header)
         val grid = GridLayout(this).apply { columnCount = 7; rowCount = 6; useDefaultMargins = false }
         val first = selectedDate.clone() as Calendar; first.set(Calendar.DAY_OF_MONTH, 1)
