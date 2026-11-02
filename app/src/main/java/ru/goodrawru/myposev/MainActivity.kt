@@ -849,6 +849,15 @@ class MainActivity : Activity() {
             "Культура (например, томат)" to "Crop (e.g. tomato)",
             "Включить ежедневные уведомления" to "Enable daily notifications",
             "Иконка Мой Посевной" to "My Sowing Calendar icon",
+            "Весна (март–май)" to "Spring (March–May)",
+            "Лето (июнь–август)" to "Summer (June–August)",
+            "Осень (сентябрь–ноябрь)" to "Autumn (September–November)",
+            "Зима (декабрь–февраль)" to "Winter (December–February)",
+            "Цветной" to "Color",
+            "Чёрно-белый, экономный" to "Black and white, ink-saving",
+            "Сидераты" to "Green manure",
+            "Ягоды и лианы" to "Berries and vines",
+            "Плодовые кустарники" to "Fruit bushes",
             "Да" to "Yes",
             "Нет" to "No"
         )
@@ -869,6 +878,7 @@ class MainActivity : Activity() {
         if (value.startsWith("До задачи: ")) return "Until task: " + translateDayCount(value.removePrefix("До задачи: "))
         if (value.startsWith("После даты посадки прошло ")) return "Time since planting: " + translateDayCount(value.removePrefix("После даты посадки прошло "))
         if (value.startsWith("Просрочено на ")) return "Overdue by " + translateDayCount(value.removePrefix("Просрочено на "))
+        if (value.endsWith(" пункта") && value.removeSuffix(" пункта").toIntOrNull() != null) return value.removeSuffix(" пункта") + " items"
         if (value.startsWith("Что нового · версия ")) return "What's new · version " + value.removePrefix("Что нового · версия ")
         if (value.startsWith("Запланировать на ")) return "Schedule for " + value.removePrefix("Запланировать на ")
         if (value.startsWith("Время: ")) return "Time: " + value.removePrefix("Время: ")
