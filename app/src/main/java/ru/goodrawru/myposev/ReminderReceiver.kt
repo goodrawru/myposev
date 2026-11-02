@@ -24,12 +24,14 @@ class ReminderReceiver : BroadcastReceiver() {
         if (Build.VERSION.SDK_INT >= 33 &&
             context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
 
+        val english = prefs.getString("app_language", "ru") == "en"
         val categories = prefs.getStringSet("reminder_categories", null) ?: DEFAULT_CATEGORIES
         val allItems = buildDailyPlan(context, prefs, categories)
         val limit = prefs.getInt("reminder_limit", 4).coerceIn(1, 6)
-        val items = allItems.distinct().take(limit)
+        val items = allItems.distinct().take(limit).map { if (english) translateReminder(it) else it }
         val body = if (items.isEmpty()) {
-            if (isTest) "Тест: уведомления включены. Выберите категории рекомендаций в настройках."
+            if (isTest) if (english) "Test: notifications are enabled. Choose recommendation categories in settings."
+                else "Тест: уведомления включены. Выберите категории рекомендаций в настройках."
             else return
         } else items.joinToString("\n") { "• $it" }
 
@@ -43,16 +45,69 @@ class ReminderReceiver : BroadcastReceiver() {
             @Suppress("DEPRECATION")
             Notification.Builder(context)
         }
-        val date = SimpleDateFormat("d MMMM", Locale("ru")).format(Date())
+        val date = SimpleDateFormat("d MMMM", if (english) Locale.ENGLISH else Locale("ru")).format(Date())
         val notification = builder
             .setSmallIcon(android.R.drawable.ic_menu_my_calendar)
-            .setContentTitle("Мой Посевной · План на сегодня")
-            .setContentText(items.firstOrNull() ?: "Проверка ежедневных уведомлений")
+            .setContentTitle(if (english) "My Sowing Calendar · Today's plan" else "Мой Посевной · План на сегодня")
+            .setContentText(items.firstOrNull() ?: if (english) "Daily notification test" else "Проверка ежедневных уведомлений")
             .setStyle(Notification.BigTextStyle().bigText("$date\n$body"))
             .setContentIntent(openApp)
             .setAutoCancel(true)
             .build()
         context.getSystemService(NotificationManager::class.java).notify(9001, notification)
+    }
+
+
+    private fun translateReminder(value: String): String {
+        val exact = mapOf(
+            "Планируйте сорта и закупку семян. Зимний посев требует подходящих условий и досветки." to "Plan varieties and seed purchases. Winter sowing requires suitable conditions and supplemental lighting.",
+            "Проверьте сроки посева культур с длинным рассадным периодом и подготовьте ёмкости." to "Check sowing dates for crops with a long seedling period and prepare containers.",
+            "Планируйте рассаду, обеспечьте достаточное освещение и умеренный полив." to "Plan seedling production, provide enough light and water moderately.",
+            "Подготовьте грядки; посев холодостойких культур сверяйте с состоянием почвы." to "Prepare garden beds; check soil conditions before sowing cold-hardy crops.",
+            "Закаливайте рассаду и учитывайте риск возвратных заморозков перед высадкой." to "Harden off seedlings and consider late-frost risk before planting out.",
+            "Следите за влажностью почвы, прореживанием всходов и защитой молодых растений." to "Monitor soil moisture, thin seedlings and protect young plants.",
+            "Проверяйте полив, собирайте созревшие плоды и планируйте повторные посевы скороспелых культур." to "Check watering, harvest ripe produce and plan repeat sowings of fast-maturing crops.",
+            "Планируйте осенние посевы и регулярно собирайте урожай по мере созревания." to "Plan autumn sowing and harvest regularly as crops ripen.",
+            "Собирайте урожай, готовьте грядки и учитывайте сроки подзимних посевов." to "Harvest crops, prepare beds and consider winter-sowing dates.",
+            "Убирайте участок и готовьте почву; подзимний посев зависит от местной погоды." to "Clear the plot and prepare the soil; winter sowing depends on local weather.",
+            "Завершайте уборку участка и планируйте следующий сезон; не сейте в неподходящую почву." to "Finish clearing the plot and plan the next season; do not sow in unsuitable soil.",
+            "Подготовьте участок к зиме и составьте план следующего сезона." to "Prepare the plot for winter and plan the next season.",
+            "Осмотрите растения перед подкормкой. Используйте удобрения только по потребности и строго по инструкции." to "Inspect plants before feeding. Use fertilizers only when needed and follow the instructions.",
+            "Осмотрите листья с обеих сторон и молодые побеги. При обнаружении вредителей сначала уточните вид проблемы." to "Inspect both sides of leaves and young shoots. If pests are found, identify the problem first.",
+            "Проверьте зрелость плодов и ягод; ориентируйтесь на признаки зрелости конкретного сорта." to "Check fruit and berry ripeness using the indicators for the specific variety.",
+            "Проверьте сроки созревания выбранных культур и заранее подготовьте тару для сбора." to "Check maturity dates for selected crops and prepare harvest containers in advance.",
+            "Фаза Луны: новолуние" to "Moon phase: new moon",
+            "Фаза Луны: растущая Луна" to "Moon phase: waxing moon",
+            "Фаза Луны: полнолуние" to "Moon phase: full moon",
+            "Фаза Луны: убывающая Луна" to "Moon phase: waning moon"
+        )
+        exact[value]?.let { return it }
+        var result = value
+        val prefixes = listOf(
+            "Задача: " to "Task: ",
+            "Заметка на сегодня: " to "Today's note: ",
+            "Проверьте сроки посева и высадки для культур: " to "Check sowing and planting dates for: ",
+            "Сверьте сроки посева с регионом, сортом, температурой почвы и прогнозом заморозков." to "Check sowing dates against your region, variety, soil temperature and frost forecast.",
+            "Осмотрите " to "Inspect ",
+            "Проверьте зрелость и готовность к сбору: " to "Check ripeness and readiness to harvest: "
+        )
+        for ((ru, en) in prefixes) if (result.startsWith(ru)) { result = en + result.removePrefix(ru); break }
+        result = result
+            .replace(" и проверьте влажность почвы; полив корректируйте по осадкам и состоянию растений.", " and check soil moisture; adjust watering for rainfall and plant condition.")
+            .replace(". Учитывайте сорт, температуру почвы и прогноз заморозков.", ". Consider the variety, soil temperature and frost forecast.")
+            .replace(". Учитывайте признаки зрелости конкретного сорта.", ". Use the ripeness indicators for the specific variety.")
+            .replace(" · ", " · ")
+        val cropNames = mapOf(
+            "Томат" to "Tomato", "Огурец" to "Cucumber", "Перец сладкий" to "Sweet pepper",
+            "Перец острый" to "Hot pepper", "Баклажан" to "Eggplant", "Картофель" to "Potato",
+            "Морковь" to "Carrot", "Свёкла" to "Beetroot", "Редис" to "Radish", "Дайкон" to "Daikon",
+            "Капуста белокочанная" to "White cabbage", "Брокколи" to "Broccoli", "Кабачок" to "Zucchini",
+            "Тыква" to "Pumpkin", "Клубника" to "Strawberry", "Малина" to "Raspberry",
+            "Укроп" to "Dill", "Петрушка" to "Parsley", "Базилик" to "Basil", "Чеснок" to "Garlic",
+            "Лук репчатый" to "Onion", "Горох" to "Peas", "Фасоль стручковая" to "Green beans"
+        )
+        for ((ru, en) in cropNames) result = result.replace(ru, en)
+        return result
     }
 
     private fun buildDailyPlan(
