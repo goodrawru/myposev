@@ -800,6 +800,18 @@ class MainActivity : Activity() {
         if (value.startsWith("Посевной календарь · ")) return "Sowing calendar · " + value.removePrefix("Посевной календарь · ")
         if (value.startsWith("Прогноз на ")) return "Forecast for " + value.removePrefix("Прогноз на ")
         if (value.startsWith("Раздел: ")) return "Section: " + tr(value.removePrefix("Раздел: "))
+        if (value.startsWith("Климатическая зона: ")) return "Climate zone: " + tr(value.removePrefix("Климатическая зона: "))
+        if (value.startsWith("Регион: ")) return "Region: " + tr(value.removePrefix("Регион: "))
+        if (value.startsWith("Группа: ")) return "Group: " + tr(value.removePrefix("Группа: "))
+        if (value.startsWith("Сроки посева: ")) return "Sowing time: " + tr(value.removePrefix("Сроки посева: "))
+        if (value.startsWith("Глубина: ")) return "Depth: " + tr(value.removePrefix("Глубина: "))
+        if (value.startsWith("Всходы: ")) return "Germination: " + tr(value.removePrefix("Всходы: "))
+        if (value.startsWith("Советы: ")) return "Tips: " + tr(value.removePrefix("Советы: "))
+        if (value.startsWith("Тип работы: ")) return "Task type: " + tr(value.removePrefix("Тип работы: "))
+        if (value.startsWith("Статус: ")) return "Status: " + tr(value.removePrefix("Статус: "))
+        if (value.startsWith("Культура/грядка: ")) return "Crop/bed: " + tr(value.removePrefix("Культура/грядка: "))
+        if (value.startsWith("Отметить выполненной: ")) return "Mark as completed: " + tr(value.removePrefix("Отметить выполненной: "))
+        if (value.startsWith("Удалить из истории: ")) return "Remove from history: " + tr(value.removePrefix("Удалить из истории: "))
         if (value.startsWith("Возраст: ")) return "Age: " + value.removePrefix("Возраст: ").replace(" дн.", " days")
         if (value.startsWith("До посева: ")) return "Until sowing: " + value.removePrefix("До посева: ").replace(" дн.", " days")
         if (value.startsWith("Посев: ")) return "Sowing: " + value.removePrefix("Посев: ")
@@ -1152,12 +1164,12 @@ class MainActivity : Activity() {
         button("Язык / Language") {
             val labels = arrayOf("Русский", "English")
             android.app.AlertDialog.Builder(this)
-                .setTitle("Выберите язык приложения")
+                .setTitle(tr("Выберите язык приложения"))
                 .setItems(labels) { _, which ->
                     prefs.edit().putString("app_language", if (which == 1) "en" else "ru").apply()
                     showAbout()
                 }
-                .setNegativeButton("Отмена", null)
+                .setNegativeButton(tr("Отмена"), null)
                 .show()
         }
         button("Что нового в версии") { showUpdateNotes(true) }
@@ -1747,7 +1759,8 @@ class MainActivity : Activity() {
     }
     private fun showCalendar() {
         baseLayout("Лунный посевной календарь")
-        val monthTitle = SimpleDateFormat("LLLL yyyy", Locale("ru")).format(selectedDate.time).replaceFirstChar { it.uppercase(Locale("ru")) }
+        val calendarLocale = if (isEnglish()) Locale.ENGLISH else Locale("ru")
+        val monthTitle = SimpleDateFormat("LLLL yyyy", calendarLocale).format(selectedDate.time).replaceFirstChar { it.uppercase(calendarLocale) }
         content.addView(txt("Посевной календарь · $monthTitle", 21f, true))
         content.addView(txt("Выберите дату, чтобы увидеть фазу Луны, сезонные работы, задачи и заметки. Лунные подсказки — традиционный ориентир; учитывайте погоду и состояние почвы.", 14f))
         val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
