@@ -913,6 +913,7 @@ class MainActivity : Activity() {
             "Это стартовая база. Универсальных дат посева для всей России не существует." to "This is a starting guide. There are no universal sowing dates for all of Russia.",
             "Приложение будет готовить локальный план на текущий день. Интернет для календарных рекомендаций не нужен; точное время доставки зависит от ограничений Android." to "The app prepares a local plan for the current day. Calendar recommendations do not require internet access; exact delivery time depends on Android restrictions.",
             "Категории рекомендаций" to "Recommendation categories",
+            "Выберите хотя бы одну категорию рекомендаций." to "Select at least one recommendation category.",
             "Выбрать культуры" to "Choose crops",
             "Сколько рекомендаций показывать" to "Number of recommendations to show",
             "Отправить тестовое уведомление" to "Send test notification",
