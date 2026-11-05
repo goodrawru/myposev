@@ -1183,27 +1183,24 @@ class MainActivity : Activity() {
         try {
             val jsonText = contentResolver.openInputStream(uri)?.use { input ->
                 java.util.zip.ZipInputStream(input).use { zip ->
-                    var entry = zip.nextEntry
-                    var found: String? = null
-                    while (entry != null) {
-                        if (entry.name == "backup.json" && !entry.isDirectory) {
-                            val output = java.io.ByteArrayOutputStream()
-                            val buffer = ByteArray(8192)
-                            var total = 0
-                            while (true) {
-                                val count = zip.read(buffer)
-                                if (count < 0) break
-                                total += count
-                                if (total > 5 * 1024 * 1024) throw IllegalArgumentException("Файл резервной копии слишком большой")
-                                output.write(buffer, 0, count)
-                            }
-                            found = output.toString(Charsets.UTF_8.name())
-                            break
-                        }
-                        zip.closeEntry()
-                        entry = zip.nextEntry
+                    val entry = zip.nextEntry
+                        ?: throw IllegalArgumentException("Архив пуст")
+                    // Backups created by the app contain exactly one entry. Reject
+                    // unexpected entries instead of decompressing arbitrary ZIP content.
+                    if (entry.name != "backup.json" || entry.isDirectory) {
+                        throw IllegalArgumentException("Неверная структура резервной копии")
                     }
-                    found
+                    val output = java.io.ByteArrayOutputStream()
+                    val buffer = ByteArray(8192)
+                    var total = 0
+                    while (true) {
+                        val count = zip.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        if (total > 5 * 1024 * 1024) throw IllegalArgumentException("Файл резервной копии слишком большой")
+                        output.write(buffer, 0, count)
+                    }
+                    output.toString(Charsets.UTF_8.name())
                 }
             } ?: throw IllegalArgumentException("В архиве не найден backup.json")
             val root = JSONObject(jsonText)
