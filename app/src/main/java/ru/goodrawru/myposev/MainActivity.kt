@@ -1279,7 +1279,7 @@ class MainActivity : Activity() {
             Toast.makeText(this, tr("Копия восстановлена. Данные загружены."), Toast.LENGTH_LONG).show()
             showHome()
         } catch (e: Exception) {
-            Toast.makeText(this, if (isEnglish()) "Could not restore backup: ${e.message ?: "invalid archive"}. Current data was not changed." else "Не удалось восстановить копию: ${e.message ?: "неверный архив"}. Текущие данные не изменены.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, if (isEnglish()) "Could not restore backup: ${e.message ?: "invalid archive"}. If the error mentions rollback, check your saved data before continuing." else "Не удалось восстановить копию: ${e.message ?: "неверный архив"}. Если сообщение указывает на ошибку отката, проверьте сохранность данных перед продолжением.", Toast.LENGTH_LONG).show()
         }
     }
 
