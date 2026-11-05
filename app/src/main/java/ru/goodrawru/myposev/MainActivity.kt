@@ -1248,18 +1248,32 @@ class MainActivity : Activity() {
                 }
             }
 
-            val editor = prefs.edit().clear()
-            parsed.forEach { (key, pair) ->
-                when (pair.first) {
-                    "s" -> editor.putString(key, pair.second as String)
-                    "b" -> editor.putBoolean(key, pair.second as Boolean)
-                    "i" -> editor.putInt(key, pair.second as Int)
-                    "l" -> editor.putLong(key, pair.second as Long)
-                    "f" -> editor.putFloat(key, pair.second as Float)
-                    "ss" -> editor.putStringSet(key, pair.second as Set<String>)
+            // Snapshot current preferences so a failed write can attempt to restore them.
+            val previous = prefs.all.toMap()
+            fun writePreferences(valuesToWrite: Map<String, Any?>): Boolean {
+                val editor = prefs.edit().clear()
+                valuesToWrite.forEach { (key, value) ->
+                    when (value) {
+                        is String -> editor.putString(key, value)
+                        is Boolean -> editor.putBoolean(key, value)
+                        is Int -> editor.putInt(key, value)
+                        is Long -> editor.putLong(key, value)
+                        is Float -> editor.putFloat(key, value)
+                        is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+                        null -> editor.remove(key)
+                        else -> throw IllegalArgumentException("Неподдерживаемый тип данных: $key")
+                    }
                 }
+                return editor.commit()
             }
-            if (!editor.commit()) throw IllegalStateException("Android не смог сохранить восстановленные данные")
+            val restored = parsed.associate { (key, pair) -> key to pair.second }
+            if (!writePreferences(restored)) {
+                val rollbackSucceeded = runCatching { writePreferences(previous) }.getOrDefault(false)
+                throw IllegalStateException(
+                    if (rollbackSucceeded) "Не удалось сохранить копию; исходные данные восстановлены"
+                    else "Ошибка сохранения копии и отката. Проверьте данные приложения"
+                )
+            }
             migrateLegacyNoteKeys()
             scheduleDailyReminder()
             Toast.makeText(this, tr("Копия восстановлена. Данные загружены."), Toast.LENGTH_LONG).show()
@@ -1756,8 +1770,8 @@ class MainActivity : Activity() {
                 }
                 val initDate = initParser.parse(root.optString("init"))
                     ?: throw java.io.IOException("Не удалось определить время прогноза")
-                val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-                val displayFormat = SimpleDateFormat("EEE, d MMM", Locale("ru"))
+                val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = java.util.TimeZone.getDefault() }
+                val displayFormat = SimpleDateFormat("EEE, d MMM", Locale("ru")).apply { timeZone = java.util.TimeZone.getDefault() }
                 val grouped = linkedMapOf<String, MutableList<JSONObject>>()
                 for (i in 0 until series.length()) {
                     val item = series.optJSONObject(i) ?: continue
@@ -1825,6 +1839,7 @@ class MainActivity : Activity() {
                 prefs.edit()
                     .putString("weather_summary_7timer", summary)
                     .putLong("weather_summary_7timer_expires", cacheUntil)
+                    .putLong("weather_summary_7timer_fetched_at", System.currentTimeMillis())
                     .putString("weather_summary_7timer_lat", lat.toString())
                     .putString("weather_summary_7timer_lon", lon.toString())
                     .apply()
@@ -1862,6 +1877,11 @@ class MainActivity : Activity() {
         baseLayout("Погода на 7 дней")
         content.addView(txt("📍 " + city, 17f, true))
         content.addView(txt("Источник прогноза: 7Timer!", 12f))
+        val fetchedAt = prefs.getLong("weather_summary_7timer_fetched_at", 0L)
+        if (fetchedAt > 0L) {
+            val fetchedText = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(fetchedAt))
+            content.addView(txt("Обновлено: $fetchedText", 12f))
+        }
         button("Источник данных: 7Timer!") { openExternalLink("https://www.7timer.info/doc.php?lang=en") }
         val parts = summary.split("\n\n")
         parts.forEachIndexed { index, part ->
