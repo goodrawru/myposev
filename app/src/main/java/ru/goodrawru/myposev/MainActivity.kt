@@ -1376,6 +1376,10 @@ class MainActivity : Activity() {
         button("Сохранить настройки") {
             val categories = categoryChecks.filterValues { it.isChecked }.keys.toSet()
             val wantsEnabled = enabled.isChecked
+            if (wantsEnabled && categories.isEmpty()) {
+                Toast.makeText(this, tr("Выберите хотя бы одну категорию рекомендаций."), Toast.LENGTH_LONG).show()
+                return@button
+            }
             val needsPermission = wantsEnabled && Build.VERSION.SDK_INT >= 33 &&
                 checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
             prefs.edit()
