@@ -7,17 +7,15 @@ on:
     branches: [ "rustore" ]
   workflow_dispatch:
 
-# Не отменяем уже начатую сборку новым коммитом.
 concurrency:
   group: android-apk-${{ github.ref }}
   cancel-in-progress: false
 
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -54,7 +52,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # Release APK подпишется только после настройки всех четырёх GitHub Secrets.
       - name: Restore signing keystore
         if: ${{ github.event_name != 'pull_request' && env.ANDROID_KEYSTORE_BASE64 != '' && env.ANDROID_KEYSTORE_PASSWORD != '' && env.ANDROID_KEY_ALIAS != '' && env.ANDROID_KEY_PASSWORD != '' }}
         env:
@@ -78,8 +75,27 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+  publish:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/rustore' }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download debug APK
+        uses: actions/download-artifact@v4
+        with:
+          name: moi-posevnoy-${{ github.run_number }}-debug-apk
+          path: release-files/debug
+
+      - name: Download signed release APK
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: moi-posevnoy-${{ github.run_number }}-signed-release-apk
+          path: release-files/signed
+
       - name: Publish APK to GitHub Releases
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/rustore' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
@@ -92,8 +108,8 @@ jobs:
             Debug APK предназначен для тестирования.
             Подписанный release APK для RuStore прикладывается только если настроены GitHub Secrets.
           files: |
-            app/build/outputs/apk/debug/app-debug.apk
-            app/build/outputs/apk/release/app-release.apk
+            release-files/debug/app-debug.apk
+            release-files/signed/app-release.apk
           prerelease: true
           make_latest: false
           fail_on_unmatched_files: false
