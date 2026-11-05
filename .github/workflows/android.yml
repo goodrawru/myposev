@@ -3,6 +3,8 @@ name: Android APK
 on:
   push:
     branches: [ "rustore" ]
+  pull_request:
+    branches: [ "rustore" ]
   workflow_dispatch:
 
 # Не отменяем уже начатую сборку новым коммитом.
@@ -54,7 +56,7 @@ jobs:
 
       # Release APK подпишется только после настройки всех четырёх GitHub Secrets.
       - name: Restore signing keystore
-        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' && env.ANDROID_KEYSTORE_PASSWORD != '' && env.ANDROID_KEY_ALIAS != '' && env.ANDROID_KEY_PASSWORD != '' }}
+        if: ${{ github.event_name != 'pull_request' && env.ANDROID_KEYSTORE_BASE64 != '' && env.ANDROID_KEYSTORE_PASSWORD != '' && env.ANDROID_KEY_ALIAS != '' && env.ANDROID_KEY_PASSWORD != '' }}
         env:
           KEYSTORE_BASE64: ${{ env.ANDROID_KEYSTORE_BASE64 }}
         run: |
@@ -77,6 +79,7 @@ jobs:
           retention-days: 90
 
       - name: Publish APK to GitHub Releases
+        if: ${{ github.event_name != 'pull_request' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
