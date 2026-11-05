@@ -1200,6 +1200,9 @@ class MainActivity : Activity() {
                         if (total > 5 * 1024 * 1024) throw IllegalArgumentException("Файл резервной копии слишком большой")
                         output.write(buffer, 0, count)
                     }
+                    if (zip.nextEntry != null) {
+                        throw IllegalArgumentException("В архиве есть лишние файлы")
+                    }
                     output.toString(Charsets.UTF_8.name())
                 }
             } ?: throw IllegalArgumentException("В архиве не найден backup.json")
