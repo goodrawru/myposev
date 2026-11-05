@@ -2245,7 +2245,7 @@ class MainActivity : Activity() {
     }
 
     private fun lunarSummary(c:Calendar):String {
-        val knownNewMoon=Calendar.getInstance().apply { set(2000,Calendar.JANUARY,6,18,14,0) }.timeInMillis
+        val knownNewMoon=Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { clear(); set(2000, Calendar.JANUARY, 6, 18, 14, 0) }.timeInMillis
         val month=29.530588853*24*60*60*1000
         val age=((((c.timeInMillis-knownNewMoon)%month)+month)%month)/month
         val phase=when {
@@ -2260,7 +2260,7 @@ class MainActivity : Activity() {
 
     // Условная цветовая маркировка по лунному циклу: это традиционная подсказка, а не прогноз урожайности.
     private fun dayIndicatorColor(c: Calendar): Int {
-        val knownNewMoon = Calendar.getInstance().apply { set(2000, Calendar.JANUARY, 6, 18, 14, 0) }.timeInMillis
+        val knownNewMoon = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { clear(); set(2000, Calendar.JANUARY, 6, 18, 14, 0) }.timeInMillis
         val synodicMonth = 29.530588853 * 24 * 60 * 60 * 1000
         val age = ((((c.timeInMillis - knownNewMoon) % synodicMonth) + synodicMonth) % synodicMonth) / synodicMonth
         return when {
@@ -2271,7 +2271,7 @@ class MainActivity : Activity() {
     }
 
     private fun lunarGlyph(c: Calendar): String {
-        val knownNewMoon = Calendar.getInstance().apply { set(2000, Calendar.JANUARY, 6, 18, 14, 0) }.timeInMillis
+        val knownNewMoon = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { clear(); set(2000, Calendar.JANUARY, 6, 18, 14, 0) }.timeInMillis
         val synodicMonth = 29.530588853 * 24 * 60 * 60 * 1000
         val age = ((((c.timeInMillis - knownNewMoon) % synodicMonth) + synodicMonth) % synodicMonth) / synodicMonth
         return when {
