@@ -27,6 +27,9 @@ import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.CancellationSignal
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
@@ -52,6 +55,9 @@ class MainActivity : Activity() {
     private var pendingBackupBytes: ByteArray? = null
     // Weather screen state; coordinates are null until a forecast location is selected.
     private var weatherForecastOpen = false
+    private var gardenLocationRequestId = 0
+    private var gardenLocationCancellation: CancellationSignal? = null
+    private val locationHandler = Handler(Looper.getMainLooper())
 
     private val green = Color.rgb(39, 91, 57)
     private val pale = Color.rgb(239, 246, 235)
@@ -1604,52 +1610,83 @@ class MainActivity : Activity() {
     }
 
     private fun resolveGardenLocation() {
+        // Invalidate any older request so a late callback cannot overwrite a newer choice.
+        gardenLocationRequestId++
+        val requestId = gardenLocationRequestId
+        gardenLocationCancellation?.cancel()
+        gardenLocationCancellation = null
+
         try {
             val manager = getSystemService(LOCATION_SERVICE) as LocationManager
             val lastKnown = manager.getProviders(true).mapNotNull { provider ->
                 try { manager.getLastKnownLocation(provider) } catch (_: SecurityException) { null }
             }.maxByOrNull { it.time }
 
+            // A recent cached fix is immediate; reject stale locations from a previous session.
+            val maxCacheAgeMs = 15 * 60 * 1000L
+            if (lastKnown != null && System.currentTimeMillis() - lastKnown.time <= maxCacheAgeMs) {
+                resolveGardenLocationName(lastKnown, requestId)
+                return
+            }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val hasFineLocation = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                // Network location is usually much faster indoors than a cold GPS fix.
                 val providers = if (hasFineLocation) {
-                    listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
+                    listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER, LocationManager.PASSIVE_PROVIDER)
                 } else {
                     listOf(LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
                 }
-                val provider = providers.firstOrNull { name -> try { manager.isProviderEnabled(name) } catch (_: Exception) { false } }
+                val provider = providers.firstOrNull { name ->
+                    try { manager.isProviderEnabled(name) } catch (_: Exception) { false }
+                }
                 if (provider != null) {
-                    manager.getCurrentLocation(provider, null, mainExecutor) { fresh ->
+                    val cancellation = CancellationSignal()
+                    gardenLocationCancellation = cancellation
+                    val timeout = Runnable {
+                        if (requestId != gardenLocationRequestId) return@Runnable
+                        cancellation.cancel()
+                        gardenLocationCancellation = null
+                        if (lastKnown != null) resolveGardenLocationName(lastKnown, requestId)
+                        else showLocationUnavailable()
+                    }
+                    locationHandler.postDelayed(timeout, 12_000L)
+                    manager.getCurrentLocation(provider, cancellation, mainExecutor) { fresh ->
+                        if (requestId != gardenLocationRequestId) return@getCurrentLocation
+                        locationHandler.removeCallbacks(timeout)
+                        gardenLocationCancellation = null
                         val location = fresh ?: lastKnown
-                        if (location != null) resolveGardenLocationName(location) else showLocationUnavailable()
+                        if (location != null) resolveGardenLocationName(location, requestId) else showLocationUnavailable()
                     }
                     return
                 }
             }
-            if (lastKnown != null) resolveGardenLocationName(lastKnown) else showLocationUnavailable()
+            if (lastKnown != null) resolveGardenLocationName(lastKnown, requestId) else showLocationUnavailable()
         } catch (_: SecurityException) {
-            Toast.makeText(this,tr("Не удалось получить геолокацию. Выберите город вручную."),Toast.LENGTH_LONG).show()
+            if (requestId == gardenLocationRequestId) Toast.makeText(this,tr("Не удалось получить геолокацию. Выберите город вручную."),Toast.LENGTH_LONG).show()
         } catch (_: Exception) {
-            Toast.makeText(this,tr("Ошибка определения местоположения. Выберите город вручную."),Toast.LENGTH_LONG).show()
+            if (requestId == gardenLocationRequestId) Toast.makeText(this,tr("Ошибка определения местоположения. Выберите город вручную."),Toast.LENGTH_LONG).show()
         }
     }
 
     private fun showLocationUnavailable() {
         runOnUiThread {
             android.app.AlertDialog.Builder(this).setTitle(tr("Местоположение пока недоступно"))
-                .setMessage(tr("Не удалось получить координаты. Включите геолокацию и попробуйте ещё раз. Если GPS пока не определил место, можно выбрать город вручную."))
+                .setMessage(tr("Не удалось быстро получить координаты. Проверьте настройки геолокации или выберите город вручную."))
                 .setPositiveButton(tr("Настройки")) { _,_ -> startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
                 .setNegativeButton(tr("Выбрать город")) { _,_ -> showCityPicker() }.show()
         }
     }
 
-    private fun resolveGardenLocationName(location: Location) {
+    private fun resolveGardenLocationName(location: Location, requestId: Int) {
         Thread {
             val address = try {
                 if (Geocoder.isPresent()) Geocoder(this, Locale("ru")).getFromLocation(location.latitude, location.longitude, 1)?.firstOrNull()
                 else null
             } catch (_: Exception) { null }
             runOnUiThread {
+                // Ignore a late geocoder result after another request or manual city selection.
+                if (requestId != gardenLocationRequestId) return@runOnUiThread
                 val lat = location.latitude
                 val lon = location.longitude
                 val isCrimea = lat in 44.2..46.3 && lon in 32.3..36.9
@@ -1683,7 +1720,8 @@ class MainActivity : Activity() {
                     }
                 }
                 saveGardenLocation(locationLabel, region, zone, lat, lon)
-                showHome()
+                Toast.makeText(this, tr("Место сохранено: $locationLabel"), Toast.LENGTH_LONG).show()
+                // Do not navigate: the user may have moved to another section while GPS was resolving.
             }
         }.start()
     }
