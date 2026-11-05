@@ -1219,21 +1219,28 @@ class MainActivity : Activity() {
                 val type = item.optString("type", "")
                 val value = item.opt("value")
                 when (type) {
-                    "s" -> parsed.add(key to (type to (value?.takeUnless { it == JSONObject.NULL }?.toString() ?: "")))
+                    "s" -> {
+                        if (value !is String) throw IllegalArgumentException("Неверное значение: $key")
+                        parsed.add(key to (type to value))
+                    }
                     "b" -> {
                         if (value !is Boolean) throw IllegalArgumentException("Неверное значение: $key")
                         parsed.add(key to (type to value))
                     }
                     "i" -> {
-                        if (value !is Number) throw IllegalArgumentException("Неверное значение: $key")
-                        parsed.add(key to (type to value.toInt()))
+                        if (value !is Int && value !is Long) throw IllegalArgumentException("Неверное значение: $key")
+                        val number = (value as Number).toLong()
+                        if (number !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) throw IllegalArgumentException("Неверное значение: $key")
+                        parsed.add(key to (type to number.toInt()))
                     }
                     "l" -> {
-                        if (value !is Number) throw IllegalArgumentException("Неверное значение: $key")
-                        parsed.add(key to (type to value.toLong()))
+                        if (value !is Int && value !is Long) throw IllegalArgumentException("Неверное значение: $key")
+                        parsed.add(key to (type to (value as Number).toLong()))
                     }
                     "f" -> {
-                        if (value !is Number) throw IllegalArgumentException("Неверное значение: $key")
+                        if (value !is Number || !value.toDouble().isFinite() || value.toDouble() !in -Float.MAX_VALUE.toDouble()..Float.MAX_VALUE.toDouble()) {
+                            throw IllegalArgumentException("Неверное значение: $key")
+                        }
                         parsed.add(key to (type to value.toFloat()))
                     }
                     "ss" -> {
