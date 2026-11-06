@@ -345,7 +345,7 @@ internal object ExcelTransfer {
                             else (System.currentTimeMillis() + rowIndex).toString()
                         item.put("id", generated)
                     }
-                } else if (field == "sowing" || field == "date") {
+                } else if (field == "date" || (field == "sowing" && sheetName != "Мои культуры")) {
                     val normalizedDate = normalizeAppDate(value)
                         ?: throw IllegalArgumentException("Проверьте дату на листе «$sheetName», строка ${rowIndex + 2}. Используйте дд.мм.гггг или гггг-мм-дд.")
                     item.put(field, normalizedDate)
