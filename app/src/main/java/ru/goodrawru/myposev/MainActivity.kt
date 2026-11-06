@@ -27,6 +27,9 @@ import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.CancellationSignal
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
@@ -36,6 +39,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import android.net.Uri
 
 data class Plant(val name:String, val group:String, val sowing:String, val depth:String, val sprouts:String, val advice:String)
@@ -51,6 +55,11 @@ class MainActivity : Activity() {
     private var pendingBackupBytes: ByteArray? = null
     // Weather screen state; coordinates are null until a forecast location is selected.
     private var weatherForecastOpen = false
+    // Tracks the visible screen so asynchronous location results refresh only the home screen.
+    private var currentScreenTitle = ""
+    private var gardenLocationRequestId = 0
+    private var gardenLocationCancellation: CancellationSignal? = null
+    private val locationHandler = Handler(Looper.getMainLooper())
 
     private val green = Color.rgb(39, 91, 57)
     private val pale = Color.rgb(239, 246, 235)
@@ -145,6 +154,7 @@ class MainActivity : Activity() {
     }
 
     private fun baseLayout(title:String) {
+        currentScreenTitle = title
         val root = LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL
             background = getDrawable(R.drawable.bg_garden)
@@ -913,6 +923,7 @@ class MainActivity : Activity() {
             "Это стартовая база. Универсальных дат посева для всей России не существует." to "This is a starting guide. There are no universal sowing dates for all of Russia.",
             "Приложение будет готовить локальный план на текущий день. Интернет для календарных рекомендаций не нужен; точное время доставки зависит от ограничений Android." to "The app prepares a local plan for the current day. Calendar recommendations do not require internet access; exact delivery time depends on Android restrictions.",
             "Категории рекомендаций" to "Recommendation categories",
+            "Выберите хотя бы одну категорию рекомендаций." to "Select at least one recommendation category.",
             "Выбрать культуры" to "Choose crops",
             "Сколько рекомендаций показывать" to "Number of recommendations to show",
             "Отправить тестовое уведомление" to "Send test notification",
@@ -1181,27 +1192,27 @@ class MainActivity : Activity() {
         try {
             val jsonText = contentResolver.openInputStream(uri)?.use { input ->
                 java.util.zip.ZipInputStream(input).use { zip ->
-                    var entry = zip.nextEntry
-                    var found: String? = null
-                    while (entry != null) {
-                        if (entry.name == "backup.json" && !entry.isDirectory) {
-                            val output = java.io.ByteArrayOutputStream()
-                            val buffer = ByteArray(8192)
-                            var total = 0
-                            while (true) {
-                                val count = zip.read(buffer)
-                                if (count < 0) break
-                                total += count
-                                if (total > 5 * 1024 * 1024) throw IllegalArgumentException("Файл резервной копии слишком большой")
-                                output.write(buffer, 0, count)
-                            }
-                            found = output.toString(Charsets.UTF_8.name())
-                            break
-                        }
-                        zip.closeEntry()
-                        entry = zip.nextEntry
+                    val entry = zip.nextEntry
+                        ?: throw IllegalArgumentException("Архив пуст")
+                    // Backups created by the app contain exactly one entry. Reject
+                    // unexpected entries instead of decompressing arbitrary ZIP content.
+                    if (entry.name != "backup.json" || entry.isDirectory) {
+                        throw IllegalArgumentException("Неверная структура резервной копии")
                     }
-                    found
+                    val output = java.io.ByteArrayOutputStream()
+                    val buffer = ByteArray(8192)
+                    var total = 0
+                    while (true) {
+                        val count = zip.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        if (total > 5 * 1024 * 1024) throw IllegalArgumentException("Файл резервной копии слишком большой")
+                        output.write(buffer, 0, count)
+                    }
+                    if (zip.nextEntry != null) {
+                        throw IllegalArgumentException("В архиве есть лишние файлы")
+                    }
+                    output.toString(Charsets.UTF_8.name())
                 }
             } ?: throw IllegalArgumentException("В архиве не найден backup.json")
             val root = JSONObject(jsonText)
@@ -1217,21 +1228,28 @@ class MainActivity : Activity() {
                 val type = item.optString("type", "")
                 val value = item.opt("value")
                 when (type) {
-                    "s" -> parsed.add(key to (type to (value?.takeUnless { it == JSONObject.NULL }?.toString() ?: "")))
+                    "s" -> {
+                        if (value !is String) throw IllegalArgumentException("Неверное значение: $key")
+                        parsed.add(key to (type to value))
+                    }
                     "b" -> {
                         if (value !is Boolean) throw IllegalArgumentException("Неверное значение: $key")
                         parsed.add(key to (type to value))
                     }
                     "i" -> {
-                        if (value !is Number) throw IllegalArgumentException("Неверное значение: $key")
-                        parsed.add(key to (type to value.toInt()))
+                        if (value !is Int && value !is Long) throw IllegalArgumentException("Неверное значение: $key")
+                        val number = (value as Number).toLong()
+                        if (number !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) throw IllegalArgumentException("Неверное значение: $key")
+                        parsed.add(key to (type to number.toInt()))
                     }
                     "l" -> {
-                        if (value !is Number) throw IllegalArgumentException("Неверное значение: $key")
-                        parsed.add(key to (type to value.toLong()))
+                        if (value !is Int && value !is Long) throw IllegalArgumentException("Неверное значение: $key")
+                        parsed.add(key to (type to (value as Number).toLong()))
                     }
                     "f" -> {
-                        if (value !is Number) throw IllegalArgumentException("Неверное значение: $key")
+                        if (value !is Number || !value.toDouble().isFinite() || value.toDouble() !in -Float.MAX_VALUE.toDouble()..Float.MAX_VALUE.toDouble()) {
+                            throw IllegalArgumentException("Неверное значение: $key")
+                        }
                         parsed.add(key to (type to value.toFloat()))
                     }
                     "ss" -> {
@@ -1248,24 +1266,38 @@ class MainActivity : Activity() {
                 }
             }
 
-            val editor = prefs.edit().clear()
-            parsed.forEach { (key, pair) ->
-                when (pair.first) {
-                    "s" -> editor.putString(key, pair.second as String)
-                    "b" -> editor.putBoolean(key, pair.second as Boolean)
-                    "i" -> editor.putInt(key, pair.second as Int)
-                    "l" -> editor.putLong(key, pair.second as Long)
-                    "f" -> editor.putFloat(key, pair.second as Float)
-                    "ss" -> editor.putStringSet(key, pair.second as Set<String>)
+            // Snapshot current preferences so a failed write can attempt to restore them.
+            val previous = prefs.all.toMap()
+            fun writePreferences(valuesToWrite: Map<String, Any?>): Boolean {
+                val editor = prefs.edit().clear()
+                valuesToWrite.forEach { (key, value) ->
+                    when (value) {
+                        is String -> editor.putString(key, value)
+                        is Boolean -> editor.putBoolean(key, value)
+                        is Int -> editor.putInt(key, value)
+                        is Long -> editor.putLong(key, value)
+                        is Float -> editor.putFloat(key, value)
+                        is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+                        null -> editor.remove(key)
+                        else -> throw IllegalArgumentException("Неподдерживаемый тип данных: $key")
+                    }
                 }
+                return editor.commit()
             }
-            if (!editor.commit()) throw IllegalStateException("Android не смог сохранить восстановленные данные")
+            val restored = parsed.associate { (key, pair) -> key to pair.second }
+            if (!writePreferences(restored)) {
+                val rollbackSucceeded = runCatching { writePreferences(previous) }.getOrDefault(false)
+                throw IllegalStateException(
+                    if (rollbackSucceeded) "Не удалось сохранить копию; исходные данные восстановлены"
+                    else "Ошибка сохранения копии и отката. Проверьте данные приложения"
+                )
+            }
             migrateLegacyNoteKeys()
             scheduleDailyReminder()
             Toast.makeText(this, tr("Копия восстановлена. Данные загружены."), Toast.LENGTH_LONG).show()
             showHome()
         } catch (e: Exception) {
-            Toast.makeText(this, if (isEnglish()) "Could not restore backup: ${e.message ?: "invalid archive"}. Current data was not changed." else "Не удалось восстановить копию: ${e.message ?: "неверный архив"}. Текущие данные не изменены.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, if (isEnglish()) "Could not restore backup: ${e.message ?: "invalid archive"}. Check the app data before continuing." else "Не удалось восстановить копию: ${e.message ?: "неверный архив"}. Проверьте данные приложения перед продолжением.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -1362,6 +1394,10 @@ class MainActivity : Activity() {
         button("Сохранить настройки") {
             val categories = categoryChecks.filterValues { it.isChecked }.keys.toSet()
             val wantsEnabled = enabled.isChecked
+            if (wantsEnabled && categories.isEmpty()) {
+                Toast.makeText(this, tr("Выберите хотя бы одну категорию рекомендаций."), Toast.LENGTH_LONG).show()
+                return@button
+            }
             val needsPermission = wantsEnabled && Build.VERSION.SDK_INT >= 33 &&
                 checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
             prefs.edit()
@@ -1577,52 +1613,83 @@ class MainActivity : Activity() {
     }
 
     private fun resolveGardenLocation() {
+        // Invalidate any older request so a late callback cannot overwrite a newer choice.
+        gardenLocationRequestId++
+        val requestId = gardenLocationRequestId
+        gardenLocationCancellation?.cancel()
+        gardenLocationCancellation = null
+
         try {
             val manager = getSystemService(LOCATION_SERVICE) as LocationManager
             val lastKnown = manager.getProviders(true).mapNotNull { provider ->
                 try { manager.getLastKnownLocation(provider) } catch (_: SecurityException) { null }
             }.maxByOrNull { it.time }
 
+            // A recent cached fix is immediate; reject stale locations from a previous session.
+            val maxCacheAgeMs = 15 * 60 * 1000L
+            if (lastKnown != null && System.currentTimeMillis() - lastKnown.time <= maxCacheAgeMs) {
+                resolveGardenLocationName(lastKnown, requestId)
+                return
+            }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val hasFineLocation = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                // Network location is usually much faster indoors than a cold GPS fix.
                 val providers = if (hasFineLocation) {
-                    listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
+                    listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER, LocationManager.PASSIVE_PROVIDER)
                 } else {
                     listOf(LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
                 }
-                val provider = providers.firstOrNull { name -> try { manager.isProviderEnabled(name) } catch (_: Exception) { false } }
+                val provider = providers.firstOrNull { name ->
+                    try { manager.isProviderEnabled(name) } catch (_: Exception) { false }
+                }
                 if (provider != null) {
-                    manager.getCurrentLocation(provider, null, mainExecutor) { fresh ->
+                    val cancellation = CancellationSignal()
+                    gardenLocationCancellation = cancellation
+                    val timeout = Runnable {
+                        if (requestId != gardenLocationRequestId) return@Runnable
+                        cancellation.cancel()
+                        gardenLocationCancellation = null
+                        if (lastKnown != null) resolveGardenLocationName(lastKnown, requestId)
+                        else showLocationUnavailable()
+                    }
+                    locationHandler.postDelayed(timeout, 12_000L)
+                    manager.getCurrentLocation(provider, cancellation, mainExecutor) { fresh ->
+                        if (requestId != gardenLocationRequestId) return@getCurrentLocation
+                        locationHandler.removeCallbacks(timeout)
+                        gardenLocationCancellation = null
                         val location = fresh ?: lastKnown
-                        if (location != null) resolveGardenLocationName(location) else showLocationUnavailable()
+                        if (location != null) resolveGardenLocationName(location, requestId) else showLocationUnavailable()
                     }
                     return
                 }
             }
-            if (lastKnown != null) resolveGardenLocationName(lastKnown) else showLocationUnavailable()
+            if (lastKnown != null) resolveGardenLocationName(lastKnown, requestId) else showLocationUnavailable()
         } catch (_: SecurityException) {
-            Toast.makeText(this,tr("Не удалось получить геолокацию. Выберите город вручную."),Toast.LENGTH_LONG).show()
+            if (requestId == gardenLocationRequestId) Toast.makeText(this,tr("Не удалось получить геолокацию. Выберите город вручную."),Toast.LENGTH_LONG).show()
         } catch (_: Exception) {
-            Toast.makeText(this,tr("Ошибка определения местоположения. Выберите город вручную."),Toast.LENGTH_LONG).show()
+            if (requestId == gardenLocationRequestId) Toast.makeText(this,tr("Ошибка определения местоположения. Выберите город вручную."),Toast.LENGTH_LONG).show()
         }
     }
 
     private fun showLocationUnavailable() {
         runOnUiThread {
             android.app.AlertDialog.Builder(this).setTitle(tr("Местоположение пока недоступно"))
-                .setMessage(tr("Не удалось получить координаты. Включите геолокацию и попробуйте ещё раз. Если GPS пока не определил место, можно выбрать город вручную."))
+                .setMessage(tr("Не удалось быстро получить координаты. Проверьте настройки геолокации или выберите город вручную."))
                 .setPositiveButton(tr("Настройки")) { _,_ -> startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
                 .setNegativeButton(tr("Выбрать город")) { _,_ -> showCityPicker() }.show()
         }
     }
 
-    private fun resolveGardenLocationName(location: Location) {
+    private fun resolveGardenLocationName(location: Location, requestId: Int) {
         Thread {
             val address = try {
                 if (Geocoder.isPresent()) Geocoder(this, Locale("ru")).getFromLocation(location.latitude, location.longitude, 1)?.firstOrNull()
                 else null
             } catch (_: Exception) { null }
             runOnUiThread {
+                // Ignore a late geocoder result after another request or manual city selection.
+                if (requestId != gardenLocationRequestId) return@runOnUiThread
                 val lat = location.latitude
                 val lon = location.longitude
                 val isCrimea = lat in 44.2..46.3 && lon in 32.3..36.9
@@ -1656,7 +1723,12 @@ class MainActivity : Activity() {
                     }
                 }
                 saveGardenLocation(locationLabel, region, zone, lat, lon)
-                showHome()
+                // Return to the home screen only when the user is still on the
+                // location settings screen. If they navigated elsewhere while
+                // geocoding was running, never interrupt their current screen.
+                when (currentScreenTitle) {
+                    "Мой Посевной", "Место и регион" -> showHome()
+                }
             }
         }.start()
     }
@@ -1756,8 +1828,8 @@ class MainActivity : Activity() {
                 }
                 val initDate = initParser.parse(root.optString("init"))
                     ?: throw java.io.IOException("Не удалось определить время прогноза")
-                val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-                val displayFormat = SimpleDateFormat("EEE, d MMM", Locale("ru"))
+                val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = java.util.TimeZone.getDefault() }
+                val displayFormat = SimpleDateFormat("EEE, d MMM", Locale("ru")).apply { timeZone = java.util.TimeZone.getDefault() }
                 val grouped = linkedMapOf<String, MutableList<JSONObject>>()
                 for (i in 0 until series.length()) {
                     val item = series.optJSONObject(i) ?: continue
@@ -1825,6 +1897,7 @@ class MainActivity : Activity() {
                 prefs.edit()
                     .putString("weather_summary_7timer", summary)
                     .putLong("weather_summary_7timer_expires", cacheUntil)
+                    .putLong("weather_summary_7timer_fetched_at", System.currentTimeMillis())
                     .putString("weather_summary_7timer_lat", lat.toString())
                     .putString("weather_summary_7timer_lon", lon.toString())
                     .apply()
@@ -1862,6 +1935,11 @@ class MainActivity : Activity() {
         baseLayout("Погода на 7 дней")
         content.addView(txt("📍 " + city, 17f, true))
         content.addView(txt("Источник прогноза: 7Timer!", 12f))
+        val fetchedAt = prefs.getLong("weather_summary_7timer_fetched_at", 0L)
+        if (fetchedAt > 0L) {
+            val fetchedText = SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(fetchedAt))
+            content.addView(txt("Обновлено: $fetchedText", 12f))
+        }
         button("Источник данных: 7Timer!") { openExternalLink("https://www.7timer.info/doc.php?lang=en") }
         val parts = summary.split("\n\n")
         parts.forEachIndexed { index, part ->
@@ -2220,7 +2298,7 @@ class MainActivity : Activity() {
     }
 
     private fun lunarSummary(c:Calendar):String {
-        val knownNewMoon=Calendar.getInstance().apply { set(2000,Calendar.JANUARY,6,18,14,0) }.timeInMillis
+        val knownNewMoon=Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { clear(); set(2000, Calendar.JANUARY, 6, 18, 14, 0) }.timeInMillis
         val month=29.530588853*24*60*60*1000
         val age=((((c.timeInMillis-knownNewMoon)%month)+month)%month)/month
         val phase=when {
@@ -2235,7 +2313,7 @@ class MainActivity : Activity() {
 
     // Условная цветовая маркировка по лунному циклу: это традиционная подсказка, а не прогноз урожайности.
     private fun dayIndicatorColor(c: Calendar): Int {
-        val knownNewMoon = Calendar.getInstance().apply { set(2000, Calendar.JANUARY, 6, 18, 14, 0) }.timeInMillis
+        val knownNewMoon = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { clear(); set(2000, Calendar.JANUARY, 6, 18, 14, 0) }.timeInMillis
         val synodicMonth = 29.530588853 * 24 * 60 * 60 * 1000
         val age = ((((c.timeInMillis - knownNewMoon) % synodicMonth) + synodicMonth) % synodicMonth) / synodicMonth
         return when {
@@ -2246,7 +2324,7 @@ class MainActivity : Activity() {
     }
 
     private fun lunarGlyph(c: Calendar): String {
-        val knownNewMoon = Calendar.getInstance().apply { set(2000, Calendar.JANUARY, 6, 18, 14, 0) }.timeInMillis
+        val knownNewMoon = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { clear(); set(2000, Calendar.JANUARY, 6, 18, 14, 0) }.timeInMillis
         val synodicMonth = 29.530588853 * 24 * 60 * 60 * 1000
         val age = ((((c.timeInMillis - knownNewMoon) % synodicMonth) + synodicMonth) % synodicMonth) / synodicMonth
         return when {

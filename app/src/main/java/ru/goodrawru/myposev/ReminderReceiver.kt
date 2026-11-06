@@ -15,6 +15,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
@@ -241,7 +242,7 @@ class ReminderReceiver : BroadcastReceiver() {
     }
 
     private fun lunarPhase(date: Calendar): String {
-        val knownNewMoon = Calendar.getInstance().apply { set(2000, Calendar.JANUARY, 6, 18, 14, 0) }.timeInMillis
+        val knownNewMoon = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { clear(); set(2000, Calendar.JANUARY, 6, 18, 14, 0) }.timeInMillis
         val synodicMonth = 29.530588853 * 24 * 60 * 60 * 1000
         val age = ((((date.timeInMillis - knownNewMoon) % synodicMonth) + synodicMonth) % synodicMonth) / synodicMonth
         return when {
