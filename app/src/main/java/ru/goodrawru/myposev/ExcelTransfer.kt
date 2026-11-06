@@ -132,7 +132,8 @@ internal object ExcelTransfer {
         raw += listOf("Ключ", "Тип", "Значение")
         raw += listOf("__формат__", "s", MAGIC)
         all.toSortedMap().forEach { (key, value) ->
-            raw += listOf(key, typeOf(value), valueToText(value))
+            val safeValue = value ?: return@forEach
+            raw += listOf(key, typeOf(safeValue), valueToText(safeValue))
         }
         sheets += Sheet("_Данные", raw, hidden = true)
         return writeWorkbook(sheets)
@@ -171,7 +172,7 @@ internal object ExcelTransfer {
         require(marker) { "Версия книги не поддерживается или служебный лист изменён" }
 
         val existingCounts = listOf("planting_records", "harvest_records", "care_tasks", "user_crops")
-            .associateWith { jsonArray(current.getString(it, "[]")).let { a -> a.length() } }
+            .associateWith { jsonArray(current.getString(it, "[]") ?: "[]").let { a -> a.length() } }
         val incoming = mutableMapOf<String, JSONArray>()
         incoming["planting_records"] = parseRecordSheet(
             sheets["Посадки"], listOf("ID","Культура","Сорт","Дата посева","Место","Заметки","Создано"),
@@ -236,7 +237,7 @@ internal object ExcelTransfer {
             }
         }
 
-        val oldIds = existingCounts.keys.associateWith { key -> ids(jsonArray(current.getString(key, "[]"))) }
+        val oldIds = existingCounts.keys.associateWith { key -> ids(jsonArray(current.getString(key, "[]") ?: "[]")) }
         val newIds = incoming.mapValues { ids(it.value) }
         var added = 0
         var deleted = 0
@@ -247,7 +248,7 @@ internal object ExcelTransfer {
             added += (after - before).size
             deleted += (before - after).size
             if (before.intersect(after).isNotEmpty()) {
-                val oldById = jsonArray(current.getString(key, "[]")).let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) }.associateBy { it.optString("id") } }
+                val oldById = jsonArray(current.getString(key, "[]") ?: "[]").let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) }.associateBy { it.optString("id") } }
                 val newById = (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }.associateBy { it.optString("id") }
                 changed += before.intersect(after).count { id -> oldById[id]?.toString() != newById[id]?.toString() }
             }
@@ -256,7 +257,7 @@ internal object ExcelTransfer {
     }
 
     fun applyImport(plan: ImportPlan, prefs: SharedPreferences): Boolean {
-        val old = prefs.all.toMap()
+        val old = prefs.all.mapNotNull { (key, value) -> value?.let { key to it } }.toMap()
         fun write(values: Map<String, Any>): Boolean {
             val editor = prefs.edit().clear()
             values.forEach { (key, value) ->
