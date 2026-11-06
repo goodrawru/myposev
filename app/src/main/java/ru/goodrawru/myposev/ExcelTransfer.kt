@@ -323,11 +323,16 @@ internal object ExcelTransfer {
                 if (field in booleanFields) item.put(field, value.equals("Да", true) || value.equals("true", true) || value == "1")
                 else if (field == "id") {
                     if (value.isNotBlank()) item.put(field, value.toLongOrNull() ?: value)
-                    else if (item.optString("id").isBlank()) {
+                    else {
                         val generated = if (sheetName == "Мои культуры") UUID.randomUUID().toString()
                             else (System.currentTimeMillis() + rowIndex).toString()
                         item.put("id", generated)
                     }
+                } else if (field == "sowing" || field == "date") {
+                    require(normalizeNoteDate(value) != null) {
+                        "Проверьте дату на листе «$sheetName», строка ${rowIndex + 2}. Используйте дд.мм.гггг или гггг-мм-дд."
+                    }
+                    item.put(field, value)
                 } else if (field == "created") {
                     if (value.isNotBlank()) item.put(field, value.toLongOrNull() ?: value)
                     else if (!item.has("created")) item.put("created", System.currentTimeMillis())
@@ -421,8 +426,12 @@ internal object ExcelTransfer {
                 val lastCol = columnName(maxCols)
                 val lastRow = sheet.rows.size.coerceAtLeast(1)
                 val widths = (1..maxCols).joinToString("") { col ->
-                    val width = sheet.rows.firstOrNull()?.getOrNull(col - 1)?.length?.coerceIn(10, 36) ?: 18
-                    """<col min="$col" max="$col" width="$width" customWidth="1"/>"""
+                    val header = sheet.rows.firstOrNull()?.getOrNull(col - 1).orEmpty()
+                    if (header == TECH) """<col min="$col" max="$col" width="12" hidden="1" customWidth="1"/>"""
+                    else {
+                        val width = header.length.coerceIn(10, 36)
+                        """<col min="$col" max="$col" width="$width" customWidth="1"/>"""
+                    }
                 }
                 val data = sheet.rows.mapIndexed { rowIndex, row ->
                     val cells = row.mapIndexed { colIndex, value ->
