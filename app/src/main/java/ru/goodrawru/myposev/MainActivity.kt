@@ -53,6 +53,7 @@ class MainActivity : Activity() {
     // Temporary payloads retained while Android document picker is open.
     private var pendingPdfBytes: ByteArray? = null
     private var pendingBackupBytes: ByteArray? = null
+    private var pendingExcelBytes: ByteArray? = null
     // Weather screen state; coordinates are null until a forecast location is selected.
     private var weatherForecastOpen = false
     // Tracks the visible screen so asynchronous location results refresh only the home screen.
@@ -356,6 +357,23 @@ class MainActivity : Activity() {
                     .setPositiveButton(tr("Восстановить")) { _, _ -> importBackup(data.data!!) }
                     .show()
             }
+            return
+        }
+        if (requestCode == 2403) {
+            val bytes = pendingExcelBytes
+            pendingExcelBytes = null
+            if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) return
+            try {
+                contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }
+                    ?: throw IllegalStateException("Не удалось открыть файл")
+                Toast.makeText(this, "Книга Excel сохранена", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Ошибка сохранения Excel: ${e.message ?: "неизвестная ошибка"}", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+        if (requestCode == 2404) {
+            if (resultCode == Activity.RESULT_OK && data?.data != null) importExcelFrom(data.data!!)
             return
         }
         if (requestCode == 2027) {
@@ -1463,6 +1481,69 @@ class MainActivity : Activity() {
             .show()
     }
 
+    private fun exportExcel() {
+        try {
+            pendingExcelBytes = ExcelTransfer.export(prefs, builtInPlants, cropIconCatalog)
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                putExtra(Intent.EXTRA_TITLE, "Мой_Посевной.xlsx")
+            }
+            startActivityForResult(intent, 2403)
+        } catch (e: Exception) {
+            pendingExcelBytes = null
+            Toast.makeText(this, "Не удалось создать Excel: ${e.message ?: "ошибка данных"}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun chooseExcelImport() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try {
+            startActivityForResult(intent, 2404)
+        } catch (_: Exception) {
+            Toast.makeText(this, "Не удалось открыть выбор файла", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun importExcelFrom(uri: Uri) {
+        try {
+            val bytes = contentResolver.openInputStream(uri)?.use { input ->
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    if (total > 10 * 1024 * 1024) throw IllegalArgumentException("Файл превышает 10 МБ")
+                    output.write(buffer, 0, count)
+                }
+                output.toByteArray()
+            } ?: throw IllegalStateException("Не удалось прочитать файл")
+            val plan = ExcelTransfer.prepareImport(bytes, prefs)
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Проверка книги Excel")
+                .setMessage(plan.summary() + "\n\nИмпорт заменит рабочие списки данными из книги. Удалённые в Excel строки будут удалены и в приложении. Перед применением будет создана внутренняя точка отката. Продолжить?")
+                .setNegativeButton("Отмена", null)
+                .setPositiveButton("Применить изменения") { _, _ ->
+                    if (ExcelTransfer.applyImport(plan, prefs)) {
+                        scheduleDailyReminder()
+                        Toast.makeText(this, "Данные из Excel успешно загружены", Toast.LENGTH_LONG).show()
+                        showHome()
+                    } else {
+                        Toast.makeText(this, "Не удалось сохранить данные. Предыдущие данные восстановлены.", Toast.LENGTH_LONG).show()
+                    }
+                }
+                .show()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Excel не импортирован: ${e.message ?: "проверьте файл"}", Toast.LENGTH_LONG).show()
+        }
+    }
+
     private fun showAbout() {
         baseLayout("О программе")
         content.addView(txt("Версия ${BuildConfig.VERSION_NAME}", 16f, true))
@@ -1483,6 +1564,8 @@ class MainActivity : Activity() {
         button("📄 Создать PDF-планировщик") { showPaperPlanner() }
         button("📦 Создать резервную копию") { createBackup() }
         button("♻️ Восстановить резервную копию") { restoreBackup() }
+        button("📊 Экспорт в Excel") { exportExcel() }
+        button("📥 Импорт из Excel") { chooseExcelImport() }
         content.setPadding(dp(18), dp(16), dp(18), dp(30))
 
         val hero = LinearLayout(this).apply {
