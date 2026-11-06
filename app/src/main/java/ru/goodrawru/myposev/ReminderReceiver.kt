@@ -264,7 +264,8 @@ class ReminderReceiver : BroadcastReceiver() {
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action != Intent.ACTION_BOOT_COMPLETED) return
+        val action = intent?.action
+        if (action !in setOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED)) return
         val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val reminderIntent = Intent(context, ReminderReceiver::class.java)
         val pending = PendingIntent.getBroadcast(
