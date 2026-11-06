@@ -111,9 +111,9 @@ internal object ExcelTransfer {
         val settings = mutableListOf<List<String>>()
         settings += listOf("Параметр", "Значение", "Ключ", "Тип")
         settingsKeys.forEach { key ->
-            val value = all[key] ?: return@forEach
-            val type = typeOf(value)
-            settings += listOf(settingLabels[key] ?: key, valueToText(value), key, type)
+            val safeValue = all[key] ?: return@forEach
+            val type = typeOf(safeValue)
+            settings += listOf(settingLabels[key] ?: key, valueToText(safeValue), key, type)
         }
         sheets += Sheet("Настройки", settings)
 
