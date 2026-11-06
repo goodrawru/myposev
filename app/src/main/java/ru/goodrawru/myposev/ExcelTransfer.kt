@@ -232,7 +232,23 @@ internal object ExcelTransfer {
             settingRows.drop(1).forEach { row ->
                 val key = row.getOrNull(sKey).orEmpty()
                 if (key in setOf("garden_city","garden_region","garden_zone","garden_lat","garden_lon","garden_location_set","reminder_enabled","reminder_hour","reminder_minute","reminder_limit","app_language")) {
-                    stored[key] = parseStoredValue(row.getOrNull(sType).orEmpty(), row.getOrNull(sValue).orEmpty())
+                    val value = row.getOrNull(sValue).orEmpty().trim()
+                    stored[key] = when (key) {
+                        "garden_location_set", "reminder_enabled" -> value.equals("да", true) || value.equals("true", true) || value == "1"
+                        "reminder_hour" -> value.toIntOrNull()?.takeIf { it in 0..23 } ?: throw IllegalArgumentException("Час напоминания должен быть от 0 до 23")
+                        "reminder_minute" -> value.toIntOrNull()?.takeIf { it in 0..59 } ?: throw IllegalArgumentException("Минута напоминания должна быть от 0 до 59")
+                        "reminder_limit" -> value.toIntOrNull()?.takeIf { it in 1..20 } ?: throw IllegalArgumentException("Лимит напоминаний должен быть от 1 до 20")
+                        "garden_lat" -> {
+                            if (value.isNotBlank()) require(value.toDoubleOrNull()?.let { it in -90.0..90.0 } == true) { "Некорректная широта" }
+                            value
+                        }
+                        "garden_lon" -> {
+                            if (value.isNotBlank()) require(value.toDoubleOrNull()?.let { it in -180.0..180.0 } == true) { "Некорректная долгота" }
+                            value
+                        }
+                        "app_language" -> value.also { require(it == "ru" || it == "en") { "Язык приложения: ru или en" } }
+                        else -> value
+                    }
                 }
             }
         }
@@ -330,10 +346,9 @@ internal object ExcelTransfer {
                         item.put("id", generated)
                     }
                 } else if (field == "sowing" || field == "date") {
-                    require(normalizeNoteDate(value) != null) {
-                        "Проверьте дату на листе «$sheetName», строка ${rowIndex + 2}. Используйте дд.мм.гггг или гггг-мм-дд."
-                    }
-                    item.put(field, value)
+                    val normalizedDate = normalizeAppDate(value)
+                        ?: throw IllegalArgumentException("Проверьте дату на листе «$sheetName», строка ${rowIndex + 2}. Используйте дд.мм.гггг или гггг-мм-дд.")
+                    item.put(field, normalizedDate)
                 } else if (field == "created") {
                     if (value.isNotBlank()) item.put(field, value.toLongOrNull() ?: value)
                     else if (!item.has("created")) item.put("created", System.currentTimeMillis())
@@ -376,6 +391,12 @@ internal object ExcelTransfer {
         else -> value
     }
 
+    private fun normalizeAppDate(value: String): String? {
+        val iso = normalizeNoteDate(value) ?: return null
+        val parsed = try { SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).parse(iso) } catch (_: Exception) { null } ?: return null
+        return SimpleDateFormat("dd.MM.yyyy", Locale.ROOT).format(parsed)
+    }
+
     private fun normalizeNoteDate(value: String): String? {
         val input = value.trim()
         val formats = listOf("yyyy-MM-dd", "dd.MM.yyyy", "d.M.yyyy")
@@ -383,6 +404,7 @@ internal object ExcelTransfer {
             try {
                 val format = SimpleDateFormat(pattern, Locale.ROOT).apply { isLenient = false }
                 val parsed = format.parse(input) ?: return@forEach
+                if (format.format(parsed) != input) return@forEach
                 return SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).format(parsed)
             } catch (_: Exception) { }
         }
