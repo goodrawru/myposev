@@ -21,6 +21,7 @@ class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val prefs = context.getSharedPreferences("moi_posevnoy", Context.MODE_PRIVATE)
         val isTest = intent?.action == ACTION_TEST
+        if (!isTest) ReminderScheduler.schedule(context)
         if (!isTest && !prefs.getBoolean("reminder_enabled", false)) return
         if (Build.VERSION.SDK_INT >= 33 &&
             context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
@@ -262,10 +263,8 @@ class ReminderReceiver : BroadcastReceiver() {
     }
 }
 
-class BootReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent?) {
-        val action = intent?.action
-        if (action !in setOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED)) return
+internal object ReminderScheduler {
+    fun schedule(context: Context) {
         val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val reminderIntent = Intent(context, ReminderReceiver::class.java)
         val pending = PendingIntent.getBroadcast(
@@ -279,13 +278,24 @@ class BootReceiver : BroadcastReceiver() {
         }
         val hour = prefs.getInt("reminder_hour", 9).coerceIn(0, 23)
         val minute = prefs.getInt("reminder_minute", 0).coerceIn(0, 59)
+        val now = Calendar.getInstance()
         val next = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, hour)
             set(Calendar.MINUTE, minute)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
-            if (before(Calendar.getInstance())) add(Calendar.DAY_OF_YEAR, 1)
+            if (!after(now)) add(Calendar.DAY_OF_YEAR, 1)
         }
-        alarm.setInexactRepeating(AlarmManager.RTC_WAKEUP, next.timeInMillis, AlarmManager.INTERVAL_DAY, pending)
+        // Recompute the next local wall-clock occurrence after every delivery.
+        // This avoids a fixed 24-hour interval drifting across DST transitions.
+        alarm.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.timeInMillis, pending)
+    }
+}
+
+class BootReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent?) {
+        val action = intent?.action
+        if (action !in setOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED)) return
+        ReminderScheduler.schedule(context)
     }
 }
