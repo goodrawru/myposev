@@ -62,6 +62,11 @@ internal object ExcelTransfer {
             listOf("ID", "Культура", "Сорт", "Дата посева", "Место", "Заметки", "Создано"),
             listOf("id", "crop", "variety", "sowing", "place", "notes", "created"), all
         )
+        val legacyPlantings = mutableListOf<List<String>>()
+        legacyPlantings += listOf("Старая запись")
+        (all["plantings"] as? String).orEmpty().split("\n").filter { it.isNotBlank() }.forEach { legacyPlantings += listOf(it) }
+        sheets += Sheet("Старые посадки", legacyPlantings)
+
         sheets += recordsSheet(
             "Урожай", "harvest_records",
             listOf("ID", "Культура", "Количество", "Дата сбора", "Примечание"),
@@ -169,22 +174,28 @@ internal object ExcelTransfer {
         incoming["planting_records"] = parseRecordSheet(
             sheets["Посадки"], listOf("ID","Культура","Сорт","Дата посева","Место","Заметки","Создано"),
             listOf("id","crop","variety","sowing","place","notes","created"), setOf("id","crop","sowing"),
-            setOf("id","created"), "Посадки"
+            emptySet(), "Посадки"
         )
+        val legacyRows = sheets["Старые посадки"] ?: throw IllegalArgumentException("В книге отсутствует лист «Старые посадки»")
+        val legacyHeader = legacyRows.firstOrNull().orEmpty()
+        val legacyCol = legacyHeader.indexOf("Старая запись")
+        require(legacyCol >= 0) { "На листе «Старые посадки» отсутствует столбец записи" }
+        stored["plantings"] = legacyRows.drop(1).mapNotNull { it.getOrNull(legacyCol)?.trim()?.takeIf(String::isNotBlank) }.joinToString("\n")
+
         incoming["harvest_records"] = parseRecordSheet(
             sheets["Урожай"], listOf("ID","Культура","Количество","Дата сбора","Примечание"),
             listOf("id","crop","amount","date","notes"), setOf("id","crop","amount","date"),
-            setOf("id"), "Урожай"
+            emptySet(), "Урожай"
         )
         incoming["care_tasks"] = parseRecordSheet(
             sheets["Задачи"], listOf("ID","Задача","Культура или грядка","Тип работы","Дата","Выполнено"),
             listOf("id","title","crop","type","date","done"), setOf("id","title","date"),
-            setOf("id","done"), "Задачи"
+            setOf("done"), "Задачи"
         )
         incoming["user_crops"] = parseRecordSheet(
             sheets["Мои культуры"], listOf("ID","Культура","Категория","Срок посева","Глубина","Всходы","Рекомендации","Значок","Эмодзи"),
             listOf("id","name","category","sowing","depth","sprouts","advice","icon","emoji"), setOf("id","name"),
-            setOf("id"), "Мои культуры"
+            emptySet(), "Мои культуры"
         )
         incoming.forEach { (key, value) -> stored[key] = value.toString() }
 
@@ -530,7 +541,7 @@ internal object ExcelTransfer {
     }
 
     private fun attributeByLocalName(parser: XmlPullParser, local: String): String? {
-        for (i in 0 until parser.attributeCount) if (parser.getAttributeName(i) == local) return parser.getAttributeValue(i)
+        for (i in 0 until parser.attributeCount) if (parser.getAttributeName(i).substringAfter(':') == local) return parser.getAttributeValue(i)
         return null
     }
 
