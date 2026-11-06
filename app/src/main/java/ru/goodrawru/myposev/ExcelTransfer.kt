@@ -237,7 +237,7 @@ internal object ExcelTransfer {
                         "garden_location_set", "reminder_enabled" -> value.equals("да", true) || value.equals("true", true) || value == "1"
                         "reminder_hour" -> value.toIntOrNull()?.takeIf { it in 0..23 } ?: throw IllegalArgumentException("Час напоминания должен быть от 0 до 23")
                         "reminder_minute" -> value.toIntOrNull()?.takeIf { it in 0..59 } ?: throw IllegalArgumentException("Минута напоминания должна быть от 0 до 59")
-                        "reminder_limit" -> value.toIntOrNull()?.takeIf { it in 1..20 } ?: throw IllegalArgumentException("Лимит напоминаний должен быть от 1 до 20")
+                        "reminder_limit" -> value.toIntOrNull()?.takeIf { it in 1..6 } ?: throw IllegalArgumentException("Лимит напоминаний должен быть от 1 до 6")
                         "garden_lat" -> {
                             if (value.isNotBlank()) require(value.toDoubleOrNull()?.let { it in -90.0..90.0 } == true) { "Некорректная широта" }
                             value
@@ -272,7 +272,9 @@ internal object ExcelTransfer {
         return ImportPlan(stored, added, changed, deleted, noteCount)
     }
 
-    fun applyImport(plan: ImportPlan, prefs: SharedPreferences): Boolean {
+    enum class ImportApplyResult { SUCCESS, FAILED_ROLLED_BACK, FAILED_ROLLBACK }
+
+    fun applyImport(plan: ImportPlan, prefs: SharedPreferences): ImportApplyResult {
         val old = prefs.all.mapNotNull { (key, value) -> value?.let { key to it } }.toMap()
         fun write(values: Map<String, Any>): Boolean {
             val editor = prefs.edit().clear()
@@ -288,9 +290,9 @@ internal object ExcelTransfer {
             }
             return editor.commit()
         }
-        if (write(plan.values)) return true
-        write(old)
-        return false
+        if (write(plan.values)) return ImportApplyResult.SUCCESS
+        val rollbackSucceeded = runCatching { write(old) }.getOrDefault(false)
+        return if (rollbackSucceeded) ImportApplyResult.FAILED_ROLLED_BACK else ImportApplyResult.FAILED_ROLLBACK
     }
 
     private fun recordsSheet(
@@ -473,6 +475,7 @@ internal object ExcelTransfer {
 
     private fun readZip(bytes: ByteArray): Map<String, ByteArray> {
         val result = linkedMapOf<String, ByteArray>()
+        val seenNames = mutableSetOf<String>()
         var total = 0
         var count = 0
         ZipInputStream(ByteArrayInputStream(bytes), Charsets.UTF_8).use { zip ->
@@ -482,6 +485,7 @@ internal object ExcelTransfer {
                 require(count <= MAX_ENTRIES) { "В архиве слишком много элементов" }
                 val name = entry.name.replace('\\', '/')
                 require(!name.startsWith("/") && !name.split('/').contains("..")) { "Недопустимый путь в архиве" }
+                require(seenNames.add(name)) { "В архиве повторяется элемент: $name" }
                 if (!entry.isDirectory) {
                     val output = ByteArrayOutputStream()
                     val buffer = ByteArray(8192)

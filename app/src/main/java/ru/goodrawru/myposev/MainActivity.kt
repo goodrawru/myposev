@@ -1530,12 +1530,16 @@ class MainActivity : Activity() {
                 .setMessage(plan.summary() + "\n\nИмпорт заменит рабочие списки данными из книги. Удалённые в Excel строки будут удалены и в приложении. Перед применением будет создана внутренняя точка отката. Продолжить?")
                 .setNegativeButton("Отмена", null)
                 .setPositiveButton("Применить изменения") { _, _ ->
-                    if (ExcelTransfer.applyImport(plan, prefs)) {
-                        scheduleDailyReminder()
-                        Toast.makeText(this, "Данные из Excel успешно загружены", Toast.LENGTH_LONG).show()
-                        showHome()
-                    } else {
-                        Toast.makeText(this, "Не удалось сохранить данные. Предыдущие данные восстановлены.", Toast.LENGTH_LONG).show()
+                    when (ExcelTransfer.applyImport(plan, prefs)) {
+                        ExcelTransfer.ImportApplyResult.SUCCESS -> {
+                            scheduleDailyReminder()
+                            Toast.makeText(this, "Данные из Excel успешно загружены", Toast.LENGTH_LONG).show()
+                            showHome()
+                        }
+                        ExcelTransfer.ImportApplyResult.FAILED_ROLLED_BACK ->
+                            Toast.makeText(this, "Не удалось сохранить данные Excel. Исходные данные восстановлены.", Toast.LENGTH_LONG).show()
+                        ExcelTransfer.ImportApplyResult.FAILED_ROLLBACK ->
+                            Toast.makeText(this, "Не удалось сохранить импорт и восстановить исходные данные. Проверьте содержимое приложения и создайте резервную копию.", Toast.LENGTH_LONG).show()
                     }
                 }
                 .show()
@@ -1933,6 +1937,7 @@ class MainActivity : Activity() {
                     var windDirection = ""
                     val weatherCounts = linkedMapOf<String, Int>()
                     val precipTypes = linkedSetOf<String>()
+                    var totalPrecipMm = 0.0
                     var parsedDate: Date? = null
 
                     for (item in items) {
@@ -1954,8 +1959,11 @@ class MainActivity : Activity() {
                         when (item.optString("prec_type", "none").lowercase(Locale.US)) {
                             "rain" -> precipTypes.add("дождь")
                             "snow" -> precipTypes.add("снег")
-                            "freezing rain" -> precipTypes.add("ледяной дождь")
+                            "frzr", "freezing rain" -> precipTypes.add("ледяной дождь")
+                            "icep", "ice pellets" -> precipTypes.add("ледяная крупа")
                         }
+                        val precipitation = item.optDouble("prec_amount", Double.NaN)
+                        if (precipitation.isFinite() && precipitation > 0.0) totalPrecipMm += precipitation
                     }
 
                     if (parsedDate == null || !minTemp.isFinite() || !maxTemp.isFinite()) continue
@@ -1967,7 +1975,11 @@ class MainActivity : Activity() {
                     val windText = if (maxWindCode > 0) {
                         "💨 ветер " + windDirectionRu(windDirection) + ", " + windSpeedRange(maxWindCode)
                     } else "💨 ветер: нет данных"
-                    val precipText = if (precipTypes.isEmpty()) "Осадки: не ожидаются" else "Осадки: " + precipTypes.joinToString(", ")
+                    val precipText = buildString {
+                        append(if (precipTypes.isEmpty()) "Осадки: не ожидаются" else "Осадки: " + precipTypes.joinToString(", "))
+                        if (totalPrecipMm > 0.0) append(" · всего около ")
+                            .append(String.format(Locale("ru"), "%.1f", totalPrecipMm)).append(" мм")
+                    }
                     result.add(label + "\n" + sevenTimerWeatherRu(mainWeather) + "\n" +
                         "🌡 " + minTemp.toInt() + "…"+ maxTemp.toInt() + " °C\n" +
                         windText + "\n" + precipText)
@@ -1997,6 +2009,9 @@ class MainActivity : Activity() {
                         val savedLon = prefs.getString("weather_summary_7timer_lon", null)?.toDoubleOrNull()
                         if (!savedForecast.isNullOrBlank() && savedLat == lat && savedLon == lon) {
                             content.addView(txt("Не удалось обновить прогноз. Показаны последние сохранённые данные.", 15f, true))
+                            val fetchedAt = prefs.getLong("weather_summary_7timer_fetched_at", 0L)
+                            val fetchedLabel = if (fetchedAt > 0L) SimpleDateFormat("dd.MM.yyyy HH:mm", Locale("ru")).format(Date(fetchedAt)) else "время получения неизвестно"
+                            content.addView(txt("Прогноз получен: $fetchedLabel", 13f))
                             savedForecast.split("\n\n").forEachIndexed { index, part ->
                                 card(if (index < 7) "Прогноз погоды" else "Предупреждение", part)
                             }
@@ -2703,6 +2718,42 @@ class MainActivity : Activity() {
 
         fun fill(filter:String) {
             results.removeAllViews()
+            val builtInMatches = builtInPlants.filter {
+                it.name.contains(filter, true) || tr(it.name).contains(filter, true) ||
+                    it.group.contains(filter, true) || tr(it.group).contains(filter, true)
+            }
+            if (builtInMatches.isNotEmpty()) {
+                results.addView(txt("Встроенный каталог",19f,true))
+                val builtInTiles = builtInMatches.map { plant ->
+                    val tile = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
+                        setPadding(dp(8), dp(10), dp(8), dp(8))
+                        background = roundedBackground(Color.WHITE, 14f, Color.rgb(220,230,216))
+                        elevation = dp(1).toFloat()
+                    }
+                    tile.addView(ImageView(this).apply {
+                        setCropIcon(this, cropIconKeyForName(plant.name))
+                        scaleType = ImageView.ScaleType.FIT_CENTER
+                        contentDescription = tr("Иконка культуры ") + plant.name
+                    }, LinearLayout.LayoutParams(dp(76), dp(76)).apply { bottomMargin = dp(4) })
+                    tile.addView(txt(tr(plant.name),15f,true).apply { gravity = Gravity.CENTER; maxLines = 2 })
+                    tile.addView(txt(tr(plant.group),12f).apply { gravity = Gravity.CENTER })
+                    tile.addView(Button(this).apply {
+                        text = tr("Подробнее"); textSize = 11f; isAllCaps = false
+                        setOnClickListener {
+                            val details = listOf(
+                                "Сроки посева" to plant.sowing, "Глубина" to plant.depth,
+                                "Всходы" to plant.sprouts, "Советы" to plant.advice
+                            ).joinToString("\n\n") { (label, value) -> tr("$label: $value") }
+                            android.app.AlertDialog.Builder(this@MainActivity)
+                                .setTitle(tr(plant.name)).setMessage(tr(plant.group) + "\n\n" + details)
+                                .setPositiveButton(tr("Закрыть"), null).show()
+                        }
+                    })
+                    tile
+                }
+                addTileRows(results, builtInTiles)
+            }
             val mine = userCrops()
             val matches = (0 until mine.length()).mapNotNull { mine.optJSONObject(it) }
                 .filter { it.optString("name").contains(filter,true) || tr(it.optString("name")).contains(filter,true) || it.optString("category").contains(filter,true) || tr(it.optString("category")).contains(filter,true) }
@@ -2750,7 +2801,7 @@ class MainActivity : Activity() {
                 addTileRows(results,userTiles)
             }
 
-            if (results.childCount == 0) results.addView(txt(if (filter.isBlank()) "Здесь будут отображаться ваши собственные культуры." else "Свои культуры не найдены. Введите название в форме посадки, чтобы выбрать встроенную культуру."))
+            if (results.childCount == 0) results.addView(txt(if (filter.isBlank()) "Каталог культур пока недоступен." else "Подходящие культуры не найдены."))
         }
         fill(query)
         search.addTextChangedListener(object:android.text.TextWatcher {
@@ -2925,19 +2976,6 @@ class MainActivity : Activity() {
         }
     }
     private fun scheduleDailyReminder() {
-        val alarm = getSystemService(ALARM_SERVICE) as AlarmManager
-        val intent = Intent(this, ReminderReceiver::class.java)
-        val pending = PendingIntent.getBroadcast(this, 91, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        if (!prefs.getBoolean("reminder_enabled", false)) {
-            alarm.cancel(pending)
-            return
-        }
-        val hour = prefs.getInt("reminder_hour", 9).coerceIn(0, 23)
-        val minute = prefs.getInt("reminder_minute", 0).coerceIn(0, 59)
-        val calendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-            if (before(Calendar.getInstance())) add(Calendar.DAY_OF_YEAR, 1)
-        }
-        alarm.setInexactRepeating(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, AlarmManager.INTERVAL_DAY, pending)
+        ReminderScheduler.schedule(this)
     }
 }
