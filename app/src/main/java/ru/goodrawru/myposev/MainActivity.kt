@@ -1724,8 +1724,11 @@ class MainActivity : Activity() {
                 }
                 saveGardenLocation(locationLabel, region, zone, lat, lon)
                 Toast.makeText(this, tr("Место сохранено: $locationLabel"), Toast.LENGTH_LONG).show()
-                // Refresh the visible home card immediately, but never pull the user away from another section.
-                if (currentScreenTitle == "Мой Посевной") showHome()
+                // Refresh whichever location screen is visible without navigating away.
+                when (currentScreenTitle) {
+                    "Мой Посевной" -> showHome()
+                    "Место и регион" -> showLocationSettings()
+                }
             }
         }.start()
     }
