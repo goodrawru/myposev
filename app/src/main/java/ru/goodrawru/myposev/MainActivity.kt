@@ -1806,11 +1806,11 @@ class MainActivity : Activity() {
                     }
                 }
                 saveGardenLocation(locationLabel, region, zone, lat, lon)
-                Toast.makeText(this, tr("Место сохранено: $locationLabel"), Toast.LENGTH_LONG).show()
-                // Refresh whichever location screen is visible without navigating away.
+                // Return to the home screen only when the user is still on the
+                // location settings screen. If they navigated elsewhere while
+                // geocoding was running, never interrupt their current screen.
                 when (currentScreenTitle) {
-                    "Мой Посевной" -> showHome()
-                    "Место и регион" -> showLocationSettings()
+                    "Мой Посевной", "Место и регион" -> showHome()
                 }
             }
         }.start()
