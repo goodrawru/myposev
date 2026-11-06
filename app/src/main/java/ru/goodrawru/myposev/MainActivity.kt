@@ -2976,19 +2976,6 @@ class MainActivity : Activity() {
         }
     }
     private fun scheduleDailyReminder() {
-        val alarm = getSystemService(ALARM_SERVICE) as AlarmManager
-        val intent = Intent(this, ReminderReceiver::class.java)
-        val pending = PendingIntent.getBroadcast(this, 91, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        if (!prefs.getBoolean("reminder_enabled", false)) {
-            alarm.cancel(pending)
-            return
-        }
-        val hour = prefs.getInt("reminder_hour", 9).coerceIn(0, 23)
-        val minute = prefs.getInt("reminder_minute", 0).coerceIn(0, 59)
-        val calendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-            if (before(Calendar.getInstance())) add(Calendar.DAY_OF_YEAR, 1)
-        }
-        alarm.setInexactRepeating(AlarmManager.RTC_WAKEUP, calendar.timeInMillis, AlarmManager.INTERVAL_DAY, pending)
+        ReminderScheduler.schedule(this)
     }
 }
