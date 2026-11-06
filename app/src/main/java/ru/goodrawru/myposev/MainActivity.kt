@@ -55,6 +55,8 @@ class MainActivity : Activity() {
     private var pendingBackupBytes: ByteArray? = null
     // Weather screen state; coordinates are null until a forecast location is selected.
     private var weatherForecastOpen = false
+    // Tracks the visible screen so asynchronous location results refresh only the home screen.
+    private var currentScreenTitle = ""
     private var gardenLocationRequestId = 0
     private var gardenLocationCancellation: CancellationSignal? = null
     private val locationHandler = Handler(Looper.getMainLooper())
@@ -152,6 +154,7 @@ class MainActivity : Activity() {
     }
 
     private fun baseLayout(title:String) {
+        currentScreenTitle = title
         val root = LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL
             background = getDrawable(R.drawable.bg_garden)
@@ -1721,7 +1724,8 @@ class MainActivity : Activity() {
                 }
                 saveGardenLocation(locationLabel, region, zone, lat, lon)
                 Toast.makeText(this, tr("Место сохранено: $locationLabel"), Toast.LENGTH_LONG).show()
-                // Do not navigate: the user may have moved to another section while GPS was resolving.
+                // Refresh the visible home card immediately, but never pull the user away from another section.
+                if (currentScreenTitle == "Мой Посевной") showHome()
             }
         }.start()
     }
