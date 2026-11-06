@@ -10,6 +10,7 @@ import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -49,7 +50,8 @@ internal object ExcelTransfer {
             listOf("Книга данных приложения «Мой Посевной»"),
             listOf("Как работать с файлом"),
             listOf("Редактируйте строки на листах «Посадки», «Урожай», «Задачи», «Мои культуры» и «Заметки»."),
-            listOf("Не удаляйте столбец ID и последний технический столбец: они нужны для сохранения связей и дополнительных полей."),
+            listOf("Не меняйте ID существующих записей и последний технический столбец: они нужны для сохранения связей и дополнительных полей."),
+            listOf("Для новой строки оставьте ID пустым — приложение автоматически создаст новый идентификатор при импорте."),
             listOf("Чтобы удалить запись из приложения, удалите её строку на соответствующем листе. Перед применением приложение покажет количество удалений."),
             listOf("Даты вводите в формате дд.мм.гггг или гггг-мм-дд. Не меняйте формат идентификаторов."),
             listOf("Лист «Каталог культур» справочный. Он содержит доступные в приложении культуры и значки; изменения этого листа не импортируются."),
@@ -319,8 +321,16 @@ internal object ExcelTransfer {
             fields.forEachIndexed { i, field ->
                 val value = values[i]
                 if (field in booleanFields) item.put(field, value.equals("Да", true) || value.equals("true", true) || value == "1")
-                else if (field == "id" || field == "created") {
+                else if (field == "id") {
                     if (value.isNotBlank()) item.put(field, value.toLongOrNull() ?: value)
+                    else if (item.optString("id").isBlank()) {
+                        val generated = if (sheetName == "Мои культуры") UUID.randomUUID().toString()
+                            else (System.currentTimeMillis() + rowIndex).toString()
+                        item.put("id", generated)
+                    }
+                } else if (field == "created") {
+                    if (value.isNotBlank()) item.put(field, value.toLongOrNull() ?: value)
+                    else if (!item.has("created")) item.put("created", System.currentTimeMillis())
                 } else item.put(field, value)
             }
             required.forEach { field ->
