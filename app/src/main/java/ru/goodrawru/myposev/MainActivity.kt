@@ -1437,6 +1437,7 @@ class MainActivity : Activity() {
         var draftCropIds = savedCropIds
         var hour = savedHour
         var minute = savedMinute
+        var hasUnsavedChanges = false
         lateinit var onChanged: () -> Unit
 
         val enabled = CheckBox(this).apply {
@@ -1513,6 +1514,7 @@ class MainActivity : Activity() {
             val isDirty = enabled.isChecked != savedEnabled || hour != savedHour ||
                 minute != savedMinute || chosenCategories != savedCategories ||
                 selectedLimit != savedLimit || draftCropIds != savedCropIds
+            hasUnsavedChanges = isDirty
             if (isDirty) {
                 saveButton.setTextColor(Color.WHITE)
                 saveButton.background = roundedBackground(Color.rgb(182, 38, 45), 14f)
@@ -1571,7 +1573,17 @@ class MainActivity : Activity() {
             sendBroadcast(Intent(this, ReminderReceiver::class.java).setAction(ReminderReceiver.ACTION_TEST))
             Toast.makeText(this, tr("Тестовое уведомление отправлено, если разрешения Android включены."), Toast.LENGTH_LONG).show()
         }
-        button("← Назад") { showHome() }
+        button("← Назад") {
+            if (!hasUnsavedChanges) showHome()
+            else android.app.AlertDialog.Builder(this)
+                .setTitle(if (isEnglish()) "Unsaved changes" else "Несохранённые изменения")
+                .setMessage(if (isEnglish())
+                    "Reminder settings have changed. Discard changes and go back?"
+                    else "Настройки напоминаний изменены. Выйти без сохранения?")
+                .setNegativeButton(tr("Отмена"), null)
+                .setPositiveButton(if (isEnglish()) "Discard" else "Не сохранять") { _, _ -> showHome() }
+                .show()
+        }
     }
 
     private fun reminderCropOptions(): List<Pair<String, String>> {
@@ -1638,8 +1650,8 @@ class MainActivity : Activity() {
             isFillViewport = false
             addView(entries)
         }
-        val availableHeight = (resources.displayMetrics.heightPixels * 0.48f).toInt()
-        container.addView(scroll, LinearLayout.LayoutParams(-1, minOf(dp(390), availableHeight)))
+        val availableHeight = (resources.displayMetrics.heightPixels * 0.42f).toInt()
+        container.addView(scroll, LinearLayout.LayoutParams(-1, minOf(dp(390), availableHeight).coerceAtLeast(dp(120))))
 
         fun render(filter: String) {
             entries.removeAllViews()
@@ -1666,12 +1678,21 @@ class MainActivity : Activity() {
             }
             updateSummary()
         }
+        // When a search is active, bulk actions must only affect the visible crops.
+        // Otherwise users can unintentionally select or clear all 130 cultures.
+        fun visibleCropIds(): Set<String> {
+            val query = search.text.toString().trim()
+            return sorted.filter { (_, name) ->
+                query.isBlank() || name.contains(query, ignoreCase = true) ||
+                    tr(name).contains(query, ignoreCase = true)
+            }.map { it.first }.toSet()
+        }
         chooseAll.setOnClickListener {
-            selected.addAll(validIds)
+            selected.addAll(visibleCropIds())
             render(search.text.toString())
         }
         clear.setOnClickListener {
-            selected.clear()
+            selected.removeAll(visibleCropIds())
             render(search.text.toString())
         }
         search.addTextChangedListener(object : TextWatcher {
@@ -2465,7 +2486,13 @@ class MainActivity : Activity() {
             grid.addView(cellView, lp)
         }
         content.addView(grid, LinearLayout.LayoutParams(-1, -2))
-        val legend = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(12), dp(8), dp(12), dp(8)); background = roundedBackground(Color.WHITE, 10f, Color.rgb(216,228,211)) }
+        val legend = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            background = roundedBackground(Color.WHITE, 10f, Color.rgb(216,228,211))
+            clipChildren = false
+            clipToPadding = false
+        }
         legend.addView(txt("Обозначения календаря", 17f, true))
         listOf(
             Triple(Color.rgb(46,139,87), "Зелёная точка", "Условно благоприятный ориентир"),
@@ -2480,9 +2507,11 @@ class MainActivity : Activity() {
                 gravity = Gravity.CENTER_VERTICAL
             }, LinearLayout.LayoutParams(dp(24), -2))
             row.addView(txt(tr(item.second) + " — " + tr(item.third), 13f).apply {
-                maxLines = 3
+                maxLines = Int.MAX_VALUE
+                ellipsize = null
                 setTextColor(Color.rgb(35, 48, 38))
                 breakStrategy = android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY
+                includeFontPadding = true
             }, LinearLayout.LayoutParams(0, -2, 1f))
             legend.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = dp(3)
