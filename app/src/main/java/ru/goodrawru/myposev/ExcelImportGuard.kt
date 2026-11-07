@@ -69,6 +69,18 @@ internal object ExcelImportGuard {
         }
     }
 
+    /** Text fields must retain the user's spaces and line breaks. */
+    fun recordCell(value: String, field: String): String =
+        if (field in setOf("notes", "advice", "title")) value else value.trim()
+
+    fun requireUniqueCell(column: Int, existing: MutableMap<Int, String>) {
+        require(column !in existing) { "Повторяется адрес ячейки Excel" }
+    }
+
+    fun requireRecordArray(value: String, key: String) {
+        require(value.trim().startsWith("[")) { "Повреждён список записей: $key" }
+    }
+
     fun parseBoolean(value: String, allowBlank: Boolean = false): Boolean = when (value.trim().lowercase()) {
         "true", "да", "1" -> true
         "false", "нет", "0" -> false
