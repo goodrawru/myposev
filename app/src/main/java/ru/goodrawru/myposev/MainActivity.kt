@@ -1375,7 +1375,7 @@ class MainActivity : Activity() {
         card("📅 Выбрать дату","Откройте календарь, чтобы посмотреть сезонные подсказки и заметки.",{showCalendar()})
         card("🌱 Каталог культур","Овощи, зелень, ягоды и цветы — сроки, глубина посева и советы.",{showPlants("")})
         card("🔔 Напоминания",reminderSettingsSummary(),{showReminderSettings()})
-        card("ℹ️ Важно","Это стартовая база. Универсальных дат посева для всей России не существует.")
+        card("ℹ️ Важно", if (isEnglish()) "Information is advisory. There are no universal sowing dates." else "Информация носит рекомендательный характер. Универсальных дат посева не существует.")
     }
 
 
@@ -1400,79 +1400,146 @@ class MainActivity : Activity() {
     private fun showReminderSettings() {
         baseLayout("Ежедневные напоминания")
         content.addView(txt("Приложение будет готовить локальный план на текущий день. Интернет для календарных рекомендаций не нужен; точное время доставки зависит от ограничений Android.", 14f))
+
+        val savedEnabled = prefs.getBoolean("reminder_enabled", false)
+        val savedHour = prefs.getInt("reminder_hour", 9).coerceIn(0, 23)
+        val savedMinute = prefs.getInt("reminder_minute", 0).coerceIn(0, 59)
+        val savedCategories = prefs.getStringSet("reminder_categories", null)?.toSet() ?: defaultReminderCategories()
+        val savedLimit = prefs.getInt("reminder_limit", 4)
+        val savedCropIds = prefs.getStringSet("reminder_crop_ids", null)?.toSet()
+        var draftCropIds = savedCropIds
+        var hour = savedHour
+        var minute = savedMinute
+        lateinit var onChanged: () -> Unit
+
         val enabled = CheckBox(this).apply {
             text = tr("Включить ежедневные уведомления")
-            isChecked = prefs.getBoolean("reminder_enabled", false)
+            isChecked = savedEnabled
             textSize = 16f
         }
         content.addView(enabled)
-        var hour = prefs.getInt("reminder_hour", 9).coerceIn(0, 23)
-        var minute = prefs.getInt("reminder_minute", 0).coerceIn(0, 59)
+
         val timeButton = Button(this).apply {
             text = tr("Время: %02d:%02d").format(Locale.US, hour, minute)
             isAllCaps = false
             setOnClickListener {
                 android.app.TimePickerDialog(this@MainActivity, { _, h, m ->
-                    hour = h; minute = m
+                    hour = h
+                    minute = m
                     text = tr("Время: %02d:%02d").format(Locale.US, hour, minute)
+                    onChanged()
                 }, hour, minute, true).show()
             }
         }
         content.addView(timeButton, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
 
         content.addView(txt("Категории рекомендаций", 17f, true))
-        val savedCategories = prefs.getStringSet("reminder_categories", null) ?: defaultReminderCategories()
         val categoryChecks = linkedMapOf<String, CheckBox>()
         reminderCategoryOptions.forEach { category ->
             val check = CheckBox(this).apply {
-                text = category
+                text = tr(category)
                 isChecked = category in savedCategories
             }
             categoryChecks[category] = check
             content.addView(check)
         }
 
-        val cropCount = prefs.getStringSet("reminder_crop_ids", null)?.size ?: cropIconCatalog.length()
-        val cropSummary = txt("Выбрано культур: $cropCount из ${cropIconCatalog.length()}", 14f)
+        fun selectedCropCount(): Int =
+            draftCropIds?.size ?: (cropIconCatalog.length() + userCrops().length())
+        val cropSummary = txt("", 14f)
+        fun updateCropSummary() {
+            val count = selectedCropCount()
+            val total = cropIconCatalog.length() + userCrops().length()
+            cropSummary.text = if (isEnglish()) "Selected crops: $count of $total"
+                else "Выбрано культур: $count из $total"
+        }
+        updateCropSummary()
         content.addView(cropSummary)
         button("Выбрать культуры") {
-            showReminderCropPicker {
-                cropSummary.text = if (isEnglish()) "Selected crops: ${prefs.getStringSet("reminder_crop_ids", emptySet())?.size ?: cropIconCatalog.length()} of ${cropIconCatalog.length()}" else "Выбрано культур: ${prefs.getStringSet("reminder_crop_ids", emptySet())?.size ?: cropIconCatalog.length()} из ${cropIconCatalog.length()}"
+            showReminderCropPicker(draftCropIds) { newSelection ->
+                draftCropIds = newSelection
+                updateCropSummary()
+                onChanged()
             }
         }
 
         content.addView(txt("Сколько рекомендаций показывать", 17f, true))
-        val limitSpinner = Spinner(this)
         val limits = listOf(2, 3, 4, 5, 6)
-        limitSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, limits.map { "$it пункта" })
-        limitSpinner.setSelection((limits.indexOf(prefs.getInt("reminder_limit", 4))).coerceAtLeast(0))
+        val limitSpinner = Spinner(this)
+        limitSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
+            limits.map { ReminderUiRules.recommendationLimit(it, isEnglish()) })
+        limitSpinner.setSelection(limits.indexOf(savedLimit).coerceAtLeast(0))
         content.addView(limitSpinner)
 
-        button("Сохранить настройки") {
+        val saveButton = Button(this).apply {
+            text = tr("Сохранить настройки")
+            isAllCaps = false
+            textSize = 14f
+            minHeight = dp(48)
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+            setTextColor(Color.rgb(34, 76, 45))
+            background = roundedBackground(Color.WHITE, 14f, Color.rgb(207, 222, 202))
+        }
+        fun updateDirtyState() {
+            val chosenCategories = categoryChecks.filterValues { it.isChecked }.keys.toSet()
+            val selectedLimit = limits[limitSpinner.selectedItemPosition.coerceIn(0, limits.lastIndex)]
+            val isDirty = enabled.isChecked != savedEnabled || hour != savedHour ||
+                minute != savedMinute || chosenCategories != savedCategories ||
+                selectedLimit != savedLimit || draftCropIds != savedCropIds
+            if (isDirty) {
+                saveButton.setTextColor(Color.WHITE)
+                saveButton.background = roundedBackground(Color.rgb(182, 38, 45), 14f)
+                saveButton.text = if (isEnglish()) "Save changes •" else "Сохранить настройки •"
+            } else {
+                saveButton.setTextColor(Color.rgb(34, 76, 45))
+                saveButton.background = roundedBackground(Color.WHITE, 14f, Color.rgb(207, 222, 202))
+                saveButton.text = tr("Сохранить настройки")
+            }
+        }
+        onChanged = { updateDirtyState() }
+        enabled.setOnCheckedChangeListener { _, _ -> onChanged() }
+        categoryChecks.values.forEach { it.setOnCheckedChangeListener { _, _ -> onChanged() } }
+        limitSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                onChanged()
+            }
+        }
+        saveButton.setOnClickListener {
             val categories = categoryChecks.filterValues { it.isChecked }.keys.toSet()
             val wantsEnabled = enabled.isChecked
             if (wantsEnabled && categories.isEmpty()) {
                 Toast.makeText(this, tr("Выберите хотя бы одну категорию рекомендаций."), Toast.LENGTH_LONG).show()
-                return@button
+                return@setOnClickListener
             }
             val needsPermission = wantsEnabled && Build.VERSION.SDK_INT >= 33 &&
                 checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-            prefs.edit()
+            val editor = prefs.edit()
                 .putBoolean("reminder_enabled", wantsEnabled && !needsPermission)
                 .putBoolean("reminder_pending_enable", needsPermission)
                 .putInt("reminder_hour", hour)
                 .putInt("reminder_minute", minute)
                 .putStringSet("reminder_categories", categories)
                 .putInt("reminder_limit", limits[limitSpinner.selectedItemPosition])
-                .apply()
+            if (draftCropIds == null) editor.remove("reminder_crop_ids")
+            else editor.putStringSet("reminder_crop_ids", draftCropIds!!.toSet())
+            if (!editor.commit()) {
+                Toast.makeText(this, if (isEnglish()) "Could not save reminder settings" else "Не удалось сохранить настройки напоминаний", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
             scheduleDailyReminder()
             if (needsPermission) {
                 requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
-                return@button
+                return@setOnClickListener
             }
-            Toast.makeText(this, if (wantsEnabled) "Настройки напоминаний сохранены" else "Напоминания выключены", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, if (isEnglish()) "Reminder settings saved" else "Настройки напоминаний сохранены", Toast.LENGTH_SHORT).show()
             showHome()
         }
+        content.addView(saveButton, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(4); bottomMargin = dp(5)
+        })
+        updateDirtyState()
+
         button("Отправить тестовое уведомление") {
             sendBroadcast(Intent(this, ReminderReceiver::class.java).setAction(ReminderReceiver.ACTION_TEST))
             Toast.makeText(this, tr("Тестовое уведомление отправлено, если разрешения Android включены."), Toast.LENGTH_LONG).show()
@@ -1480,7 +1547,7 @@ class MainActivity : Activity() {
         button("← Назад") { showHome() }
     }
 
-    private fun showReminderCropPicker(onSaved: () -> Unit) {
+    private fun showReminderCropPicker(initial: Set<String>?, onSaved: (Set<String>) -> Unit) {
         val options = mutableListOf<Pair<String, String>>()
         for (i in 0 until cropIconCatalog.length()) {
             val crop = cropIconCatalog.optJSONObject(i) ?: continue
@@ -1500,22 +1567,20 @@ class MainActivity : Activity() {
             Toast.makeText(this, tr("Каталог культур недоступен."), Toast.LENGTH_SHORT).show()
             return
         }
-        val stored = prefs.getStringSet("reminder_crop_ids", null)
-        val selected = (stored ?: options.map { it.first }.toSet()).toMutableSet()
-        val checked = BooleanArray(options.size) { options[it].first in selected }
+        val favorites = prefs.getStringSet("favorite_crop_ids", emptySet())?.toSet().orEmpty()
+        val sorted = ReminderUiRules.orderedCrops(options, favorites)
+        val selected = (initial ?: sorted.map { it.first }.toSet()).toMutableSet()
+        val checked = BooleanArray(sorted.size) { sorted[it].first in selected }
+        val names = sorted.map { (id, name) ->
+            (if (id in favorites) "★ " else "") + tr(name)
+        }.toTypedArray()
         android.app.AlertDialog.Builder(this)
             .setTitle(tr("Культуры для напоминаний"))
-            .setMultiChoiceItems(options.map { it.second }.toTypedArray(), checked) { _, which, isChecked ->
-                if (isChecked) selected.add(options[which].first) else selected.remove(options[which].first)
+            .setMultiChoiceItems(names, checked) { _, which, isChecked ->
+                if (isChecked) selected.add(sorted[which].first) else selected.remove(sorted[which].first)
             }
-            .setPositiveButton(tr("Сохранить")) { _, _ ->
-                prefs.edit().putStringSet("reminder_crop_ids", selected.toSet()).apply()
-                onSaved()
-            }
-            .setNeutralButton(tr("Выбрать все")) { _, _ ->
-                prefs.edit().putStringSet("reminder_crop_ids", options.map { it.first }.toSet()).apply()
-                onSaved()
-            }
+            .setPositiveButton(tr("Сохранить")) { _, _ -> onSaved(selected.toSet()) }
+            .setNeutralButton(tr("Выбрать все")) { _, _ -> onSaved(sorted.map { it.first }.toSet()) }
             .setNegativeButton(tr("Отмена"), null)
             .show()
     }
