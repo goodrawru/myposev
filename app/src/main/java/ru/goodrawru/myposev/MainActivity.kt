@@ -1185,7 +1185,7 @@ class MainActivity : Activity() {
 
     private fun showUpdateNotes(manual: Boolean) {
         android.app.AlertDialog.Builder(this).setTitle(tr("Что нового · версия ") + BuildConfig.VERSION_NAME)
-            .setMessage(tr("• Каталог расширен до всех встроенных культур с доступными значками.\n• Исправлены напоминания по личным заметкам и восстановлению резервной копии.\n• Удалён неиспользуемый аудиоплеер и его зависимости.\n• Обновлён источник прогноза погоды: 7Timer!."))
+            .setMessage(if (isEnglish()) "• Built-in crop cards are visible again, with Russian and English search.\n• The printable planner now filters tasks and notes correctly across winter.\n• English labels and PDF export have been improved.\n• Release APK signing checks and PDF regression tests have been added." else "• Восстановлены карточки встроенных культур, добавлен поиск на русском и английском.\n• Исправлен зимний PDF: задачи и заметки теперь соответствуют выбранному периоду.\n• Улучшены английские подписи и оформление PDF.\n• Добавлены проверки подписи APK и тесты PDF.")
             .setPositiveButton(tr("Понятно"), null).show()
     }
 
