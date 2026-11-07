@@ -80,6 +80,32 @@ internal object ExcelImportGuard {
         return column
     }
 
+    /** Keep physical XLSX row references ordered; sparse worksheets are allowed. */
+    fun parseRowReference(value: String?, previous: Int): Int {
+        val row = if (value.isNullOrBlank()) previous + 1
+            else value.toIntOrNull() ?: throw IllegalArgumentException("Неверный номер строки Excel")
+        require(row > previous && row in 1..1_048_576) {
+            "Строки Excel должны иметь правильные возрастающие номера"
+        }
+        return row
+    }
+
+    /** A cell must belong to its enclosing <row>, not a different worksheet row. */
+    fun requireCellRow(reference: String, expectedRow: Int) {
+        val suffix = Regex("^[A-Za-z]{1,3}([1-9][0-9]*)$").matchEntire(reference)
+            ?.groupValues?.get(1) ?: throw IllegalArgumentException("Неверный адрес ячейки Excel")
+        require(suffix.toIntOrNull() == expectedRow) {
+            "Адрес ячейки Excel не совпадает с номером строки"
+        }
+    }
+
+    /** Reject Excel error cells; their error codes must not replace notes or dates. */
+    fun requireSupportedCellType(type: String) {
+        require(type in setOf("", "inlineStr", "s", "n", "b", "str", "d")) {
+            "Неподдерживаемый или ошибочный тип ячейки Excel"
+        }
+    }
+
     fun requireRowCount(count: Int) {
         require(count in 0..MAX_ROWS_PER_SHEET) { "Слишком много строк в книге Excel" }
     }
