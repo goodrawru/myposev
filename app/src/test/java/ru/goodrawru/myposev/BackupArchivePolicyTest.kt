@@ -66,7 +66,7 @@ class BackupArchivePolicyTest {
     }
 
     @Test fun malformedUtf8IsRejectedInsteadOfCorruptingNotes() {
-        val notes = "{\\"note\\":\\"Морковь 🥕\\"}"
+        val notes = "{\"note\":\"Морковь 🥕\"}"
         assertEquals(notes, BackupArchivePolicy.decodeJson(notes.toByteArray(Charsets.UTF_8)))
         assertThrows(CharacterCodingException::class.java) {
             BackupArchivePolicy.decodeJson(byteArrayOf(0xC3.toByte(), 0x28))
