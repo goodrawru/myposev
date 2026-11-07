@@ -174,4 +174,41 @@ class ExcelImportGuardTest {
             ExcelImportGuard.requireCompatibleTypes(before, before + ("last_update" to 10))
         }
     }
+
+    @Test fun rejectsSpuriousFormulaCells() {
+        assertThrows(IllegalArgumentException::class.java) {
+            ExcelImportGuard.rejectFormulaCell()
+        }
+    }
+
+    @Test fun spreadsheetRowsMustBeOrderedAndCellReferencesMustMatch() {
+        assertEquals(1, ExcelImportGuard.parseRowReference("1", 0))
+        assertEquals(8, ExcelImportGuard.parseRowReference("8", 1))
+        assertEquals(9, ExcelImportGuard.parseRowReference(null, 8))
+        ExcelImportGuard.requireCellRow("A8", 8)
+        ExcelImportGuard.requireCellRow("AB120", 120)
+
+        for (value in listOf("0", "-1", "abc", "1", "1048577", "9999999999999")) {
+            assertThrows(IllegalArgumentException::class.java) {
+                ExcelImportGuard.parseRowReference(value, 8)
+            }
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ExcelImportGuard.requireCellRow("C9", 8)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ExcelImportGuard.requireCellRow("A999999999999", 1)
+        }
+    }
+
+    @Test fun rejectExcelErrorOrUnsupportedCellTypes() {
+        for (type in listOf("", "inlineStr", "s", "n", "str", "b", "d")) {
+            ExcelImportGuard.requireSupportedCellType(type)
+        }
+        for (type in listOf("e", "error", "formula", "unknown")) {
+            assertThrows(IllegalArgumentException::class.java) {
+                ExcelImportGuard.requireSupportedCellType(type)
+            }
+        }
+    }
 }
