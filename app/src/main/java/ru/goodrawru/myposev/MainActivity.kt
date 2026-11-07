@@ -349,7 +349,11 @@ class MainActivity : Activity() {
         if (requestCode == 2401) {
             val bytes = pendingBackupBytes; pendingBackupBytes = null
             if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) return
-            try { contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }; Toast.makeText(this, tr("Резервная копия сохранена"), Toast.LENGTH_LONG).show() }
+            try {
+                contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }
+                    ?: throw java.io.IOException("Не удалось открыть файл для записи")
+                Toast.makeText(this, tr("Резервная копия сохранена"), Toast.LENGTH_LONG).show()
+            }
             catch (e: Exception) { Toast.makeText(this, tr("Ошибка сохранения копии"), Toast.LENGTH_LONG).show() }
             return
         }
@@ -1195,8 +1199,15 @@ class MainActivity : Activity() {
             val values = JSONObject()
             prefs.all.forEach { (k,v) -> values.put(k, JSONObject().put("type", when(v) { is String -> "s"; is Boolean -> "b"; is Int -> "i"; is Long -> "l"; is Float -> "f"; is Set<*> -> "ss"; else -> "x" }).put("value", v)) }
             json.put("preferences", values)
+            val payload = json.toString(2).toByteArray(Charsets.UTF_8)
+            // Export only archives that this version is able to restore.
+            BackupArchivePolicy.requireSupportedSize(payload.size)
             val bytes = java.io.ByteArrayOutputStream()
-            java.util.zip.ZipOutputStream(bytes).use { z -> z.putNextEntry(java.util.zip.ZipEntry("backup.json")); z.write(json.toString(2).toByteArray(Charsets.UTF_8)); z.closeEntry() }
+            java.util.zip.ZipOutputStream(bytes).use { z ->
+                z.putNextEntry(java.util.zip.ZipEntry("backup.json"))
+                z.write(payload)
+                z.closeEntry()
+            }
             pendingBackupBytes = bytes.toByteArray()
             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "application/zip"; putExtra(Intent.EXTRA_TITLE, "Moi_Posevnoy_backup.zip") }
             startActivityForResult(intent, 2401)
@@ -1230,7 +1241,7 @@ class MainActivity : Activity() {
                         val count = zip.read(buffer)
                         if (count < 0) break
                         total += count
-                        if (total > 5 * 1024 * 1024) throw IllegalArgumentException("Файл резервной копии слишком большой")
+                        BackupArchivePolicy.requireSupportedSize(total)
                         output.write(buffer, 0, count)
                     }
                     if (zip.nextEntry != null) {
