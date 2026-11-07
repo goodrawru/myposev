@@ -296,6 +296,14 @@ class MainActivity : Activity() {
         }
         fun section(value: String) { ensure(25f); y += 5f; line(value, headPaint); y += 3f }
         val months = when (periodIndex) { 1 -> listOf(2,3,4); 2 -> listOf(5,6,7); 3 -> listOf(8,9,10); 4 -> listOf(11,0,1); else -> (0..11).toList() }
+        // A winter season spans two calendar years: December of year - 1, then January/February of year.
+        val periodYearMonths = months.map { month -> (if (periodIndex == 4 && month == 11) year - 1 else year) to month }.toSet()
+        fun inSelectedPeriod(date: String): Boolean {
+            if (!Regex("\\d{4}-\\d{2}-\\d{2}").matches(date)) return false
+            val dateYear = date.substring(0, 4).toIntOrNull() ?: return false
+            val dateMonth = date.substring(5, 7).toIntOrNull() ?: return false
+            return (dateYear to (dateMonth - 1)) in periodYearMonths
+        }
         newPage("Мой Посевной — бумажный вариант"); line("План огородника на " + year, headPaint); line("Сформировано: " + SimpleDateFormat("dd.MM.yyyy", pdfLocale).format(Date())); line("Период: " + listOf("весь год","весна","лето","осень","зима")[periodIndex]); line("Лунные обозначения — справочная подсказка. Учитывайте регион, погоду и температуру почвы."); y += 12f
         section("Содержание"); if ("calendar" in selected) line("Посевной календарь"); if ("work" in selected) line("Сезонные рекомендации"); if ("tasks" in selected) line("Мои задачи"); if ("plants" in selected) line("Каталог культур"); if ("notes" in selected) line("Мои заметки"); if ("blank" in selected) line("Страницы для записей")
         if ("calendar" in selected) months.forEach { month ->
@@ -329,11 +337,11 @@ class MainActivity : Activity() {
         if ("work" in selected) { newPage("Сезонные рекомендации"); months.forEach { month -> val actualYear = if (periodIndex == 4 && month == 11) year - 1 else year; val c = Calendar.getInstance().apply { set(actualYear, month, 15, 12, 0, 0) }; section(SimpleDateFormat("LLLL", pdfLocale).format(c.time)); line(seasonalAdvice(c)) } }
         if ("tasks" in selected) {
             newPage("Мои задачи"); val tasks = tasksArray(); var count = 0
-            for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; val date = item.optString("date", ""); if (date.length < 7 || date.substring(0,4).toIntOrNull() != year || (date.substring(5,7).toIntOrNull()?.minus(1) !in months)) continue; count++; section(date + " • " + item.optString("title", "Задача")); line("Тип работы: " + item.optString("type", "Уход")); val crop = item.optString("crop", "").trim(); if (crop.isNotEmpty()) line("Культура/грядка: " + crop); line("Статус: " + if (item.optBoolean("done", false)) "Выполнено" else "Запланировано") }
+            for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; val date = item.optString("date", ""); if (!inSelectedPeriod(date)) continue; count++; section(date + " • " + item.optString("title", "Задача")); line("Тип работы: " + item.optString("type", "Уход")); val crop = item.optString("crop", "").trim(); if (crop.isNotEmpty()) line("Культура/грядка: " + crop); line("Статус: " + if (item.optBoolean("done", false)) "Выполнено" else "Запланировано") }
             if (count == 0) line("На выбранный период задач нет.")
         }
         if ("plants" in selected) { newPage("Каталог культур"); builtInPlants.forEach { p -> section(p.name); line("Группа: " + p.group); line("Срок посева: " + p.sowing); line("Глубина: " + p.depth); line("Всходы: " + p.sprouts); line(p.advice) } }
-        if ("notes" in selected) { newPage("Мои заметки"); val notes = prefs.all.filter { it.key.startsWith("note_") && it.value is String && (it.value as String).isNotBlank() }.toSortedMap(); if (notes.isEmpty()) line("Сохранённых заметок нет."); notes.forEach { entry -> section(entry.key.removePrefix("note_")); line(entry.value.toString()) } }
+        if ("notes" in selected) { newPage("Мои заметки"); val notes = prefs.all.filter { it.key.startsWith("note_") && inSelectedPeriod(it.key.removePrefix("note_")) && it.value is String && (it.value as String).isNotBlank() }.toSortedMap(); if (notes.isEmpty()) line("Сохранённых заметок нет."); notes.forEach { entry -> section(entry.key.removePrefix("note_")); line(entry.value.toString()) } }
         if ("blank" in selected) repeat(3) { index -> newPage("Свободные записи " + (index + 1)); repeat(22) { canvas!!.drawLine(left, y, right, y, footerPaint); y += 30f } }
         if (page != null) { canvas!!.drawText(if (isEnglish()) "My Sowing Calendar • $year • page $pageNo" else "Мой Посевной • $year • стр. $pageNo", left, 822f, footerPaint); doc.finishPage(page!!) }
         val out = java.io.ByteArrayOutputStream(); doc.writeTo(out); doc.close(); return out.toByteArray()
