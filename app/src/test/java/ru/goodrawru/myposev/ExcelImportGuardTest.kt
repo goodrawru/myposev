@@ -127,4 +127,28 @@ class ExcelImportGuardTest {
         assertThrows(IllegalArgumentException::class.java) { ExcelImportGuard.parseFloat("NaN") }
         assertThrows(IllegalArgumentException::class.java) { ExcelImportGuard.parseFloat("Infinity") }
     }
+    @Test fun preservesNoteFormattingButTrimsIdentifiers() {
+        val note = "  Мои заметки\\n  вторая строка  "
+        assertEquals(note, ExcelImportGuard.recordCell(note, "notes"))
+        assertEquals(note, ExcelImportGuard.recordCell(note, "advice"))
+        assertEquals("Мои заметки\\n  вторая строка", ExcelImportGuard.recordCell(note, "crop"))
+    }
+
+    @Test fun rejectsDuplicateCellAddresses() {
+        val cells = mutableMapOf(0 to "Томат")
+        assertThrows(IllegalArgumentException::class.java) {
+            ExcelImportGuard.requireUniqueCell(0, cells)
+        }
+        ExcelImportGuard.requireUniqueCell(1, cells)
+    }
+
+    @Test fun requiresRecordArraysNotObjectsOrBlankValues() {
+        ExcelImportGuard.requireRecordArray("[]", "planting_records")
+        for (raw in listOf("", "{}", "null", "not json")) {
+            assertThrows(IllegalArgumentException::class.java) {
+                ExcelImportGuard.requireRecordArray(raw, "planting_records")
+            }
+        }
+    }
+
 }
