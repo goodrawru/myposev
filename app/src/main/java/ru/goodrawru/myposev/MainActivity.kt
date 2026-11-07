@@ -1198,8 +1198,8 @@ class MainActivity : Activity() {
     private fun showUpdateNotes(manual: Boolean) {
         android.app.AlertDialog.Builder(this).setTitle(tr("Что нового · версия ") + BuildConfig.VERSION_NAME)
             .setMessage(if (isEnglish())
-                "• Calendar legend and screen headings fit smaller displays.\n• Crop favorites and editable crop copies are available.\n• Reminder settings highlight unsaved changes; crop selection is searchable.\n• Safer ZIP backups and Excel import with extra data-integrity checks."
-                else "• Исправлены обозначения календаря и заголовки экранов.\n• Добавлены избранные культуры и редактируемые копии встроенных культур.\n• Несохранённые настройки напоминаний подсвечиваются; появился поиск культур.\n• Повышена надёжность резервных копий ZIP и импорта Excel.")
+                "• Favorites now use a star in the upper-right corner of crop cards.\n• An outlined star means not favorite; a filled yellow star means favorite.\n• Saved favorites and other user data are preserved."
+                else "• Вместо кнопки «В избранное» на карточках культур появилась звёздочка в правом верхнем углу.\n• Контурная звезда — обычная культура, жёлтая — избранная.\n• Сохранённое избранное и остальные данные пользователя сохраняются.")
             .setPositiveButton(tr("Понятно"), null).show()
     }
 
