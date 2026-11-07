@@ -1536,7 +1536,15 @@ class MainActivity : Activity() {
                 .setMessage(plan.summary() + "\n\nИмпорт заменит рабочие списки данными из книги. Удалённые в Excel строки будут удалены и в приложении. Перед применением будет создана внутренняя точка отката. Продолжить?")
                 .setNegativeButton("Отмена", null)
                 .setPositiveButton("Применить изменения") { _, _ ->
-                    if (ExcelTransfer.applyImport(plan, prefs)) {
+                    val applied = try {
+                        ExcelTransfer.applyImport(plan, prefs)
+                    } catch (error: Exception) {
+                        Toast.makeText(this,
+                            "Ошибка импорта Excel: ${error.message ?: "неизвестная ошибка"}. Проверьте данные и резервную копию.",
+                            Toast.LENGTH_LONG).show()
+                        return@setPositiveButton
+                    }
+                    if (applied) {
                         scheduleDailyReminder()
                         Toast.makeText(this, "Данные из Excel успешно загружены", Toast.LENGTH_LONG).show()
                         showHome()
