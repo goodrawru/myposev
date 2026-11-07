@@ -81,4 +81,26 @@ class BackupArchivePolicyTest {
             BackupArchivePolicy.encodeValue(setOf("OK", 42))
         }
     }
+    @Test fun restoringBackupRejectsChangedTypesBeforeWriting() {
+        val existing: Map<String, Any?> = mapOf(
+            "garden_city" to "Москва",
+            "reminder_hour" to 8,
+            "reminder_enabled" to true,
+            "favorite_crops" to setOf("Томат"),
+            "last_opened" to 5000000000L
+        )
+        BackupArchivePolicy.requireCompatibleTypes(existing, existing.toMap())
+        BackupArchivePolicy.requireCompatibleTypes(existing,
+            existing + ("garden_city" to "Ялта") + ("new_preference" to "welcome"))
+        assertThrows(IllegalArgumentException::class.java) {
+            BackupArchivePolicy.requireCompatibleTypes(existing, existing + ("reminder_hour" to "8"))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            BackupArchivePolicy.requireCompatibleTypes(existing, existing + ("favorite_crops" to "Томат"))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            BackupArchivePolicy.requireCompatibleTypes(existing, existing + ("last_opened" to 42))
+        }
+    }
+
 }
