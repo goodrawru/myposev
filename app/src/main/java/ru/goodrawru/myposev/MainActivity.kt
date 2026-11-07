@@ -296,13 +296,21 @@ class MainActivity : Activity() {
         }
         fun section(value: String) { ensure(25f); y += 5f; line(value, headPaint); y += 3f }
         val months = when (periodIndex) { 1 -> listOf(2,3,4); 2 -> listOf(5,6,7); 3 -> listOf(8,9,10); 4 -> listOf(11,0,1); else -> (0..11).toList() }
-        newPage("Мой Посевной — бумажный вариант"); line("План огородника на " + year, headPaint); line("Сформировано: " + SimpleDateFormat("dd.MM.yyyy", pdfLocale).format(Date())); line("Период: " + listOf("весь год","весна","лето","осень","зима")[periodIndex]); line("Лунные обозначения — справочная подсказка. Учитывайте регион, погоду и температуру почвы."); y += 12f
+        // A winter season spans two calendar years: December of year - 1, then January/February of year.
+        val periodYearMonths = months.map { month -> (if (periodIndex == 4 && month == 11) year - 1 else year) to month }.toSet()
+        fun inSelectedPeriod(date: String): Boolean {
+            if (!Regex("\\d{4}-\\d{2}-\\d{2}").matches(date)) return false
+            val dateYear = date.substring(0, 4).toIntOrNull() ?: return false
+            val dateMonth = date.substring(5, 7).toIntOrNull() ?: return false
+            return (dateYear to (dateMonth - 1)) in periodYearMonths
+        }
+        newPage("Мой Посевной — бумажный вариант"); line("План огородника на " + year, headPaint); line((if (isEnglish()) "Generated: " else "Сформировано: ") + SimpleDateFormat("dd.MM.yyyy", pdfLocale).format(Date())); line((if (isEnglish()) "Period: " else "Период: ") + (if (isEnglish()) listOf("full year","spring","summer","autumn","winter") else listOf("весь год","весна","лето","осень","зима"))[periodIndex]); line("Лунные обозначения — справочная подсказка. Учитывайте регион, погоду и температуру почвы."); y += 12f
         section("Содержание"); if ("calendar" in selected) line("Посевной календарь"); if ("work" in selected) line("Сезонные рекомендации"); if ("tasks" in selected) line("Мои задачи"); if ("plants" in selected) line("Каталог культур"); if ("notes" in selected) line("Мои заметки"); if ("blank" in selected) line("Страницы для записей")
         if ("calendar" in selected) months.forEach { month ->
             val actualYear = if (periodIndex == 4 && month == 11) year - 1 else year
             val c = Calendar.getInstance().apply { set(actualYear, month, 1, 12, 0, 0) }
             newPage("Календарь — " + SimpleDateFormat("LLLL yyyy", pdfLocale).format(c.time))
-            line("Пн       Вт       Ср       Чт       Пт       Сб       Вс", headPaint)
+            line(if (isEnglish()) "Mon      Tue      Wed      Thu      Fri      Sat      Sun" else "Пн       Вт       Ср       Чт       Пт       Сб       Вс", headPaint)
             val offset = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7; val days = c.getActualMaximum(Calendar.DAY_OF_MONTH); val cells = MutableList(offset) { 0 } + (1..days).toList()
             cells.chunked(7).forEach { row -> val labels = (row + List(7-row.size) { 0 }).map { day -> if (day == 0) "       " else day.toString().padStart(2) + " " + lunarGlyph(Calendar.getInstance().apply { set(actualYear, month, day, 12, 0, 0) }) }; line(labels.joinToString("   ")) }
             y += 5f; line("Фазы Луны даны как ориентир; сроки работ корректируйте по местным условиям.")
@@ -329,11 +337,11 @@ class MainActivity : Activity() {
         if ("work" in selected) { newPage("Сезонные рекомендации"); months.forEach { month -> val actualYear = if (periodIndex == 4 && month == 11) year - 1 else year; val c = Calendar.getInstance().apply { set(actualYear, month, 15, 12, 0, 0) }; section(SimpleDateFormat("LLLL", pdfLocale).format(c.time)); line(seasonalAdvice(c)) } }
         if ("tasks" in selected) {
             newPage("Мои задачи"); val tasks = tasksArray(); var count = 0
-            for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; val date = item.optString("date", ""); if (date.length < 7 || date.substring(0,4).toIntOrNull() != year || (date.substring(5,7).toIntOrNull()?.minus(1) !in months)) continue; count++; section(date + " • " + item.optString("title", "Задача")); line("Тип работы: " + item.optString("type", "Уход")); val crop = item.optString("crop", "").trim(); if (crop.isNotEmpty()) line("Культура/грядка: " + crop); line("Статус: " + if (item.optBoolean("done", false)) "Выполнено" else "Запланировано") }
+            for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; val date = item.optString("date", ""); if (!inSelectedPeriod(date)) continue; count++; section(date + " • " + item.optString("title", "Задача")); line("Тип работы: " + item.optString("type", "Уход")); val crop = item.optString("crop", "").trim(); if (crop.isNotEmpty()) line("Культура/грядка: " + crop); line("Статус: " + if (item.optBoolean("done", false)) "Выполнено" else "Запланировано") }
             if (count == 0) line("На выбранный период задач нет.")
         }
-        if ("plants" in selected) { newPage("Каталог культур"); builtInPlants.forEach { p -> section(p.name); line("Группа: " + p.group); line("Срок посева: " + p.sowing); line("Глубина: " + p.depth); line("Всходы: " + p.sprouts); line(p.advice) } }
-        if ("notes" in selected) { newPage("Мои заметки"); val notes = prefs.all.filter { it.key.startsWith("note_") && it.value is String && (it.value as String).isNotBlank() }.toSortedMap(); if (notes.isEmpty()) line("Сохранённых заметок нет."); notes.forEach { entry -> section(entry.key.removePrefix("note_")); line(entry.value.toString()) } }
+        if ("plants" in selected) { newPage("Каталог культур"); builtInPlants.forEach { p -> section(tr(p.name)); line((if (isEnglish()) "Group: " else "Группа: ") + tr(p.group)); line("Срок посева: " + p.sowing); line("Глубина: " + p.depth); line("Всходы: " + p.sprouts); line(p.advice) } }
+        if ("notes" in selected) { newPage("Мои заметки"); val notes = prefs.all.filter { it.key.startsWith("note_") && inSelectedPeriod(it.key.removePrefix("note_")) && it.value is String && (it.value as String).isNotBlank() }.toSortedMap(); if (notes.isEmpty()) line("Сохранённых заметок нет."); notes.forEach { entry -> section(entry.key.removePrefix("note_")); line(entry.value.toString()) } }
         if ("blank" in selected) repeat(3) { index -> newPage("Свободные записи " + (index + 1)); repeat(22) { canvas!!.drawLine(left, y, right, y, footerPaint); y += 30f } }
         if (page != null) { canvas!!.drawText(if (isEnglish()) "My Sowing Calendar • $year • page $pageNo" else "Мой Посевной • $year • стр. $pageNo", left, 822f, footerPaint); doc.finishPage(page!!) }
         val out = java.io.ByteArrayOutputStream(); doc.writeTo(out); doc.close(); return out.toByteArray()
@@ -409,6 +417,7 @@ class MainActivity : Activity() {
         if (!isEnglish()) return value
         val exact = mapOf(
             "Сегодня" to "Today",
+            "Ваш помощник для сада и огорода" to "Your gardening companion",
             "Календарь" to "Calendar",
             "Культуры" to "Crops",
             "Задачи" to "Tasks",
@@ -1321,8 +1330,8 @@ class MainActivity : Activity() {
 
     private fun showHome() {
         baseLayout("Мой Посевной")
-        content.addView(txt("Ваш помощник для сада и огорода",18f,true))
-        content.addView(txt(SimpleDateFormat("d MMMM yyyy, EEEE",Locale("ru")).format(Date()),15f))
+        content.addView(txt(tr("Ваш помощник для сада и огорода"),18f,true))
+        content.addView(txt(SimpleDateFormat("d MMMM yyyy, EEEE", if (isEnglish()) Locale.ENGLISH else Locale("ru")).format(Date()),15f))
         val city = prefs.getString("garden_city", "Не выбран") ?: "Не выбран"
         val region = prefs.getString("garden_region", "Выберите город или геолокацию") ?: "Выберите город или геолокацию"
         val zone = prefs.getString("garden_zone", "Центральный") ?: "Центральный"
@@ -2701,13 +2710,14 @@ class MainActivity : Activity() {
             }
         }
 
+        var showBuiltIns = false
         fun fill(filter:String) {
             results.removeAllViews()
             val mine = userCrops()
             val matches = (0 until mine.length()).mapNotNull { mine.optJSONObject(it) }
                 .filter { it.optString("name").contains(filter,true) || tr(it.optString("name")).contains(filter,true) || it.optString("category").contains(filter,true) || tr(it.optString("category")).contains(filter,true) }
             if (matches.isNotEmpty()) {
-                results.addView(txt("Мои культуры",19f,true))
+                results.addView(txt(tr("Мои культуры"),19f,true))
                 val userTiles = matches.map { crop ->
                     val tile = LinearLayout(this).apply {
                         orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
@@ -2750,7 +2760,50 @@ class MainActivity : Activity() {
                 addTileRows(results,userTiles)
             }
 
-            if (results.childCount == 0) results.addView(txt(if (filter.isBlank()) "Здесь будут отображаться ваши собственные культуры." else "Свои культуры не найдены. Введите название в форме посадки, чтобы выбрать встроенную культуру."))
+            // Built-in crops are stored under their original Russian names; translate only visible labels.
+            val builtMatches = builtInPlants.filter { plant ->
+                plant.name.contains(filter, true) || tr(plant.name).contains(filter, true) ||
+                    plant.group.contains(filter, true) || tr(plant.group).contains(filter, true)
+            }
+            if (builtMatches.isNotEmpty()) {
+                val expanded = showBuiltIns || filter.isNotBlank()
+                results.addView(Button(this).apply {
+                    text = (if (isEnglish()) "Built-in crops" else "Встроенные культуры") +
+                        " (${builtMatches.size}) " + (if (expanded) "▴" else "▾")
+                    isAllCaps = false
+                    setOnClickListener { showBuiltIns = !expanded; fill(filter) }
+                })
+                if (expanded) {
+                    val builtTiles = builtMatches.map { plant ->
+                        LinearLayout(this).apply {
+                            orientation = LinearLayout.VERTICAL
+                            gravity = Gravity.CENTER_HORIZONTAL
+                            setPadding(dp(8), dp(10), dp(8), dp(8))
+                            background = roundedBackground(Color.WHITE, 14f, Color.rgb(220,230,216))
+                            val icon = ImageView(this@MainActivity)
+                            setCropIcon(icon, cropIconKeyForName(plant.name))
+                            icon.scaleType = ImageView.ScaleType.FIT_CENTER
+                            icon.contentDescription = tr(plant.name)
+                            addView(icon, LinearLayout.LayoutParams(dp(76), dp(76)))
+                            addView(txt(tr(plant.name), 15f, true).apply { gravity = Gravity.CENTER; maxLines = 2 })
+                            addView(txt(tr(plant.group), 12f).apply { gravity = Gravity.CENTER })
+                            addView(Button(this@MainActivity).apply {
+                                text = tr("Подробнее")
+                                isAllCaps = false
+                                setOnClickListener {
+                                    android.app.AlertDialog.Builder(this@MainActivity)
+                                        .setTitle(tr(plant.name))
+                                        .setMessage(tr(plant.group) + "\\n\\n" + tr(plant.sowing) + "\\n" + tr(plant.depth) + "\\n" + tr(plant.sprouts) + "\\n\\n" + tr(plant.advice))
+                                        .setPositiveButton(tr("Закрыть"), null)
+                                        .show()
+                                }
+                            })
+                        }
+                    }
+                    addTileRows(results, builtTiles)
+                }
+            }
+            if (results.childCount == 0) results.addView(txt(if (isEnglish()) "No crops found." else "Культуры не найдены."))
         }
         fill(query)
         search.addTextChangedListener(object:android.text.TextWatcher {
