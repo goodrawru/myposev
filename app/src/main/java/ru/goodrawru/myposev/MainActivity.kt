@@ -2702,7 +2702,12 @@ class MainActivity : Activity() {
         }
 
         var showBuiltIns = false
+        var previousFilter = ""
         fun fill(filter:String) {
+            if (filter != previousFilter) {
+                showBuiltIns = filter.isNotBlank()
+                previousFilter = filter
+            }
             results.removeAllViews()
             val mine = userCrops()
             val matches = (0 until mine.length()).mapNotNull { mine.optJSONObject(it) }
@@ -2757,12 +2762,12 @@ class MainActivity : Activity() {
                     plant.group.contains(filter, true) || tr(plant.group).contains(filter, true)
             }
             if (builtMatches.isNotEmpty()) {
-                val expanded = showBuiltIns || filter.isNotBlank()
+                val expanded = showBuiltIns
                 results.addView(Button(this).apply {
                     text = (if (isEnglish()) "Built-in crops" else "Встроенные культуры") +
                         " (${builtMatches.size}) " + (if (expanded) "▴" else "▾")
                     isAllCaps = false
-                    setOnClickListener { showBuiltIns = !expanded; fill(filter) }
+                    setOnClickListener { showBuiltIns = !showBuiltIns; fill(filter) }
                 })
                 if (expanded) {
                     val builtTiles = builtMatches.map { plant ->
@@ -2784,7 +2789,7 @@ class MainActivity : Activity() {
                                 setOnClickListener {
                                     android.app.AlertDialog.Builder(this@MainActivity)
                                         .setTitle(tr(plant.name))
-                                        .setMessage(tr(plant.group) + "\\n\\n" + tr(plant.sowing) + "\\n" + tr(plant.depth) + "\\n" + tr(plant.sprouts) + "\\n\\n" + tr(plant.advice))
+                                        .setMessage(tr(plant.group) + "\n\n" + tr(plant.sowing) + "\n" + tr(plant.depth) + "\n" + tr(plant.sprouts) + "\n\n" + tr(plant.advice))
                                         .setPositiveButton(tr("Закрыть"), null)
                                         .show()
                                 }
