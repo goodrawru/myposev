@@ -135,7 +135,7 @@ class ExcelImportGuardTest {
             "selected_categories" to linkedSetOf("Овощи", "Цветы")
         )
         ExcelImportGuard.requireUnchangedSnapshot(checked, checked.toMap())
-        val edited = checked + ("care_tasks" to "[{\"title\":\"Полив\"}]")
+            "care_tasks" to "old records",
         assertThrows(IllegalArgumentException::class.java) {
             ExcelImportGuard.requireUnchangedSnapshot(checked, edited)
         }
