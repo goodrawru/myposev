@@ -1209,8 +1209,8 @@ class MainActivity : Activity() {
     private fun showUpdateNotes(manual: Boolean) {
         android.app.AlertDialog.Builder(this).setTitle(tr("Что нового · версия ") + BuildConfig.VERSION_NAME)
             .setMessage(if (isEnglish())
-                "• Favorites now use a star in the upper-right corner of crop cards.\n• An outlined star means not favorite; a filled yellow star means favorite.\n• Saved favorites and other user data are preserved."
-                else "• Вместо кнопки «В избранное» на карточках культур появилась звёздочка в правом верхнем углу.\n• Контурная звезда — обычная культура, жёлтая — избранная.\n• Сохранённое избранное и остальные данные пользователя сохраняются.")
+                "• Weather cards now show the correct forecast dates instead of a repeated calendar icon.\n• Calendar and crop catalog buttons use a consistent rounded style.\n• Built-in crops offer an editable personal copy without changing the original.\n• Weather cache, crops and other personal data remain compatible."
+                else "• В карточках погоды теперь указана дата прогноза вместо одинакового значка календаря.\n• Кнопки календаря и каталога приведены к единому стилю.\n• Для встроенных культур действие называется «Создать свою копию».\n• Сохранённый прогноз, избранное и пользовательские данные остаются совместимыми.")
             .setPositiveButton(tr("Понятно"), null).show()
     }
 
