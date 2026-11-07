@@ -600,15 +600,24 @@ internal object ExcelTransfer {
         var cellType = ""
         var cellValue = StringBuilder()
         var maxColumn = -1
+        var currentRow = 0
+        var previousRow = 0
         while (parser.next() != XmlPullParser.END_DOCUMENT) {
             if (parser.eventType == XmlPullParser.START_TAG && parser.name == "row") {
+                currentRow = ExcelImportGuard.parseRowReference(
+                    parser.getAttributeValue(null, "r"), previousRow)
+                previousRow = currentRow
                 rowCells = mutableMapOf()
                 maxColumn = -1
             } else if (parser.eventType == XmlPullParser.START_TAG && parser.name == "c" && rowCells != null) {
                 val ref = parser.getAttributeValue(null, "r").orEmpty()
                 cellIndex = ExcelImportGuard.cellColumn(ref)
+                ExcelImportGuard.requireCellRow(ref, currentRow)
                 cellType = parser.getAttributeValue(null, "t").orEmpty()
+                ExcelImportGuard.requireSupportedCellType(cellType)
                 cellValue = StringBuilder()
+            } else if (parser.eventType == XmlPullParser.START_TAG && parser.name == "f" && rowCells != null && cellIndex >= 0) {
+                ExcelImportGuard.rejectFormulaCell()
             } else if (parser.eventType == XmlPullParser.START_TAG && (parser.name == "v" || parser.name == "t") && rowCells != null && cellIndex >= 0) {
                 cellValue.append(parser.nextText())
                 ExcelImportGuard.requireCellLength(cellValue.length)
@@ -619,6 +628,7 @@ internal object ExcelTransfer {
                         ?: throw IllegalArgumentException("Неверная ссылка на общую строку Excel")
                 } else raw
                 ExcelImportGuard.requireCellLength(value.length)
+                ExcelImportGuard.requireUniqueCell(cellIndex, rowCells!!)
                 rowCells!![cellIndex] = value
                 maxColumn = maxOf(maxColumn, cellIndex)
                 cellIndex = -1
