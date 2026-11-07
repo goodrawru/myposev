@@ -350,7 +350,7 @@ class MainActivity : Activity() {
             val bytes = pendingBackupBytes; pendingBackupBytes = null
             if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) return
             try {
-                contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }
+                contentResolver.openOutputStream(data.data!!, "wt")?.use { it.write(bytes) }
                     ?: throw java.io.IOException("Не удалось открыть файл для записи")
                 Toast.makeText(this, tr("Резервная копия сохранена"), Toast.LENGTH_LONG).show()
             }
@@ -373,7 +373,7 @@ class MainActivity : Activity() {
             pendingExcelBytes = null
             if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) return
             try {
-                contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }
+                contentResolver.openOutputStream(data.data!!, "wt")?.use { it.write(bytes) }
                     ?: throw IllegalStateException("Не удалось открыть файл")
                 Toast.makeText(this, if (isEnglish()) "Excel workbook saved" else "Книга Excel сохранена", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
@@ -390,7 +390,7 @@ class MainActivity : Activity() {
             pendingPdfBytes = null
             if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) return
             try {
-                contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }
+                contentResolver.openOutputStream(data.data!!, "wt")?.use { it.write(bytes) }
                     ?: throw IllegalStateException("Не удалось открыть файл")
                 Toast.makeText(this, tr("PDF сохранён"), Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
@@ -1342,6 +1342,8 @@ class MainActivity : Activity() {
                 return editor.commit()
             }
             val restored = parsed.associate { (key, pair) -> key to pair.second }
+            // Validate the types of all overlapping keys before clearing preferences.
+            BackupArchivePolicy.requireCompatibleTypes(previous, restored)
             if (!writePreferences(restored)) {
                 val rollbackSucceeded = runCatching { writePreferences(previous) }.getOrDefault(false)
                 throw IllegalStateException(
@@ -1349,9 +1351,20 @@ class MainActivity : Activity() {
                     else "Ошибка сохранения копии и отката. Проверьте данные приложения"
                 )
             }
-            migrateLegacyNoteKeys()
-            scheduleDailyReminder()
-            Toast.makeText(this, tr("Копия восстановлена. Данные загружены."), Toast.LENGTH_LONG).show()
+            // The archive is already committed. A reminder or legacy-migration
+            // failure must not be reported as a failed restoration of the data.
+            val migration = runCatching { migrateLegacyNoteKeys() }
+            val reminders = runCatching { scheduleDailyReminder() }
+            if (migration.isSuccess && reminders.isSuccess) {
+                Toast.makeText(this, tr("Копия восстановлена. Данные загружены."), Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(
+                    this,
+                    if (isEnglish()) "Backup restored. Please check older notes and reminders."
+                    else "Копия восстановлена. Проверьте старые заметки и напоминания.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
             showHome()
         } catch (e: Exception) {
             Toast.makeText(this, if (isEnglish()) "Could not restore backup: ${e.message ?: "invalid archive"}. Check the app data before continuing." else "Не удалось восстановить копию: ${e.message ?: "неверный архив"}. Проверьте данные приложения перед продолжением.", Toast.LENGTH_LONG).show()
