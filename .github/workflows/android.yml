@@ -145,4 +145,4 @@ jobs:
             release-files/signed/app-release.apk
           prerelease: true
           make_latest: false
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true
