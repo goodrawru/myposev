@@ -172,8 +172,16 @@ class MainActivity : Activity() {
             }
         }
         root.addView(TextView(this).apply {
-            text = tr("🌱  ") + tr(title); textSize=25f; setTextColor(Color.WHITE); setBackgroundColor(green)
-            setPadding(20,22,20,22); gravity=Gravity.CENTER_VERTICAL
+            text = "🌱  " + tr(title)
+            textSize = 20f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            setAutoSizeTextTypeUniformWithConfiguration(
+                16, 22, 1, TextView.AUTO_SIZE_TEXT_TYPE_UNIFORM)
+            setTextColor(Color.WHITE)
+            setBackgroundColor(green)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            gravity = Gravity.CENTER_VERTICAL
         })
         val sectionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -350,7 +358,7 @@ class MainActivity : Activity() {
             val bytes = pendingBackupBytes; pendingBackupBytes = null
             if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) return
             try {
-                contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }
+                contentResolver.openOutputStream(data.data!!, "wt")?.use { it.write(bytes) }
                     ?: throw java.io.IOException("Не удалось открыть файл для записи")
                 Toast.makeText(this, tr("Резервная копия сохранена"), Toast.LENGTH_LONG).show()
             }
@@ -373,7 +381,7 @@ class MainActivity : Activity() {
             pendingExcelBytes = null
             if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) return
             try {
-                contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }
+                contentResolver.openOutputStream(data.data!!, "wt")?.use { it.write(bytes) }
                     ?: throw IllegalStateException("Не удалось открыть файл")
                 Toast.makeText(this, if (isEnglish()) "Excel workbook saved" else "Книга Excel сохранена", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
@@ -390,7 +398,7 @@ class MainActivity : Activity() {
             pendingPdfBytes = null
             if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) return
             try {
-                contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }
+                contentResolver.openOutputStream(data.data!!, "wt")?.use { it.write(bytes) }
                     ?: throw IllegalStateException("Не удалось открыть файл")
                 Toast.makeText(this, tr("PDF сохранён"), Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
@@ -1342,6 +1350,8 @@ class MainActivity : Activity() {
                 return editor.commit()
             }
             val restored = parsed.associate { (key, pair) -> key to pair.second }
+            // Reject incompatible archive values before clearing current preferences.
+            BackupArchivePolicy.requireCompatibleTypes(previous, restored)
             if (!writePreferences(restored)) {
                 val rollbackSucceeded = runCatching { writePreferences(previous) }.getOrDefault(false)
                 throw IllegalStateException(
@@ -1349,9 +1359,18 @@ class MainActivity : Activity() {
                     else "Ошибка сохранения копии и отката. Проверьте данные приложения"
                 )
             }
-            migrateLegacyNoteKeys()
-            scheduleDailyReminder()
-            Toast.makeText(this, tr("Копия восстановлена. Данные загружены."), Toast.LENGTH_LONG).show()
+            // Restoration is committed. Follow-up failures must not be reported
+            // as a failed restore, because the saved user data is already present.
+            val migration = runCatching { migrateLegacyNoteKeys() }
+            val reminders = runCatching { scheduleDailyReminder() }
+            if (migration.isSuccess && reminders.isSuccess) {
+                Toast.makeText(this, tr("Копия восстановлена. Данные загружены."), Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this,
+                    if (isEnglish()) "Backup restored. Please check older notes and reminders."
+                    else "Копия восстановлена. Проверьте старые заметки и напоминания.",
+                    Toast.LENGTH_LONG).show()
+            }
             showHome()
         } catch (e: Exception) {
             Toast.makeText(this, if (isEnglish()) "Could not restore backup: ${e.message ?: "invalid archive"}. Check the app data before continuing." else "Не удалось восстановить копию: ${e.message ?: "неверный архив"}. Проверьте данные приложения перед продолжением.", Toast.LENGTH_LONG).show()
@@ -2366,9 +2385,20 @@ class MainActivity : Activity() {
             Triple(Color.rgb(210,65,65), "Красная точка", "Для осторожного планирования")
         ).forEach { item ->
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-            row.addView(TextView(this).apply { text = tr("●"); textSize = 20f; setTextColor(item.first); setPadding(0, 0, dp(10), 0) })
-            row.addView(txt(item.second + " — " + item.third, 13f))
-            legend.addView(row)
+            row.addView(TextView(this).apply {
+                text = "●"
+                textSize = 17f
+                setTextColor(item.first)
+                gravity = Gravity.CENTER_VERTICAL
+            }, LinearLayout.LayoutParams(dp(24), -2))
+            row.addView(txt(tr(item.second) + " — " + tr(item.third), 13f).apply {
+                maxLines = 3
+                setTextColor(Color.rgb(35, 48, 38))
+                breakStrategy = android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            legend.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = dp(3)
+            })
         }
         legend.addView(txt("Традиционная лунная подсказка, не научный прогноз урожайности. ● с числом — незавершённые задачи; ◆ — есть заметка.", 12f))
         content.addView(legend)
