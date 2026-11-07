@@ -12,8 +12,9 @@ internal object ExcelImportGuard {
     const val MAX_SHEETS = 30
 
     fun zipEntryPath(name: String): String {
-        require(name.isNotEmpty() && !name.startsWith('/') && !name.contains('\\') &&
-            !name.contains(':') && name.split('/').none { it == ".." || it == "." || it.isEmpty() }) {
+        val normalized = name.removeSuffix("/") // ZIP directory entries may end in '/'.
+        require(normalized.isNotEmpty() && !normalized.startsWith('/') && !normalized.contains('\\') &&
+            !normalized.contains(':') && normalized.split('/').none { it == ".." || it == "." || it.isEmpty() }) {
             "Недопустимый путь в книге Excel"
         }
         return name
