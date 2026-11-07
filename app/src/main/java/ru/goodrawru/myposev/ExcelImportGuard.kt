@@ -43,6 +43,23 @@ internal object ExcelImportGuard {
         }
     }
 
+    /**
+     * An older XLSX can omit settings added in newer app versions.
+     * Keep those settings while allowing editable tables and dated notes
+     * to be explicitly replaced by their worksheet contents.
+     */
+    fun preserveUneditedPreferences(
+        current: Map<String, Any>,
+        imported: MutableMap<String, Any>
+    ) {
+        val editableLists = setOf("planting_records", "harvest_records", "care_tasks", "user_crops", "plantings")
+        current.forEach { (key, value) ->
+            if (!key.startsWith("note_") && key !in editableLists) {
+                imported.putIfAbsent(key, value)
+            }
+        }
+    }
+
     fun requireWorkbookSize(byteCount: Int) {
         require(byteCount in 1..MAX_FILE_BYTES) { "Файл пустой или превышает 10 МБ" }
     }
