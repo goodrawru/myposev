@@ -24,6 +24,33 @@ internal object BackupArchivePolicy {
         else -> throw IllegalArgumentException("Неподдерживаемое значение в резервной копии")
     }
 
+    /**
+     * Old or edited backups must not change an existing preference's type.
+     * Otherwise getString/getInt on later app launches can throw at runtime.
+     */
+    fun requireCompatibleTypes(
+        existing: Map<String, Any?>,
+        restored: Map<String, Any?>
+    ) {
+        fun typeOf(value: Any): String = when (value) {
+            is String -> "string"
+            is Boolean -> "bool"
+            is Int -> "int"
+            is Long -> "long"
+            is Float -> "float"
+            is Set<*> -> "string_set"
+            else -> throw IllegalArgumentException("Неподдерживаемый тип настройки")
+        }
+        restored.forEach { (key, value) ->
+            val previous = existing[key]
+            if (previous != null && value != null) {
+                require(typeOf(previous) == typeOf(value)) {
+                    "Несовместимый тип настройки в архиве: $key"
+                }
+            }
+        }
+    }
+
     fun requireNonEmptyPreferences(keyCount: Int) {
         require(keyCount > 0) { "Резервная копия не содержит настроек" }
     }
