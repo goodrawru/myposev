@@ -284,6 +284,9 @@ internal object ExcelTransfer {
                 changed += before.intersect(after).count { id -> oldById[id]?.toString() != newById[id]?.toString() }
             }
         }
+        // Keep existing non-editable settings that are missing from the workbook.
+        // Notes and editable lists are still replaced from their visible sheets.
+        ExcelImportGuard.preserveUneditedPreferences(snapshot, stored)
         ExcelImportGuard.requireCompatibleTypes(snapshot, stored)
         return ImportPlan(stored, snapshot, added, changed, deleted, noteCount)
     }
