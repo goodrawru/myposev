@@ -81,6 +81,43 @@ class ExcelImportGuardTest {
         }
     }
 
+    @Test fun rejectsWorkbookLargerThanItsOwnImportLimit() {
+        ExcelImportGuard.requireWorkbookSize(1)
+        ExcelImportGuard.requireWorkbookSize(ExcelImportGuard.MAX_FILE_BYTES)
+        assertThrows(IllegalArgumentException::class.java) {
+            ExcelImportGuard.requireWorkbookSize(0)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ExcelImportGuard.requireWorkbookSize(ExcelImportGuard.MAX_FILE_BYTES + 1)
+        }
+    }
+
+    @Test fun rejectsRepeatedHiddenPreferenceKeys() {
+        val keys = mutableSetOf<String>()
+        ExcelImportGuard.requireUniquePreferenceKey("garden_city", keys)
+        ExcelImportGuard.requireUniquePreferenceKey("care_tasks", keys)
+        assertThrows(IllegalArgumentException::class.java) {
+            ExcelImportGuard.requireUniquePreferenceKey("garden_city", keys)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ExcelImportGuard.requireUniquePreferenceKey("", keys)
+        }
+    }
+
+    @Test fun notesAndSettingsMustKeepRequiredColumns() {
+        val noteHeaders = listOf("Дата", "Заметка", "Ключ записи")
+        ExcelImportGuard.requireHeaders(noteHeaders, noteHeaders, "Заметки")
+        val settingsHeaders = listOf("Параметр", "Значение", "Ключ", "Тип")
+        ExcelImportGuard.requireHeaders(settingsHeaders, settingsHeaders, "Настройки")
+        assertThrows(IllegalArgumentException::class.java) {
+            ExcelImportGuard.requireHeaders(listOf("Дата", "Заметка"), noteHeaders, "Заметки")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ExcelImportGuard.requireHeaders(listOf("Параметр", "Значение", "Ключ"),
+                settingsHeaders, "Настройки")
+        }
+    }
+
     @Test fun corruptNumericSettingsAreRejectedInsteadOfReset() {
         assertEquals(19, ExcelImportGuard.parseInt("19"))
         assertEquals(5000000000L, ExcelImportGuard.parseLong("5000000000"))
