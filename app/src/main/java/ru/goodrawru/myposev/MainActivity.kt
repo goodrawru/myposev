@@ -177,7 +177,7 @@ class MainActivity : Activity() {
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
             setAutoSizeTextTypeUniformWithConfiguration(
-                16, 22, 1, TextView.AUTO_SIZE_TEXT_TYPE_UNIFORM)
+                16, 22, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
             setTextColor(Color.WHITE)
             setBackgroundColor(green)
             setPadding(dp(14), dp(12), dp(14), dp(12))
