@@ -36,6 +36,9 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      - name: Run PDF period unit tests
+        run: gradle --no-daemon testDebugUnitTest
+
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
 
@@ -77,8 +80,14 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      - name: Require release signing secrets
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "::error::Missing ANDROID_KEYSTORE_BASE64"; exit 1; }
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "::error::Missing ANDROID_KEYSTORE_PASSWORD"; exit 1; }
+          test -n "$ANDROID_KEY_ALIAS" || { echo "::error::Missing ANDROID_KEY_ALIAS"; exit 1; }
+          test -n "$ANDROID_KEY_PASSWORD" || { echo "::error::Missing ANDROID_KEY_PASSWORD"; exit 1; }
+
       - name: Restore signing keystore
-        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' && env.ANDROID_KEYSTORE_PASSWORD != '' && env.ANDROID_KEY_ALIAS != '' && env.ANDROID_KEY_PASSWORD != '' }}
         env:
           KEYSTORE_BASE64: ${{ env.ANDROID_KEYSTORE_BASE64 }}
         run: |
@@ -86,13 +95,16 @@ jobs:
           test -s "$RUNNER_TEMP/release-keystore.jks"
 
       - name: Build signed release APK
-        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' && env.ANDROID_KEYSTORE_PASSWORD != '' && env.ANDROID_KEY_ALIAS != '' && env.ANDROID_KEY_PASSWORD != '' }}
         env:
           ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/release-keystore.jks
         run: gradle --no-daemon assembleRelease
 
+      - name: Verify signed release APK
+        run: |
+          test -s app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
+
       - name: Upload signed release APK artifact
-        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' && env.ANDROID_KEYSTORE_PASSWORD != '' && env.ANDROID_KEY_ALIAS != '' && env.ANDROID_KEY_PASSWORD != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: moi-posevnoy-${{ github.run_number }}-signed-release-apk
@@ -114,7 +126,6 @@ jobs:
           path: release-files/debug
 
       - name: Download signed release APK
-        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: moi-posevnoy-${{ github.run_number }}-signed-release-apk
@@ -131,10 +142,10 @@ jobs:
             Коммит: ${{ github.sha }}
 
             Debug APK предназначен для тестирования.
-            Подписанный release APK для RuStore прикладывается только если настроены GitHub Secrets.
+            Подписанный release APK для RuStore прошёл проверку подписи.
           files: |
             release-files/debug/app-debug.apk
             release-files/signed/app-release.apk
           prerelease: true
           make_latest: false
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true

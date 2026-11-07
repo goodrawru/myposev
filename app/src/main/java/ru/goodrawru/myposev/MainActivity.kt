@@ -250,18 +250,23 @@ class MainActivity : Activity() {
 
     private fun showPaperPlanner() {
         baseLayout("Бумажный вариант")
-        card("📘 Бумажный вариант огородного дневника", "Выберите разделы и период. PDF будет многостраничным, с переносом длинного текста и календарём по месяцам.")
+        card(if (isEnglish()) "📘 Printable garden diary" else "📘 Бумажный вариант огородного дневника",
+            if (isEnglish()) "Choose sections and a season. Your PDF includes monthly calendars and automatically wraps long text." else "Выберите разделы и период. PDF будет многостраничным, с переносом длинного текста и календарём по месяцам.")
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val yearInput = EditText(this).apply { hint = tr("Год"); setText(currentYear.toString()); inputType = android.text.InputType.TYPE_CLASS_NUMBER; setSingleLine(true) }
-        content.addView(txt("Год календаря", 16f, true)); content.addView(yearInput)
-        val choices = listOf("calendar" to "Посевной календарь", "work" to "Сезонные рекомендации и работы", "tasks" to "Мои задачи и статус выполнения", "plants" to "Каталог культур (культуры с доступными значками)", "notes" to "Мои заметки", "blank" to "Страницы для записей")
+        content.addView(txt(if (isEnglish()) "Calendar year" else "Год календаря", 16f, true)); content.addView(yearInput)
+        val choices = if (isEnglish()) listOf(
+            "calendar" to "Sowing calendar", "work" to "Seasonal recommendations and tasks",
+            "tasks" to "My tasks and completion status", "plants" to "Crop catalog (available icons)",
+            "notes" to "My notes", "blank" to "Blank note pages"
+        ) else listOf("calendar" to "Посевной календарь", "work" to "Сезонные рекомендации и работы", "tasks" to "Мои задачи и статус выполнения", "plants" to "Каталог культур (культуры с доступными значками)", "notes" to "Мои заметки", "blank" to "Страницы для записей")
         val checks = mutableMapOf<String, CheckBox>()
         choices.forEachIndexed { index, item -> val cb = CheckBox(this).apply { text = item.second; isChecked = index < 4; setTextColor(Color.rgb(42,55,43)) }; checks[item.first] = cb; content.addView(cb) }
-        val periodLabels = listOf("Весь год", "Весна (март–май)", "Лето (июнь–август)", "Осень (сентябрь–ноябрь)", "Зима (декабрь–февраль)")
+        val periodLabels = if (isEnglish()) listOf("Full year", "Spring (March–May)", "Summer (June–August)", "Autumn (September–November)", "Winter (December–February)") else listOf("Весь год", "Весна (март–май)", "Лето (июнь–август)", "Осень (сентябрь–ноябрь)", "Зима (декабрь–февраль)")
         val period = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, periodLabels.map { tr(it) }) }
-        content.addView(txt("Период", 16f, true)); content.addView(period)
-        val colorMode = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("Цветной", "Чёрно-белый, экономный").map { tr(it) }) }
-        content.addView(txt("Оформление", 16f, true)); content.addView(colorMode)
+        content.addView(txt(if (isEnglish()) "Season" else "Период", 16f, true)); content.addView(period)
+        val colorMode = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, if (isEnglish()) listOf("Color", "Black and white (ink-saving)") else listOf("Цветной", "Чёрно-белый, экономный") ) }
+        content.addView(txt(if (isEnglish()) "Appearance" else "Оформление", 16f, true)); content.addView(colorMode)
         button("Сформировать и сохранить PDF") {
             val year = yearInput.text.toString().toIntOrNull()
             if (year == null || year !in 2000..2100) { Toast.makeText(this, tr("Введите год от 2000 до 2100"), Toast.LENGTH_LONG).show(); return@button }
@@ -269,14 +274,16 @@ class MainActivity : Activity() {
             if (selected.isEmpty()) { Toast.makeText(this, tr("Выберите хотя бы один раздел"), Toast.LENGTH_LONG).show(); return@button }
             try {
                 pendingPdfBytes = buildPaperPdf(year, period.selectedItemPosition, selected, colorMode.selectedItemPosition == 0)
-                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "application/pdf"; putExtra(Intent.EXTRA_TITLE, "Мой_Посевной_" + year + ".pdf") }
+                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "application/pdf"; putExtra(Intent.EXTRA_TITLE, (if (isEnglish()) "My_Sowing_Calendar_" else "Мой_Посевной_") + year + ".pdf") }
                 startActivityForResult(intent, 2027)
             } catch (e: Exception) { pendingPdfBytes = null; Toast.makeText(this, tr("Ошибка подготовки PDF: ") + (e.message ?: "неизвестная ошибка"), Toast.LENGTH_LONG).show() }
         }
-        card("Что попадёт в документ", "Календарь с датами и фазами Луны, рекомендации по месяцам, задачи с культурой/грядкой и статусом, доступные встроенные культуры и выбранные заметки. Длинные разделы переносятся на следующие страницы.")
+        card(if (isEnglish()) "What the PDF contains" else "Что попадёт в документ",
+            if (isEnglish()) "Monthly calendars, approximate Moon phases, seasonal advice, tasks and statuses, built-in crops, and notes for the selected season. Long sections flow onto new pages." else "Календарь с датами и фазами Луны, рекомендации по месяцам, задачи с культурой/грядкой и статусом, доступные встроенные культуры и выбранные заметки. Длинные разделы переносятся на следующие страницы.")
     }
 
     private fun buildPaperPdf(year: Int, periodIndex: Int, selected: Set<String>, colorMode: Boolean): ByteArray {
+        fun pdfText(ru: String, en: String): String = if (isEnglish()) en else ru
         val pdfLocale = if (isEnglish()) Locale.ENGLISH else Locale("ru"); val doc = PdfDocument(); val width = 595; val height = 842; val left = 42f; val right = 553f; val bottom = 795f
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 19f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); color = if (colorMode) android.graphics.Color.rgb(39,91,57) else android.graphics.Color.BLACK }
         val headPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 12f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); color = if (colorMode) android.graphics.Color.rgb(39,91,57) else android.graphics.Color.BLACK }
@@ -295,29 +302,27 @@ class MainActivity : Activity() {
             if (row.isNotEmpty()) { ensure(paint.textSize + 5f); canvas!!.drawText(row, left + indent, y, paint); y += paint.textSize + 4f }
         }
         fun section(value: String) { ensure(25f); y += 5f; line(value, headPaint); y += 3f }
-        val months = when (periodIndex) { 1 -> listOf(2,3,4); 2 -> listOf(5,6,7); 3 -> listOf(8,9,10); 4 -> listOf(11,0,1); else -> (0..11).toList() }
-        newPage("Мой Посевной — бумажный вариант"); line("План огородника на " + year, headPaint); line("Сформировано: " + SimpleDateFormat("dd.MM.yyyy", pdfLocale).format(Date())); line("Период: " + listOf("весь год","весна","лето","осень","зима")[periodIndex]); line("Лунные обозначения — справочная подсказка. Учитывайте регион, погоду и температуру почвы."); y += 12f
-        section("Содержание"); if ("calendar" in selected) line("Посевной календарь"); if ("work" in selected) line("Сезонные рекомендации"); if ("tasks" in selected) line("Мои задачи"); if ("plants" in selected) line("Каталог культур"); if ("notes" in selected) line("Мои заметки"); if ("blank" in selected) line("Страницы для записей")
+        val months = PdfPeriod.months(periodIndex)
+        newPage(pdfText("Мой Посевной — бумажный вариант", "My Sowing Calendar — printable planner")); line(pdfText("План огородника на ", "Gardener's plan for ") + year, headPaint); line((if (isEnglish()) "Generated: " else "Сформировано: ") + SimpleDateFormat("dd.MM.yyyy", pdfLocale).format(Date())); line((if (isEnglish()) "Period: " else "Период: ") + (if (isEnglish()) listOf("full year","spring","summer","autumn","winter") else listOf("весь год","весна","лето","осень","зима"))[periodIndex]); line(pdfText("Лунные обозначения — справочная подсказка. Учитывайте регион, погоду и температуру почвы.", "Moon phases are approximate guidance. Check your region, weather and soil temperature.")); y += 12f
+        section(pdfText("Содержание", "Contents")); if ("calendar" in selected) line(pdfText("Посевной календарь", "Sowing calendar")); if ("work" in selected) line(pdfText("Сезонные рекомендации", "Seasonal advice")); if ("tasks" in selected) line(pdfText("Мои задачи", "My tasks")); if ("plants" in selected) line(pdfText("Каталог культур", "Crop catalog")); if ("notes" in selected) line(pdfText("Мои заметки", "My notes")); if ("blank" in selected) line(pdfText("Страницы для записей", "Blank pages"))
         if ("calendar" in selected) months.forEach { month ->
-            val actualYear = if (periodIndex == 4 && month == 11) year - 1 else year
+            val actualYear = PdfPeriod.yearFor(year, periodIndex, month)
             val c = Calendar.getInstance().apply { set(actualYear, month, 1, 12, 0, 0) }
-            newPage("Календарь — " + SimpleDateFormat("LLLL yyyy", pdfLocale).format(c.time))
-            line("Пн       Вт       Ср       Чт       Пт       Сб       Вс", headPaint)
+            newPage(pdfText("Календарь — ", "Calendar — ") + SimpleDateFormat("LLLL yyyy", pdfLocale).format(c.time))
+            line(if (isEnglish()) "Mon      Tue      Wed      Thu      Fri      Sat      Sun" else "Пн       Вт       Ср       Чт       Пт       Сб       Вс", headPaint)
             val offset = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7; val days = c.getActualMaximum(Calendar.DAY_OF_MONTH); val cells = MutableList(offset) { 0 } + (1..days).toList()
             cells.chunked(7).forEach { row -> val labels = (row + List(7-row.size) { 0 }).map { day -> if (day == 0) "       " else day.toString().padStart(2) + " " + lunarGlyph(Calendar.getInstance().apply { set(actualYear, month, day, 12, 0, 0) }) }; line(labels.joinToString("   ")) }
-            y += 5f; line("Фазы Луны даны как ориентир; сроки работ корректируйте по местным условиям.")
+            y += 5f; line(pdfText("Фазы Луны даны как ориентир; сроки работ корректируйте по местным условиям.", "Moon phases are approximate; adjust planting dates to local conditions."))
             val monthNotes = prefs.all.toList().filter { entry ->
                 val noteKey = entry.first
                 val noteValue = entry.second
                 noteKey.startsWith("note_") && noteValue is String && noteValue.isNotBlank() &&
-                runCatching {
-                    val d = SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(noteKey.removePrefix("note_"))
-                    d != null && Calendar.getInstance().apply { time = d }.get(Calendar.YEAR) == actualYear &&
-                        Calendar.getInstance().apply { time = d }.get(Calendar.MONTH) == month
-                }.getOrDefault(false)
+                    PdfPeriod.includesDate(year, periodIndex, noteKey.removePrefix("note_")) &&
+                    noteKey.substring(5, 9).toIntOrNull() == actualYear &&
+                    noteKey.substring(10, 12).toIntOrNull() == month + 1
             }.sortedBy { entry -> entry.first }
             if (monthNotes.isNotEmpty()) {
-                section("Заметки к календарю")
+                section(pdfText("Заметки к календарю", "Calendar notes"))
                 monthNotes.forEach { entry ->
                     val rawDate = entry.first.removePrefix("note_")
                     val noteValue = entry.second as String
@@ -326,15 +331,15 @@ class MainActivity : Activity() {
                 }
             }
         }
-        if ("work" in selected) { newPage("Сезонные рекомендации"); months.forEach { month -> val actualYear = if (periodIndex == 4 && month == 11) year - 1 else year; val c = Calendar.getInstance().apply { set(actualYear, month, 15, 12, 0, 0) }; section(SimpleDateFormat("LLLL", pdfLocale).format(c.time)); line(seasonalAdvice(c)) } }
+        if ("work" in selected) { newPage(pdfText("Сезонные рекомендации", "Seasonal advice")); months.forEach { month -> val actualYear = PdfPeriod.yearFor(year, periodIndex, month); val c = Calendar.getInstance().apply { set(actualYear, month, 15, 12, 0, 0) }; section(SimpleDateFormat("LLLL", pdfLocale).format(c.time)); line(seasonalAdvice(c)) } }
         if ("tasks" in selected) {
-            newPage("Мои задачи"); val tasks = tasksArray(); var count = 0
-            for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; val date = item.optString("date", ""); if (date.length < 7 || date.substring(0,4).toIntOrNull() != year || (date.substring(5,7).toIntOrNull()?.minus(1) !in months)) continue; count++; section(date + " • " + item.optString("title", "Задача")); line("Тип работы: " + item.optString("type", "Уход")); val crop = item.optString("crop", "").trim(); if (crop.isNotEmpty()) line("Культура/грядка: " + crop); line("Статус: " + if (item.optBoolean("done", false)) "Выполнено" else "Запланировано") }
-            if (count == 0) line("На выбранный период задач нет.")
+            newPage(pdfText("Мои задачи", "My tasks")); val tasks = tasksArray(); var count = 0
+            for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; val date = item.optString("date", ""); if (!PdfPeriod.includesDate(year, periodIndex, date)) continue; count++; section(date + " • " + item.optString("title", "Задача")); line("Тип работы: " + item.optString("type", "Уход")); val crop = item.optString("crop", "").trim(); if (crop.isNotEmpty()) line("Культура/грядка: " + crop); line("Статус: " + if (item.optBoolean("done", false)) "Выполнено" else "Запланировано") }
+            if (count == 0) line(pdfText("На выбранный период задач нет.", "No tasks for the selected season."))
         }
-        if ("plants" in selected) { newPage("Каталог культур"); builtInPlants.forEach { p -> section(p.name); line("Группа: " + p.group); line("Срок посева: " + p.sowing); line("Глубина: " + p.depth); line("Всходы: " + p.sprouts); line(p.advice) } }
-        if ("notes" in selected) { newPage("Мои заметки"); val notes = prefs.all.filter { it.key.startsWith("note_") && it.value is String && (it.value as String).isNotBlank() }.toSortedMap(); if (notes.isEmpty()) line("Сохранённых заметок нет."); notes.forEach { entry -> section(entry.key.removePrefix("note_")); line(entry.value.toString()) } }
-        if ("blank" in selected) repeat(3) { index -> newPage("Свободные записи " + (index + 1)); repeat(22) { canvas!!.drawLine(left, y, right, y, footerPaint); y += 30f } }
+        if ("plants" in selected) { newPage(pdfText("Каталог культур", "Crop catalog")); builtInPlants.forEach { p -> section(tr(p.name)); line((if (isEnglish()) "Group: " else "Группа: ") + tr(p.group)); line(pdfText("Срок посева: ", "Sowing time: ") + tr(p.sowing)); line(pdfText("Глубина: ", "Depth: ") + tr(p.depth)); line(pdfText("Всходы: ", "Germination: ") + tr(p.sprouts)); line(tr(p.advice)) } }
+        if ("notes" in selected) { newPage(pdfText("Мои заметки", "My notes")); val notes = prefs.all.filter { it.key.startsWith("note_") && PdfPeriod.includesDate(year, periodIndex, it.key.removePrefix("note_")) && it.value is String && (it.value as String).isNotBlank() }.toSortedMap(); if (notes.isEmpty()) line(pdfText("Сохранённых заметок нет.", "No saved notes for the selected season.")); notes.forEach { entry -> section(entry.key.removePrefix("note_")); line(entry.value.toString()) } }
+        if ("blank" in selected) repeat(3) { index -> newPage(pdfText("Свободные записи ", "Blank notes ") + (index + 1)); repeat(22) { canvas!!.drawLine(left, y, right, y, footerPaint); y += 30f } }
         if (page != null) { canvas!!.drawText(if (isEnglish()) "My Sowing Calendar • $year • page $pageNo" else "Мой Посевной • $year • стр. $pageNo", left, 822f, footerPaint); doc.finishPage(page!!) }
         val out = java.io.ByteArrayOutputStream(); doc.writeTo(out); doc.close(); return out.toByteArray()
     }
@@ -409,6 +414,7 @@ class MainActivity : Activity() {
         if (!isEnglish()) return value
         val exact = mapOf(
             "Сегодня" to "Today",
+            "Ваш помощник для сада и огорода" to "Your gardening companion",
             "Календарь" to "Calendar",
             "Культуры" to "Crops",
             "Задачи" to "Tasks",
@@ -1179,7 +1185,7 @@ class MainActivity : Activity() {
 
     private fun showUpdateNotes(manual: Boolean) {
         android.app.AlertDialog.Builder(this).setTitle(tr("Что нового · версия ") + BuildConfig.VERSION_NAME)
-            .setMessage(tr("• Каталог расширен до всех встроенных культур с доступными значками.\n• Исправлены напоминания по личным заметкам и восстановлению резервной копии.\n• Удалён неиспользуемый аудиоплеер и его зависимости.\n• Обновлён источник прогноза погоды: 7Timer!."))
+            .setMessage(if (isEnglish()) "• Built-in crop cards are visible again, with Russian and English search.\n• The printable planner now filters tasks and notes correctly across winter.\n• English labels and PDF export have been improved.\n• Release APK signing checks and PDF regression tests have been added." else "• Восстановлены карточки встроенных культур, добавлен поиск на русском и английском.\n• Исправлен зимний PDF: задачи и заметки теперь соответствуют выбранному периоду.\n• Улучшены английские подписи и оформление PDF.\n• Добавлены проверки подписи APK и тесты PDF.")
             .setPositiveButton(tr("Понятно"), null).show()
     }
 
@@ -1321,8 +1327,8 @@ class MainActivity : Activity() {
 
     private fun showHome() {
         baseLayout("Мой Посевной")
-        content.addView(txt("Ваш помощник для сада и огорода",18f,true))
-        content.addView(txt(SimpleDateFormat("d MMMM yyyy, EEEE",Locale("ru")).format(Date()),15f))
+        content.addView(txt(tr("Ваш помощник для сада и огорода"),18f,true))
+        content.addView(txt(SimpleDateFormat("d MMMM yyyy, EEEE", if (isEnglish()) Locale.ENGLISH else Locale("ru")).format(Date()),15f))
         val city = prefs.getString("garden_city", "Не выбран") ?: "Не выбран"
         val region = prefs.getString("garden_region", "Выберите город или геолокацию") ?: "Выберите город или геолокацию"
         val zone = prefs.getString("garden_zone", "Центральный") ?: "Центральный"
@@ -2701,13 +2707,19 @@ class MainActivity : Activity() {
             }
         }
 
+        var showBuiltIns = false
+        var previousFilter = ""
         fun fill(filter:String) {
+            if (filter != previousFilter) {
+                showBuiltIns = filter.isNotBlank()
+                previousFilter = filter
+            }
             results.removeAllViews()
             val mine = userCrops()
             val matches = (0 until mine.length()).mapNotNull { mine.optJSONObject(it) }
                 .filter { it.optString("name").contains(filter,true) || tr(it.optString("name")).contains(filter,true) || it.optString("category").contains(filter,true) || tr(it.optString("category")).contains(filter,true) }
             if (matches.isNotEmpty()) {
-                results.addView(txt("Мои культуры",19f,true))
+                results.addView(txt(tr("Мои культуры"),19f,true))
                 val userTiles = matches.map { crop ->
                     val tile = LinearLayout(this).apply {
                         orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
@@ -2750,7 +2762,50 @@ class MainActivity : Activity() {
                 addTileRows(results,userTiles)
             }
 
-            if (results.childCount == 0) results.addView(txt(if (filter.isBlank()) "Здесь будут отображаться ваши собственные культуры." else "Свои культуры не найдены. Введите название в форме посадки, чтобы выбрать встроенную культуру."))
+            // Built-in crops are stored under their original Russian names; translate only visible labels.
+            val builtMatches = builtInPlants.filter { plant ->
+                plant.name.contains(filter, true) || tr(plant.name).contains(filter, true) ||
+                    plant.group.contains(filter, true) || tr(plant.group).contains(filter, true)
+            }
+            if (builtMatches.isNotEmpty()) {
+                val expanded = showBuiltIns
+                results.addView(Button(this).apply {
+                    text = (if (isEnglish()) "Built-in crops" else "Встроенные культуры") +
+                        " (${builtMatches.size}) " + (if (expanded) "▴" else "▾")
+                    isAllCaps = false
+                    setOnClickListener { showBuiltIns = !showBuiltIns; fill(filter) }
+                })
+                if (expanded) {
+                    val builtTiles = builtMatches.map { plant ->
+                        LinearLayout(this).apply {
+                            orientation = LinearLayout.VERTICAL
+                            gravity = Gravity.CENTER_HORIZONTAL
+                            setPadding(dp(8), dp(10), dp(8), dp(8))
+                            background = roundedBackground(Color.WHITE, 14f, Color.rgb(220,230,216))
+                            val icon = ImageView(this@MainActivity)
+                            setCropIcon(icon, cropIconKeyForName(plant.name))
+                            icon.scaleType = ImageView.ScaleType.FIT_CENTER
+                            icon.contentDescription = tr(plant.name)
+                            addView(icon, LinearLayout.LayoutParams(dp(76), dp(76)))
+                            addView(txt(tr(plant.name), 15f, true).apply { gravity = Gravity.CENTER; maxLines = 2 })
+                            addView(txt(tr(plant.group), 12f).apply { gravity = Gravity.CENTER })
+                            addView(Button(this@MainActivity).apply {
+                                text = tr("Подробнее")
+                                isAllCaps = false
+                                setOnClickListener {
+                                    android.app.AlertDialog.Builder(this@MainActivity)
+                                        .setTitle(tr(plant.name))
+                                        .setMessage(tr(plant.group) + "\n\n" + tr(plant.sowing) + "\n" + tr(plant.depth) + "\n" + tr(plant.sprouts) + "\n\n" + tr(plant.advice))
+                                        .setPositiveButton(tr("Закрыть"), null)
+                                        .show()
+                                }
+                            })
+                        }
+                    }
+                    addTileRows(results, builtTiles)
+                }
+            }
+            if (results.childCount == 0) results.addView(txt(if (isEnglish()) "No crops found." else "Культуры не найдены."))
         }
         fill(query)
         search.addTextChangedListener(object:android.text.TextWatcher {
