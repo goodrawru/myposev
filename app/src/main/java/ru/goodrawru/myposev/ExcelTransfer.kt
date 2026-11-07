@@ -182,7 +182,7 @@ internal object ExcelTransfer {
         require(marker) { "Версия книги не поддерживается или служебный лист изменён" }
 
         val existingCounts = listOf("planting_records", "harvest_records", "care_tasks", "user_crops")
-            .associateWith { jsonArray(current.getString(it, "[]") ?: "[]").let { a -> a.length() } }
+            .associateWith { strictRecordArray(current.getString(it, "[]") ?: "[]", it).length() }
         val incoming = mutableMapOf<String, JSONArray>()
         incoming["planting_records"] = parseRecordSheet(
             sheets["Посадки"], listOf("ID","Культура","Сорт","Дата посева","Место","Заметки","Создано"),
@@ -264,7 +264,7 @@ internal object ExcelTransfer {
             }
         }
 
-        val oldIds = existingCounts.keys.associateWith { key -> ids(jsonArray(current.getString(key, "[]") ?: "[]")) }
+        val oldIds = existingCounts.keys.associateWith { key -> ids(strictRecordArray(current.getString(key, "[]") ?: "[]", key)) }
         val newIds = incoming.mapValues { ids(it.value) }
         var added = 0
         var deleted = 0
@@ -275,7 +275,7 @@ internal object ExcelTransfer {
             added += (after - before).size
             deleted += (before - after).size
             if (before.intersect(after).isNotEmpty()) {
-                val oldById = jsonArray(current.getString(key, "[]") ?: "[]").let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) }.associateBy { it.optString("id") } }
+                val oldById = strictRecordArray(current.getString(key, "[]") ?: "[]", key).let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it) }.associateBy { it.optString("id") } }
                 val newById = (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }.associateBy { it.optString("id") }
                 changed += before.intersect(after).count { id -> oldById[id]?.toString() != newById[id]?.toString() }
             }
@@ -317,7 +317,7 @@ internal object ExcelTransfer {
     ): Sheet {
         val rows = mutableListOf<List<String>>()
         rows += headers + TECH
-        val array = jsonArray(all[key] as? String ?: "[]")
+        val array = strictRecordArray(all[key] as? String ?: "[]", key)
         for (i in 0 until array.length()) {
             val item = array.optJSONObject(i) ?: continue
             val values = fields.map { field ->
@@ -345,7 +345,7 @@ internal object ExcelTransfer {
         val result = JSONArray()
         val ids = mutableSetOf<String>()
         data.drop(1).forEachIndexed { rowIndex, row ->
-            val values = fields.mapIndexed { i, _ -> row.getOrNull(indexes[i]).orEmpty().trim() }
+            val values = fields.mapIndexed { i, field -> ExcelImportGuard.recordCell(row.getOrNull(indexes[i]).orEmpty(), field) }
             if (values.all { it.isBlank() }) return@forEachIndexed
             var item = if (techIndex >= 0) {
                 val raw = row.getOrNull(techIndex).orEmpty()
@@ -385,7 +385,12 @@ internal object ExcelTransfer {
     private fun ids(array: JSONArray): Set<String> =
         (0 until array.length()).mapNotNull { array.optJSONObject(it)?.optString("id")?.takeIf(String::isNotBlank) }.toSet()
 
-    private fun jsonArray(value: String): JSONArray = try { JSONArray(value) } catch (_: Exception) { JSONArray() }
+    private fun strictRecordArray(value: String, key: String): JSONArray {
+        ExcelImportGuard.requireRecordArray(value, key)
+        return try { JSONArray(value) } catch (_: Exception) {
+            throw IllegalArgumentException("Повреждён список записей: $key")
+        }
+    }
 
     private fun typeOf(value: Any): String = when (value) {
         is String -> "s"; is Boolean -> "b"; is Int -> "i"; is Long -> "l"; is Float -> "f"
@@ -599,6 +604,7 @@ internal object ExcelTransfer {
                         ?: throw IllegalArgumentException("Неверная ссылка на общую строку Excel")
                 } else raw
                 ExcelImportGuard.requireCellLength(value.length)
+                ExcelImportGuard.requireUniqueCell(cellIndex, rowCells!!)
                 rowCells!![cellIndex] = value
                 maxColumn = maxOf(maxColumn, cellIndex)
                 cellIndex = -1
