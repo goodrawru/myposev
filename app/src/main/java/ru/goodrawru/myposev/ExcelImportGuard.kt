@@ -99,6 +99,10 @@ internal object ExcelImportGuard {
         }
     }
 
+    /** Cached results in formula cells may be stale or tampered with. */
+    fun rejectFormulaCell(): Nothing =
+        throw IllegalArgumentException("Формулы в импортируемой книге Excel не поддерживаются")
+
     /** Reject Excel error cells; their error codes must not replace notes or dates. */
     fun requireSupportedCellType(type: String) {
         require(type in setOf("", "inlineStr", "s", "n", "b", "str", "d")) {
