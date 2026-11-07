@@ -375,7 +375,7 @@ class MainActivity : Activity() {
             try {
                 contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }
                     ?: throw IllegalStateException("Не удалось открыть файл")
-                Toast.makeText(this, "Книга Excel сохранена", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, if (isEnglish()) "Excel workbook saved" else "Книга Excel сохранена", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
                 Toast.makeText(this, "Ошибка сохранения Excel: ${e.message ?: "неизвестная ошибка"}", Toast.LENGTH_LONG).show()
             }
@@ -1521,12 +1521,13 @@ class MainActivity : Activity() {
     }
 
     private fun exportExcel() {
+        pendingExcelBytes = null
         try {
             pendingExcelBytes = ExcelTransfer.export(prefs, builtInPlants, cropIconCatalog)
             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                putExtra(Intent.EXTRA_TITLE, "Мой_Посевной.xlsx")
+                putExtra(Intent.EXTRA_TITLE, if (isEnglish()) "My_Sowing_Calendar.xlsx" else "Мой_Посевной.xlsx")
             }
             startActivityForResult(intent, 2403)
         } catch (e: Exception) {
@@ -1544,7 +1545,7 @@ class MainActivity : Activity() {
         try {
             startActivityForResult(intent, 2404)
         } catch (_: Exception) {
-            Toast.makeText(this, "Не удалось открыть выбор файла", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, if (isEnglish()) "Could not open the document picker" else "Не удалось открыть выбор файла", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -1565,10 +1566,16 @@ class MainActivity : Activity() {
             } ?: throw IllegalStateException("Не удалось прочитать файл")
             val plan = ExcelTransfer.prepareImport(bytes, prefs)
             android.app.AlertDialog.Builder(this)
-                .setTitle("Проверка книги Excel")
-                .setMessage(plan.summary() + "\n\nИмпорт заменит рабочие списки данными из книги. Удалённые в Excel строки будут удалены и в приложении. Перед применением будет создана внутренняя точка отката. Продолжить?")
-                .setNegativeButton("Отмена", null)
-                .setPositiveButton("Применить изменения") { _, _ ->
+                .setTitle(if (isEnglish()) "Review Excel import" else "Проверка книги Excel")
+                .setMessage(
+                    (if (isEnglish()) "New records: ${plan.added}\nChanged records: ${plan.changed}\nRecords to delete: ${plan.deleted}\nNotes in workbook: ${plan.notes}" else plan.summary()) +
+                    "\n\n" + (if (isEnglish())
+                        "Import replaces the working lists, including deletions. Save a ZIP backup before importing. If saving fails, the app will attempt to restore your previous preferences. Continue?"
+                    else
+                        "Импорт заменит рабочие списки, включая удалённые в Excel строки. Перед импортом сохраните ZIP-копию. При ошибке записи приложение попытается восстановить прежние данные. Продолжить?")
+                )
+                .setNegativeButton(tr("Отмена"), null)
+                .setPositiveButton(if (isEnglish()) "Apply changes" else "Применить изменения") { _, _ ->
                     val applied = try {
                         ExcelTransfer.applyImport(plan, prefs)
                     } catch (error: Exception) {
@@ -1579,10 +1586,10 @@ class MainActivity : Activity() {
                     }
                     if (applied) {
                         scheduleDailyReminder()
-                        Toast.makeText(this, "Данные из Excel успешно загружены", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this, if (isEnglish()) "Excel data imported successfully" else "Данные из Excel успешно загружены", Toast.LENGTH_LONG).show()
                         showHome()
                     } else {
-                        Toast.makeText(this, "Не удалось сохранить данные. Предыдущие данные восстановлены.", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this, if (isEnglish()) "Could not save the import. Previous data was restored." else "Не удалось сохранить данные. Предыдущие данные восстановлены.", Toast.LENGTH_LONG).show()
                     }
                 }
                 .show()
