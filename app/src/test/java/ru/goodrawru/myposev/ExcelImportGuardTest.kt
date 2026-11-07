@@ -135,7 +135,7 @@ class ExcelImportGuardTest {
             "selected_categories" to linkedSetOf("Овощи", "Цветы")
         )
         ExcelImportGuard.requireUnchangedSnapshot(checked, checked.toMap())
-            "care_tasks" to "old records",
+        val edited = checked + ("care_tasks" to "modified")
         assertThrows(IllegalArgumentException::class.java) {
             ExcelImportGuard.requireUnchangedSnapshot(checked, edited)
         }
@@ -218,7 +218,7 @@ class ExcelImportGuardTest {
             "favorite_crop_ids" to setOf("tomato"),
             "reminder_enabled" to true,
             "note_2026-11-07" to "Старая заметка",
-            "care_tasks" to "[{\\"id\\":1}]",
+            "care_tasks" to "old records",
             "user_crops" to "[]"
         )
         val imported = mutableMapOf<String, Any>(
