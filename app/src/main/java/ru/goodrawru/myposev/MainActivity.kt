@@ -2783,13 +2783,16 @@ class MainActivity : Activity() {
         val form = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(4), dp(18), dp(4)) }
         form.addView(nameRow)
         listOf<View>(category, sowing, depth, sprouts, advice, txt("Цветная иконка культуры",14f,true), iconPicker).forEach { form.addView(it) }
-        val dialog = android.app.AlertDialog.Builder(this).setTitle(if(existing == null) "Добавить свою культуру" else "Изменить культуру")
+        val isNew = existing?.optString("id").isNullOrBlank()
+        val dialog = android.app.AlertDialog.Builder(this).setTitle(if (isNew) tr("Добавить свою культуру") else tr("Изменить культуру"))
             .setView(ScrollView(this).apply { addView(form) }).setNegativeButton(tr("Отмена"), null).setPositiveButton(tr("Сохранить"), null).create()
         dialog.setOnShowListener {
             dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val cropName = name.text.toString().trim()
                 if (cropName.isBlank()) { name.error = "Введите название"; return@setOnClickListener }
-                val all = userCrops(); val id = existing?.optString("id") ?: java.util.UUID.randomUUID().toString()
+                val all = userCrops()
+                val id = existing?.optString("id")?.takeIf { it.isNotBlank() }
+                    ?: java.util.UUID.randomUUID().toString()
                 val item = JSONObject().put("id",id).put("name",cropName).put("category",cropCategories[category.selectedItemPosition]).put("sowing",sowing.text.toString()).put("depth",depth.text.toString()).put("sprouts",sprouts.text.toString()).put("advice",advice.text.toString()).put("icon",iconChoices[iconPicker.selectedItemPosition].first).put("emoji",plantEmoji(cropName))
                 val next = JSONArray(); var replaced = false
                 for(i in 0 until all.length()) { val old = all.optJSONObject(i) ?: continue; if(old.optString("id")==id) { next.put(item); replaced=true } else next.put(old) }
@@ -2808,6 +2811,12 @@ class MainActivity : Activity() {
         val search = EditText(this).apply { hint = tr("Найти культуру или группу"); setSingleLine(true); setText(query) }
         content.addView(search)
         content.addView(Button(this).apply { text = tr("＋ Добавить свою культуру"); isAllCaps = false; setOnClickListener { addUserCrop() } })
+        val favoritesOnlyButton = Button(this).apply {
+            text = if (isEnglish()) "☆ Show favorites" else "☆ Показать избранные"
+            isAllCaps = false
+        }
+        content.addView(favoritesOnlyButton)
+        var favoritesOnly = false
         val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(results)
 
@@ -2828,9 +2837,16 @@ class MainActivity : Activity() {
                 previousFilter = filter
             }
             results.removeAllViews()
+            val favoriteIds = prefs.getStringSet("favorite_crop_ids", emptySet())?.toSet().orEmpty()
             val mine = userCrops()
             val matches = (0 until mine.length()).mapNotNull { mine.optJSONObject(it) }
-                .filter { it.optString("name").contains(filter,true) || tr(it.optString("name")).contains(filter,true) || it.optString("category").contains(filter,true) || tr(it.optString("category")).contains(filter,true) }
+                .filter { crop ->
+                    (!favoritesOnly || crop.optString("id") in favoriteIds) &&
+                        (crop.optString("name").contains(filter,true) ||
+                            tr(crop.optString("name")).contains(filter,true) ||
+                            crop.optString("category").contains(filter,true) ||
+                            tr(crop.optString("category")).contains(filter,true))
+                }
             if (matches.isNotEmpty()) {
                 results.addView(txt(tr("Мои культуры"),19f,true))
                 val userTiles = matches.map { crop ->
@@ -2848,6 +2864,22 @@ class MainActivity : Activity() {
                     tile.addView(txt(tr(crop.optString("name")),15f,true).apply { gravity = Gravity.CENTER; maxLines = 2 })
                     tile.addView(txt(tr(crop.optString("category")),12f).apply { gravity = Gravity.CENTER })
                     tile.addView(Button(this).apply {
+                        text = if (crop.optString("id") in favoriteIds)
+                            (if (isEnglish()) "★ Favorite" else "★ В избранном")
+                            else (if (isEnglish()) "☆ Add favorite" else "☆ В избранное")
+                        textSize = 11f; isAllCaps = false
+                        setOnClickListener {
+                            val id = crop.optString("id")
+                            prefs.edit().putStringSet("favorite_crop_ids",
+                                ReminderUiRules.toggleFavorite(favoriteIds, id)).apply()
+                            fill(filter)
+                        }
+                    })
+                    tile.addView(Button(this).apply {
+                        text = tr("Изменить культуру"); textSize = 11f; isAllCaps = false
+                        setOnClickListener { addUserCrop(crop) }
+                    })
+                    tile.addView(Button(this).apply {
                         text = tr("Подробнее"); textSize = 11f; isAllCaps = false
                         setOnClickListener {
                             val details = listOf("Сроки посева" to "sowing","Глубина" to "depth","Всходы" to "sprouts","Советы" to "advice")
@@ -2864,7 +2896,14 @@ class MainActivity : Activity() {
                                         .setPositiveButton(tr("Удалить")) { _,_ ->
                                             val next = JSONArray()
                                             for (i in 0 until mine.length()) { val v = mine.optJSONObject(i) ?: continue; if (v.optString("id") != crop.optString("id")) next.put(v) }
-                                            prefs.edit().putString("user_crops",next.toString()).apply()
+                                            val deletedId = crop.optString("id")
+                                            val editor = prefs.edit().putString("user_crops", next.toString())
+                                            editor.putStringSet("favorite_crop_ids",
+                                                prefs.getStringSet("favorite_crop_ids", emptySet()).orEmpty() - deletedId)
+                                            prefs.getStringSet("reminder_crop_ids", null)?.let { saved ->
+                                                editor.putStringSet("reminder_crop_ids", saved - deletedId)
+                                            }
+                                            editor.apply()
                                             showPlants("")
                                         }.show()
                                 }.show()
@@ -2877,8 +2916,9 @@ class MainActivity : Activity() {
 
             // Built-in crops are stored under their original Russian names; translate only visible labels.
             val builtMatches = builtInPlants.filter { plant ->
-                plant.name.contains(filter, true) || tr(plant.name).contains(filter, true) ||
-                    plant.group.contains(filter, true) || tr(plant.group).contains(filter, true)
+                (!favoritesOnly || cropIconKeyForName(plant.name) in favoriteIds) &&
+                    (plant.name.contains(filter, true) || tr(plant.name).contains(filter, true) ||
+                        plant.group.contains(filter, true) || tr(plant.group).contains(filter, true))
             }
             if (builtMatches.isNotEmpty()) {
                 val expanded = showBuiltIns
@@ -2903,6 +2943,39 @@ class MainActivity : Activity() {
                             addView(txt(tr(plant.name), 15f, true).apply { gravity = Gravity.CENTER; maxLines = 2 })
                             addView(txt(tr(plant.group), 12f).apply { gravity = Gravity.CENTER })
                             addView(Button(this@MainActivity).apply {
+                                val id = cropIconKeyForName(plant.name)
+                                text = if (id in favoriteIds)
+                                    (if (isEnglish()) "★ Favorite" else "★ В избранном")
+                                    else (if (isEnglish()) "☆ Add favorite" else "☆ В избранное")
+                                isAllCaps = false
+                                textSize = 11f
+                                setOnClickListener {
+                                    prefs.edit().putStringSet("favorite_crop_ids",
+                                        ReminderUiRules.toggleFavorite(favoriteIds, id)).apply()
+                                    fill(filter)
+                                }
+                            })
+                            addView(Button(this@MainActivity).apply {
+                                text = if (isEnglish()) "Edit as my crop" else "Изменить культуру"
+                                isAllCaps = false
+                                textSize = 11f
+                                setOnClickListener {
+                                    android.app.AlertDialog.Builder(this@MainActivity)
+                                        .setTitle(if (isEnglish()) "Edit built-in crop" else "Изменить встроенную культуру")
+                                        .setMessage(if (isEnglish())
+                                            "The built-in catalog is read-only. Create an editable personal copy?"
+                                            else "Встроенный каталог сохраняется без изменений. Создать собственную редактируемую копию?")
+                                        .setNegativeButton(tr("Отмена"), null)
+                                        .setPositiveButton(if (isEnglish()) "Create copy" else "Создать копию") { _, _ ->
+                                            addUserCrop(JSONObject()
+                                                .put("name", plant.name).put("category", plant.group)
+                                                .put("sowing", plant.sowing).put("depth", plant.depth)
+                                                .put("sprouts", plant.sprouts).put("advice", plant.advice)
+                                                .put("icon", cropIconKeyForName(plant.name)))
+                                        }.show()
+                                }
+                            })
+                            addView(Button(this@MainActivity).apply {
                                 text = tr("Подробнее")
                                 isAllCaps = false
                                 setOnClickListener {
@@ -2919,6 +2992,14 @@ class MainActivity : Activity() {
                 }
             }
             if (results.childCount == 0) results.addView(txt(if (isEnglish()) "No crops found." else "Культуры не найдены."))
+        }
+        favoritesOnlyButton.setOnClickListener {
+            favoritesOnly = !favoritesOnly
+            showBuiltIns = favoritesOnly || search.text.isNotBlank()
+            favoritesOnlyButton.text = if (favoritesOnly)
+                (if (isEnglish()) "★ Showing favorites" else "★ Только избранные")
+                else (if (isEnglish()) "☆ Show favorites" else "☆ Показать избранные")
+            fill(search.text.toString())
         }
         fill(query)
         search.addTextChangedListener(object:android.text.TextWatcher {
