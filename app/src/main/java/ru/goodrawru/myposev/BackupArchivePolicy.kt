@@ -1,12 +1,12 @@
 package ru.goodrawru.myposev
 
-/**
- * Backups are stored as ZIP, but their uncompressed JSON size must be bounded.
- * Apply the same limit during both export and import so this app never creates
- * an archive it will immediately reject on restore.
- */
 import org.json.JSONArray
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
 
+/**
+ * Keeps backup import and export constraints consistent.
+ */
 internal object BackupArchivePolicy {
     const val MAX_UNCOMPRESSED_BYTES = 5 * 1024 * 1024
 
@@ -27,6 +27,16 @@ internal object BackupArchivePolicy {
     fun requireNonEmptyPreferences(keyCount: Int) {
         require(keyCount > 0) { "Резервная копия не содержит настроек" }
     }
+
+    /**
+     * Do not silently replace damaged UTF-8 sequences with replacement glyphs:
+     * they could corrupt user notes while still producing syntactically valid JSON.
+     */
+    fun decodeJson(bytes: ByteArray): String =
+        Charsets.UTF_8.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+            .decode(ByteBuffer.wrap(bytes)).toString()
 
     fun requireSupportedSize(byteCount: Int) {
         require(byteCount in 0..MAX_UNCOMPRESSED_BYTES) {
