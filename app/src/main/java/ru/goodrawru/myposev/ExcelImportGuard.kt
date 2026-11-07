@@ -5,11 +5,20 @@ package ru.goodrawru.myposev
  * Pure Kotlin so these rules can be exercised by local JVM unit tests.
  */
 internal object ExcelImportGuard {
+    const val MAX_FILE_BYTES = 10 * 1024 * 1024
     const val MAX_ROWS_PER_SHEET = 20_000
     const val MAX_COLUMNS_PER_SHEET = 128
     const val MAX_CELL_CHARS = 32_767
     const val MAX_SHARED_STRINGS = 100_000
     const val MAX_SHEETS = 30
+
+    fun requireWorkbookSize(byteCount: Int) {
+        require(byteCount in 1..MAX_FILE_BYTES) { "Файл пустой или превышает 10 МБ" }
+    }
+
+    fun requireUniquePreferenceKey(key: String, existing: MutableSet<String>) {
+        require(key.isNotBlank() && existing.add(key)) { "Повторяется или отсутствует ключ в служебных данных Excel" }
+    }
 
     fun zipEntryPath(name: String): String {
         val normalized = name.removeSuffix("/") // ZIP directory entries may end in '/'.
