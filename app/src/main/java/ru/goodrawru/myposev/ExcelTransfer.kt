@@ -354,7 +354,10 @@ internal object ExcelTransfer {
         val result = JSONArray()
         val ids = mutableSetOf<String>()
         data.drop(1).forEachIndexed { rowIndex, row ->
-            val values = fields.mapIndexed { i, _ -> row.getOrNull(indexes[i]).orEmpty().trim() }
+            // Preserve spaces/newlines in notes, advice and task titles while trimming IDs/dates.
+            val values = fields.mapIndexed { i, field ->
+                ExcelImportGuard.recordCell(row.getOrNull(indexes[i]).orEmpty(), field)
+            }
             if (values.all { it.isBlank() }) return@forEachIndexed
             var item = if (techIndex >= 0) {
                 val raw = row.getOrNull(techIndex).orEmpty()
@@ -394,7 +397,12 @@ internal object ExcelTransfer {
     private fun ids(array: JSONArray): Set<String> =
         (0 until array.length()).mapNotNull { array.optJSONObject(it)?.optString("id")?.takeIf(String::isNotBlank) }.toSet()
 
-    private fun jsonArray(value: String): JSONArray = try { JSONArray(value) } catch (_: Exception) { JSONArray() }
+    private fun jsonArray(value: String): JSONArray = try {
+        JSONArray(value)
+    } catch (error: Exception) {
+        // Never silently erase planted crops, harvests or tasks when a stored list is damaged.
+        throw IllegalArgumentException("Повреждён список записей приложения", error)
+    }
 
     private fun typeOf(value: Any): String = when (value) {
         is String -> "s"; is Boolean -> "b"; is Int -> "i"; is Long -> "l"; is Float -> "f"
@@ -501,7 +509,10 @@ internal object ExcelTransfer {
                 entry("xl/worksheets/sheet${sheetIndex + 1}.xml", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>$widths</cols><sheetData>$data</sheetData>$filter</worksheet>""")
             }
         }
-        return out.toByteArray()
+        val result = out.toByteArray()
+        // An exported workbook must remain re-importable by this app.
+        ExcelImportGuard.requireWorkbookSize(result.size)
+        return result
     }
 
     private fun readZip(bytes: ByteArray): Map<String, ByteArray> {
