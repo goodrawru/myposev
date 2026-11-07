@@ -594,6 +594,8 @@ internal object ExcelTransfer {
                 cellIndex = ExcelImportGuard.cellColumn(ref)
                 cellType = parser.getAttributeValue(null, "t").orEmpty()
                 cellValue = StringBuilder()
+            } else if (parser.eventType == XmlPullParser.START_TAG && parser.name == "f" && rowCells != null && cellIndex >= 0) {
+                throw IllegalArgumentException("Формулы в импортируемой книге Excel не поддерживаются")
             } else if (parser.eventType == XmlPullParser.START_TAG && (parser.name == "v" || parser.name == "t") && rowCells != null && cellIndex >= 0) {
                 cellValue.append(parser.nextText())
                 ExcelImportGuard.requireCellLength(cellValue.length)
