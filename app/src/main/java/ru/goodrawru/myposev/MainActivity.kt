@@ -1566,7 +1566,7 @@ class MainActivity : Activity() {
         button("← Назад") { showHome() }
     }
 
-    private fun showReminderCropPicker(initial: Set<String>?, onSaved: (Set<String>) -> Unit) {
+    private fun reminderCropOptions(): List<Pair<String, String>> {
         val options = mutableListOf<Pair<String, String>>()
         for (i in 0 until cropIconCatalog.length()) {
             val crop = cropIconCatalog.optJSONObject(i) ?: continue
@@ -1575,31 +1575,111 @@ class MainActivity : Activity() {
             val name = crop.optString("name")
             if (id.isNotBlank() && name.isNotBlank()) options.add(id to name)
         }
-        val customCrops = userCrops()
-        for (i in 0 until customCrops.length()) {
-            val crop = customCrops.optJSONObject(i) ?: continue
+        val custom = userCrops()
+        for (i in 0 until custom.length()) {
+            val crop = custom.optJSONObject(i) ?: continue
             val id = crop.optString("id")
             val name = crop.optString("name")
-            if (id.isNotBlank() && name.isNotBlank() && options.none { it.first == id }) options.add(id to name)
+            if (id.isNotBlank() && name.isNotBlank()) options.add(id to name)
         }
+        return options.distinctBy { it.first }
+    }
+
+    private fun showReminderCropPicker(initial: Set<String>?, onSaved: (Set<String>) -> Unit) {
+        val options = reminderCropOptions()
         if (options.isEmpty()) {
             Toast.makeText(this, tr("Каталог культур недоступен."), Toast.LENGTH_SHORT).show()
             return
         }
         val favorites = prefs.getStringSet("favorite_crop_ids", emptySet())?.toSet().orEmpty()
         val sorted = ReminderUiRules.orderedCrops(options, favorites)
-        val selected = (initial ?: sorted.map { it.first }.toSet()).toMutableSet()
-        val checked = BooleanArray(sorted.size) { sorted[it].first in selected }
-        val names = sorted.map { (id, name) ->
-            (if (id in favorites) "★ " else "") + tr(name)
-        }.toTypedArray()
+        val validIds = sorted.map { it.first }.toSet()
+        val selected = (initial?.intersect(validIds) ?: validIds).toMutableSet()
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(4))
+        }
+        val summary = txt("", 13f)
+        fun updateSummary() {
+            summary.text = if (isEnglish()) "Selected: ${selected.size} / ${sorted.size}"
+                else "Выбрано: ${selected.size} из ${sorted.size}"
+        }
+        val search = EditText(this).apply {
+            hint = if (isEnglish()) "Search crops" else "Поиск культур"
+            setSingleLine(true)
+        }
+        container.addView(search, LinearLayout.LayoutParams(-1, -2))
+        container.addView(summary)
+        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val chooseAll = Button(this).apply {
+            text = if (isEnglish()) "Select all" else "Выбрать все"
+            textSize = 12f
+            isAllCaps = false
+        }
+        val clear = Button(this).apply {
+            text = if (isEnglish()) "Clear" else "Снять выбор"
+            textSize = 12f
+            isAllCaps = false
+        }
+        actions.addView(chooseAll, LinearLayout.LayoutParams(0, -2, 1f))
+        actions.addView(clear, LinearLayout.LayoutParams(0, -2, 1f))
+        container.addView(actions)
+        val entries = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = false
+            addView(entries)
+        }
+        val availableHeight = (resources.displayMetrics.heightPixels * 0.48f).toInt()
+        container.addView(scroll, LinearLayout.LayoutParams(-1, minOf(dp(390), availableHeight)))
+
+        fun render(filter: String) {
+            entries.removeAllViews()
+            val query = filter.trim()
+            val matching = sorted.filter { (_, name) ->
+                query.isBlank() || name.contains(query, ignoreCase = true) ||
+                    tr(name).contains(query, ignoreCase = true)
+            }
+            if (matching.isEmpty()) {
+                entries.addView(txt(if (isEnglish()) "No crops found" else "Культуры не найдены"))
+            } else {
+                matching.forEach { (id, name) ->
+                    entries.addView(CheckBox(this).apply {
+                        text = (if (id in favorites) "★  " else "") + tr(name)
+                        isChecked = id in selected
+                        textSize = 15f
+                        minHeight = dp(44)
+                        setOnCheckedChangeListener { _, isChecked ->
+                            if (isChecked) selected.add(id) else selected.remove(id)
+                            updateSummary()
+                        }
+                    }, LinearLayout.LayoutParams(-1, -2))
+                }
+            }
+            updateSummary()
+        }
+        chooseAll.setOnClickListener {
+            selected.addAll(validIds)
+            render(search.text.toString())
+        }
+        clear.setOnClickListener {
+            selected.clear()
+            render(search.text.toString())
+        }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                render(s?.toString().orEmpty())
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+        render("")
         android.app.AlertDialog.Builder(this)
             .setTitle(tr("Культуры для напоминаний"))
-            .setMultiChoiceItems(names, checked) { _, which, isChecked ->
-                if (isChecked) selected.add(sorted[which].first) else selected.remove(sorted[which].first)
+            .setView(container)
+            .setPositiveButton(if (isEnglish()) "Done" else "Готово") { _, _ ->
+                onSaved(selected.toSet())
             }
-            .setPositiveButton(tr("Сохранить")) { _, _ -> onSaved(selected.toSet()) }
-            .setNeutralButton(tr("Выбрать все")) { _, _ -> onSaved(sorted.map { it.first }.toSet()) }
             .setNegativeButton(tr("Отмена"), null)
             .show()
     }
