@@ -15,8 +15,8 @@ android {
         applicationId = "ru.goodrawru.myposev"
         minSdk = 26
         targetSdk = 35
-        versionCode = 19
-        versionName = "1.3.7"
+        versionCode = 20
+        versionName = "1.3.8"
     }
 
     // Release signing is enabled only when GitHub Actions secrets are supplied.
@@ -63,4 +63,5 @@ android {
 dependencies {
     implementation("com.caverock:androidsvg-aar:1.4")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

@@ -172,8 +172,16 @@ class MainActivity : Activity() {
             }
         }
         root.addView(TextView(this).apply {
-            text = tr("🌱  ") + tr(title); textSize=25f; setTextColor(Color.WHITE); setBackgroundColor(green)
-            setPadding(20,22,20,22); gravity=Gravity.CENTER_VERTICAL
+            text = "🌱  " + tr(title)
+            textSize = 20f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            setAutoSizeTextTypeUniformWithConfiguration(
+                16, 22, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+            setTextColor(Color.WHITE)
+            setBackgroundColor(green)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            gravity = Gravity.CENTER_VERTICAL
         })
         val sectionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -349,7 +357,11 @@ class MainActivity : Activity() {
         if (requestCode == 2401) {
             val bytes = pendingBackupBytes; pendingBackupBytes = null
             if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) return
-            try { contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }; Toast.makeText(this, tr("Резервная копия сохранена"), Toast.LENGTH_LONG).show() }
+            try {
+                contentResolver.openOutputStream(data.data!!, "wt")?.use { it.write(bytes) }
+                    ?: throw java.io.IOException("Не удалось открыть файл для записи")
+                Toast.makeText(this, tr("Резервная копия сохранена"), Toast.LENGTH_LONG).show()
+            }
             catch (e: Exception) { Toast.makeText(this, tr("Ошибка сохранения копии"), Toast.LENGTH_LONG).show() }
             return
         }
@@ -369,9 +381,9 @@ class MainActivity : Activity() {
             pendingExcelBytes = null
             if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) return
             try {
-                contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }
+                contentResolver.openOutputStream(data.data!!, "wt")?.use { it.write(bytes) }
                     ?: throw IllegalStateException("Не удалось открыть файл")
-                Toast.makeText(this, "Книга Excel сохранена", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, if (isEnglish()) "Excel workbook saved" else "Книга Excel сохранена", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
                 Toast.makeText(this, "Ошибка сохранения Excel: ${e.message ?: "неизвестная ошибка"}", Toast.LENGTH_LONG).show()
             }
@@ -386,7 +398,7 @@ class MainActivity : Activity() {
             pendingPdfBytes = null
             if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) return
             try {
-                contentResolver.openOutputStream(data.data!!)?.use { it.write(bytes) }
+                contentResolver.openOutputStream(data.data!!, "wt")?.use { it.write(bytes) }
                     ?: throw IllegalStateException("Не удалось открыть файл")
                 Toast.makeText(this, tr("PDF сохранён"), Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
@@ -1185,22 +1197,51 @@ class MainActivity : Activity() {
 
     private fun showUpdateNotes(manual: Boolean) {
         android.app.AlertDialog.Builder(this).setTitle(tr("Что нового · версия ") + BuildConfig.VERSION_NAME)
-            .setMessage(if (isEnglish()) "• Built-in crop cards are visible again, with Russian and English search.\n• The printable planner now filters tasks and notes correctly across winter.\n• English labels and PDF export have been improved.\n• Release APK signing checks and PDF regression tests have been added." else "• Восстановлены карточки встроенных культур, добавлен поиск на русском и английском.\n• Исправлен зимний PDF: задачи и заметки теперь соответствуют выбранному периоду.\n• Улучшены английские подписи и оформление PDF.\n• Добавлены проверки подписи APK и тесты PDF.")
+            .setMessage(if (isEnglish())
+                "• Calendar legend and screen headings fit smaller displays.\n• Crop favorites and editable crop copies are available.\n• Reminder settings highlight unsaved changes; crop selection is searchable.\n• Safer ZIP backups and Excel import with extra data-integrity checks."
+                else "• Исправлены обозначения календаря и заголовки экранов.\n• Добавлены избранные культуры и редактируемые копии встроенных культур.\n• Несохранённые настройки напоминаний подсвечиваются; появился поиск культур.\n• Повышена надёжность резервных копий ZIP и импорта Excel.")
             .setPositiveButton(tr("Понятно"), null).show()
     }
 
     private fun createBackup() {
+        // Never reuse bytes prepared for a previous, failed save dialog.
+        pendingBackupBytes = null
         try {
+            val snapshot = prefs.all
+            BackupArchivePolicy.requireNonEmptyPreferences(snapshot.size)
             val json = JSONObject().put("format", 1).put("created", System.currentTimeMillis())
             val values = JSONObject()
-            prefs.all.forEach { (k,v) -> values.put(k, JSONObject().put("type", when(v) { is String -> "s"; is Boolean -> "b"; is Int -> "i"; is Long -> "l"; is Float -> "f"; is Set<*> -> "ss"; else -> "x" }).put("value", v)) }
+            snapshot.forEach { (key, value) ->
+                val type = when (value) {
+                    is String -> "s"
+                    is Boolean -> "b"
+                    is Int -> "i"
+                    is Long -> "l"
+                    is Float -> "f"
+                    is Set<*> -> "ss"
+                    else -> throw IllegalArgumentException("Неподдерживаемый тип данных: $key")
+                }
+                values.put(key, JSONObject()
+                    .put("type", type)
+                    .put("value", BackupArchivePolicy.encodeValue(value)))
+            }
             json.put("preferences", values)
+            val payload = json.toString(2).toByteArray(Charsets.UTF_8)
+            // Export only archives that this version is able to restore.
+            BackupArchivePolicy.requireSupportedSize(payload.size)
             val bytes = java.io.ByteArrayOutputStream()
-            java.util.zip.ZipOutputStream(bytes).use { z -> z.putNextEntry(java.util.zip.ZipEntry("backup.json")); z.write(json.toString(2).toByteArray(Charsets.UTF_8)); z.closeEntry() }
+            java.util.zip.ZipOutputStream(bytes).use { z ->
+                z.putNextEntry(java.util.zip.ZipEntry("backup.json"))
+                z.write(payload)
+                z.closeEntry()
+            }
             pendingBackupBytes = bytes.toByteArray()
             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "application/zip"; putExtra(Intent.EXTRA_TITLE, "Moi_Posevnoy_backup.zip") }
             startActivityForResult(intent, 2401)
-        } catch (e: Exception) { Toast.makeText(this, tr("Ошибка создания копии: ") + (e.message ?: "ошибка"), Toast.LENGTH_LONG).show() }
+        } catch (e: Exception) {
+            pendingBackupBytes = null
+            Toast.makeText(this, tr("Ошибка создания копии: ") + (e.message ?: "ошибка"), Toast.LENGTH_LONG).show()
+        }
     }
     private fun restoreBackup() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -1230,18 +1271,20 @@ class MainActivity : Activity() {
                         val count = zip.read(buffer)
                         if (count < 0) break
                         total += count
-                        if (total > 5 * 1024 * 1024) throw IllegalArgumentException("Файл резервной копии слишком большой")
+                        BackupArchivePolicy.requireSupportedSize(total)
                         output.write(buffer, 0, count)
                     }
                     if (zip.nextEntry != null) {
                         throw IllegalArgumentException("В архиве есть лишние файлы")
                     }
-                    output.toString(Charsets.UTF_8.name())
+                    BackupArchivePolicy.decodeJson(output.toByteArray())
                 }
             } ?: throw IllegalArgumentException("В архиве не найден backup.json")
             val root = JSONObject(jsonText)
             if (root.optInt("format", -1) != 1) throw IllegalArgumentException("Неподдерживаемый формат копии")
             val values = root.optJSONObject("preferences") ?: throw IllegalArgumentException("В копии нет настроек")
+            // An empty (or tampered) snapshot must never erase existing user data.
+            BackupArchivePolicy.requireNonEmptyPreferences(values.length())
 
             // Validate all supported values before changing any current data.
             val parsed = mutableListOf<Pair<String, Pair<String, Any?>>>()
@@ -1309,6 +1352,8 @@ class MainActivity : Activity() {
                 return editor.commit()
             }
             val restored = parsed.associate { (key, pair) -> key to pair.second }
+            // Reject incompatible archive values before clearing current preferences.
+            BackupArchivePolicy.requireCompatibleTypes(previous, restored)
             if (!writePreferences(restored)) {
                 val rollbackSucceeded = runCatching { writePreferences(previous) }.getOrDefault(false)
                 throw IllegalStateException(
@@ -1316,9 +1361,18 @@ class MainActivity : Activity() {
                     else "Ошибка сохранения копии и отката. Проверьте данные приложения"
                 )
             }
-            migrateLegacyNoteKeys()
-            scheduleDailyReminder()
-            Toast.makeText(this, tr("Копия восстановлена. Данные загружены."), Toast.LENGTH_LONG).show()
+            // Restoration is committed. Follow-up failures must not be reported
+            // as a failed restore, because the saved user data is already present.
+            val migration = runCatching { migrateLegacyNoteKeys() }
+            val reminders = runCatching { scheduleDailyReminder() }
+            if (migration.isSuccess && reminders.isSuccess) {
+                Toast.makeText(this, tr("Копия восстановлена. Данные загружены."), Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this,
+                    if (isEnglish()) "Backup restored. Please check older notes and reminders."
+                    else "Копия восстановлена. Проверьте старые заметки и напоминания.",
+                    Toast.LENGTH_LONG).show()
+            }
             showHome()
         } catch (e: Exception) {
             Toast.makeText(this, if (isEnglish()) "Could not restore backup: ${e.message ?: "invalid archive"}. Check the app data before continuing." else "Не удалось восстановить копию: ${e.message ?: "неверный архив"}. Проверьте данные приложения перед продолжением.", Toast.LENGTH_LONG).show()
@@ -1337,12 +1391,14 @@ class MainActivity : Activity() {
         card("🧤 Задачи по уходу",todayTasksSummary(),{showTasks()})
         button("Политика конфиденциальности") { showPrivacyPolicy() }
         card("🌦️ Погода на 7 дней","Прогноз по дням: температура, облачность, осадки и ветер.",{loadWeather()})
-        card("🪴 Полезный принцип","Посевные сроки — ориентир, а не гарантия. Сверяйте рекомендации с прогнозом заморозков, температурой почвы и условиями конкретной грядки.")
+        card("🪴 Полезный принцип", if (isEnglish())
+            "Check the frost forecast, soil temperature and conditions in your garden before planting."
+            else "Сверяйте рекомендации с прогнозом заморозков, температурой почвы и условиями конкретной грядки.")
         card("🌙 Лунный календарь",lunarSummary(Calendar.getInstance()),{showCalendar()})
         card("📅 Выбрать дату","Откройте календарь, чтобы посмотреть сезонные подсказки и заметки.",{showCalendar()})
         card("🌱 Каталог культур","Овощи, зелень, ягоды и цветы — сроки, глубина посева и советы.",{showPlants("")})
         card("🔔 Напоминания",reminderSettingsSummary(),{showReminderSettings()})
-        card("ℹ️ Важно","Это стартовая база. Универсальных дат посева для всей России не существует.")
+        card("ℹ️ Важно", if (isEnglish()) "Information is advisory. There are no universal sowing dates." else "Информация носит рекомендательный характер. Универсальных дат посева не существует.")
     }
 
 
@@ -1358,88 +1414,159 @@ class MainActivity : Activity() {
         val hour = prefs.getInt("reminder_hour", 9).coerceIn(0, 23)
         val minute = prefs.getInt("reminder_minute", 0).coerceIn(0, 59)
         val selected = prefs.getStringSet("reminder_categories", null) ?: defaultReminderCategories()
-        val count = prefs.getStringSet("reminder_crop_ids", null)?.size ?: cropIconCatalog.length()
-        return if (enabled) "Каждый день примерно в %02d:%02d · категорий: %d · культур: %d. Нажмите, чтобы настроить."
-            .format(Locale.US, hour, minute, selected.size, count)
+        val count = prefs.getStringSet("reminder_crop_ids", null)?.size ?: reminderCropOptions().size
+        return if (enabled) {
+            if (isEnglish()) "Every day around %02d:%02d · categories: %d · crops: %d. Tap to configure."
+                .format(Locale.US, hour, minute, selected.size, count)
+            else "Каждый день примерно в %02d:%02d · категорий: %d · культур: %d. Нажмите, чтобы настроить."
+                .format(Locale.US, hour, minute, selected.size, count)
+        } else if (isEnglish()) "Daily reminders are off. Tap to configure."
         else "Ежедневные уведомления выключены. Нажмите, чтобы настроить."
     }
 
     private fun showReminderSettings() {
         baseLayout("Ежедневные напоминания")
         content.addView(txt("Приложение будет готовить локальный план на текущий день. Интернет для календарных рекомендаций не нужен; точное время доставки зависит от ограничений Android.", 14f))
+
+        val savedEnabled = prefs.getBoolean("reminder_enabled", false)
+        val savedHour = prefs.getInt("reminder_hour", 9).coerceIn(0, 23)
+        val savedMinute = prefs.getInt("reminder_minute", 0).coerceIn(0, 59)
+        val savedCategories = prefs.getStringSet("reminder_categories", null)?.toSet() ?: defaultReminderCategories()
+        val savedLimit = prefs.getInt("reminder_limit", 4)
+        val savedCropIds = prefs.getStringSet("reminder_crop_ids", null)?.toSet()
+        var draftCropIds = savedCropIds
+        var hour = savedHour
+        var minute = savedMinute
+        lateinit var onChanged: () -> Unit
+
         val enabled = CheckBox(this).apply {
             text = tr("Включить ежедневные уведомления")
-            isChecked = prefs.getBoolean("reminder_enabled", false)
+            isChecked = savedEnabled
             textSize = 16f
         }
         content.addView(enabled)
-        var hour = prefs.getInt("reminder_hour", 9).coerceIn(0, 23)
-        var minute = prefs.getInt("reminder_minute", 0).coerceIn(0, 59)
+
         val timeButton = Button(this).apply {
             text = tr("Время: %02d:%02d").format(Locale.US, hour, minute)
             isAllCaps = false
             setOnClickListener {
                 android.app.TimePickerDialog(this@MainActivity, { _, h, m ->
-                    hour = h; minute = m
+                    hour = h
+                    minute = m
                     text = tr("Время: %02d:%02d").format(Locale.US, hour, minute)
+                    onChanged()
                 }, hour, minute, true).show()
             }
         }
         content.addView(timeButton, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
 
         content.addView(txt("Категории рекомендаций", 17f, true))
-        val savedCategories = prefs.getStringSet("reminder_categories", null) ?: defaultReminderCategories()
         val categoryChecks = linkedMapOf<String, CheckBox>()
         reminderCategoryOptions.forEach { category ->
             val check = CheckBox(this).apply {
-                text = category
+                text = tr(category)
                 isChecked = category in savedCategories
             }
             categoryChecks[category] = check
             content.addView(check)
         }
 
-        val cropCount = prefs.getStringSet("reminder_crop_ids", null)?.size ?: cropIconCatalog.length()
-        val cropSummary = txt("Выбрано культур: $cropCount из ${cropIconCatalog.length()}", 14f)
+        fun selectedCropCount(): Int =
+            draftCropIds?.size ?: reminderCropOptions().size
+        val cropSummary = txt("", 14f)
+        fun updateCropSummary() {
+            val count = selectedCropCount()
+            val total = reminderCropOptions().size
+            cropSummary.text = if (isEnglish()) "Selected crops: $count of $total"
+                else "Выбрано культур: $count из $total"
+        }
+        updateCropSummary()
         content.addView(cropSummary)
         button("Выбрать культуры") {
-            showReminderCropPicker {
-                cropSummary.text = if (isEnglish()) "Selected crops: ${prefs.getStringSet("reminder_crop_ids", emptySet())?.size ?: cropIconCatalog.length()} of ${cropIconCatalog.length()}" else "Выбрано культур: ${prefs.getStringSet("reminder_crop_ids", emptySet())?.size ?: cropIconCatalog.length()} из ${cropIconCatalog.length()}"
+            showReminderCropPicker(draftCropIds) { newSelection ->
+                draftCropIds = newSelection
+                updateCropSummary()
+                onChanged()
             }
         }
 
         content.addView(txt("Сколько рекомендаций показывать", 17f, true))
-        val limitSpinner = Spinner(this)
         val limits = listOf(2, 3, 4, 5, 6)
-        limitSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, limits.map { "$it пункта" })
-        limitSpinner.setSelection((limits.indexOf(prefs.getInt("reminder_limit", 4))).coerceAtLeast(0))
+        val limitSpinner = Spinner(this)
+        limitSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
+            limits.map { ReminderUiRules.recommendationLimit(it, isEnglish()) })
+        limitSpinner.setSelection(limits.indexOf(savedLimit).coerceAtLeast(0))
         content.addView(limitSpinner)
 
-        button("Сохранить настройки") {
+        val saveButton = Button(this).apply {
+            text = tr("Сохранить настройки")
+            isAllCaps = false
+            textSize = 14f
+            minHeight = dp(48)
+            setPadding(dp(14), dp(8), dp(14), dp(8))
+            setTextColor(Color.rgb(34, 76, 45))
+            background = roundedBackground(Color.WHITE, 14f, Color.rgb(207, 222, 202))
+        }
+        fun updateDirtyState() {
+            val chosenCategories = categoryChecks.filterValues { it.isChecked }.keys.toSet()
+            val selectedLimit = limits[limitSpinner.selectedItemPosition.coerceIn(0, limits.lastIndex)]
+            val isDirty = enabled.isChecked != savedEnabled || hour != savedHour ||
+                minute != savedMinute || chosenCategories != savedCategories ||
+                selectedLimit != savedLimit || draftCropIds != savedCropIds
+            if (isDirty) {
+                saveButton.setTextColor(Color.WHITE)
+                saveButton.background = roundedBackground(Color.rgb(182, 38, 45), 14f)
+                saveButton.text = if (isEnglish()) "Save changes •" else "Сохранить настройки •"
+            } else {
+                saveButton.setTextColor(Color.rgb(34, 76, 45))
+                saveButton.background = roundedBackground(Color.WHITE, 14f, Color.rgb(207, 222, 202))
+                saveButton.text = tr("Сохранить настройки")
+            }
+        }
+        onChanged = { updateDirtyState() }
+        enabled.setOnCheckedChangeListener { _, _ -> onChanged() }
+        categoryChecks.values.forEach { it.setOnCheckedChangeListener { _, _ -> onChanged() } }
+        limitSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
+                onChanged()
+            }
+        }
+        saveButton.setOnClickListener {
             val categories = categoryChecks.filterValues { it.isChecked }.keys.toSet()
             val wantsEnabled = enabled.isChecked
             if (wantsEnabled && categories.isEmpty()) {
                 Toast.makeText(this, tr("Выберите хотя бы одну категорию рекомендаций."), Toast.LENGTH_LONG).show()
-                return@button
+                return@setOnClickListener
             }
             val needsPermission = wantsEnabled && Build.VERSION.SDK_INT >= 33 &&
                 checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-            prefs.edit()
+            val editor = prefs.edit()
                 .putBoolean("reminder_enabled", wantsEnabled && !needsPermission)
                 .putBoolean("reminder_pending_enable", needsPermission)
                 .putInt("reminder_hour", hour)
                 .putInt("reminder_minute", minute)
                 .putStringSet("reminder_categories", categories)
                 .putInt("reminder_limit", limits[limitSpinner.selectedItemPosition])
-                .apply()
+            if (draftCropIds == null) editor.remove("reminder_crop_ids")
+            else editor.putStringSet("reminder_crop_ids", draftCropIds!!.toSet())
+            if (!editor.commit()) {
+                Toast.makeText(this, if (isEnglish()) "Could not save reminder settings" else "Не удалось сохранить настройки напоминаний", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
             scheduleDailyReminder()
             if (needsPermission) {
                 requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
-                return@button
+                return@setOnClickListener
             }
-            Toast.makeText(this, if (wantsEnabled) "Настройки напоминаний сохранены" else "Напоминания выключены", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, if (isEnglish()) "Reminder settings saved" else "Настройки напоминаний сохранены", Toast.LENGTH_SHORT).show()
             showHome()
         }
+        content.addView(saveButton, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(4); bottomMargin = dp(5)
+        })
+        updateDirtyState()
+
         button("Отправить тестовое уведомление") {
             sendBroadcast(Intent(this, ReminderReceiver::class.java).setAction(ReminderReceiver.ACTION_TEST))
             Toast.makeText(this, tr("Тестовое уведомление отправлено, если разрешения Android включены."), Toast.LENGTH_LONG).show()
@@ -1447,7 +1574,7 @@ class MainActivity : Activity() {
         button("← Назад") { showHome() }
     }
 
-    private fun showReminderCropPicker(onSaved: () -> Unit) {
+    private fun reminderCropOptions(): List<Pair<String, String>> {
         val options = mutableListOf<Pair<String, String>>()
         for (i in 0 until cropIconCatalog.length()) {
             val crop = cropIconCatalog.optJSONObject(i) ?: continue
@@ -1456,44 +1583,123 @@ class MainActivity : Activity() {
             val name = crop.optString("name")
             if (id.isNotBlank() && name.isNotBlank()) options.add(id to name)
         }
-        val customCrops = userCrops()
-        for (i in 0 until customCrops.length()) {
-            val crop = customCrops.optJSONObject(i) ?: continue
+        val custom = userCrops()
+        for (i in 0 until custom.length()) {
+            val crop = custom.optJSONObject(i) ?: continue
             val id = crop.optString("id")
             val name = crop.optString("name")
-            if (id.isNotBlank() && name.isNotBlank() && options.none { it.first == id }) options.add(id to name)
+            if (id.isNotBlank() && name.isNotBlank()) options.add(id to name)
         }
+        return options.distinctBy { it.first }
+    }
+
+    private fun showReminderCropPicker(initial: Set<String>?, onSaved: (Set<String>) -> Unit) {
+        val options = reminderCropOptions()
         if (options.isEmpty()) {
             Toast.makeText(this, tr("Каталог культур недоступен."), Toast.LENGTH_SHORT).show()
             return
         }
-        val stored = prefs.getStringSet("reminder_crop_ids", null)
-        val selected = (stored ?: options.map { it.first }.toSet()).toMutableSet()
-        val checked = BooleanArray(options.size) { options[it].first in selected }
+        val favorites = prefs.getStringSet("favorite_crop_ids", emptySet())?.toSet().orEmpty()
+        val sorted = ReminderUiRules.orderedCrops(options, favorites)
+        val validIds = sorted.map { it.first }.toSet()
+        val selected = (initial?.intersect(validIds) ?: validIds).toMutableSet()
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(8), dp(16), dp(4))
+        }
+        val summary = txt("", 13f)
+        fun updateSummary() {
+            summary.text = if (isEnglish()) "Selected: ${selected.size} / ${sorted.size}"
+                else "Выбрано: ${selected.size} из ${sorted.size}"
+        }
+        val search = EditText(this).apply {
+            hint = if (isEnglish()) "Search crops" else "Поиск культур"
+            setSingleLine(true)
+        }
+        container.addView(search, LinearLayout.LayoutParams(-1, -2))
+        container.addView(summary)
+        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val chooseAll = Button(this).apply {
+            text = if (isEnglish()) "Select all" else "Выбрать все"
+            textSize = 12f
+            isAllCaps = false
+        }
+        val clear = Button(this).apply {
+            text = if (isEnglish()) "Clear" else "Снять выбор"
+            textSize = 12f
+            isAllCaps = false
+        }
+        actions.addView(chooseAll, LinearLayout.LayoutParams(0, -2, 1f))
+        actions.addView(clear, LinearLayout.LayoutParams(0, -2, 1f))
+        container.addView(actions)
+        val entries = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = false
+            addView(entries)
+        }
+        val availableHeight = (resources.displayMetrics.heightPixels * 0.48f).toInt()
+        container.addView(scroll, LinearLayout.LayoutParams(-1, minOf(dp(390), availableHeight)))
+
+        fun render(filter: String) {
+            entries.removeAllViews()
+            val query = filter.trim()
+            val matching = sorted.filter { (_, name) ->
+                query.isBlank() || name.contains(query, ignoreCase = true) ||
+                    tr(name).contains(query, ignoreCase = true)
+            }
+            if (matching.isEmpty()) {
+                entries.addView(txt(if (isEnglish()) "No crops found" else "Культуры не найдены"))
+            } else {
+                matching.forEach { (id, name) ->
+                    entries.addView(CheckBox(this).apply {
+                        text = (if (id in favorites) "★  " else "") + tr(name)
+                        isChecked = id in selected
+                        textSize = 15f
+                        minHeight = dp(44)
+                        setOnCheckedChangeListener { _, isChecked ->
+                            if (isChecked) selected.add(id) else selected.remove(id)
+                            updateSummary()
+                        }
+                    }, LinearLayout.LayoutParams(-1, -2))
+                }
+            }
+            updateSummary()
+        }
+        chooseAll.setOnClickListener {
+            selected.addAll(validIds)
+            render(search.text.toString())
+        }
+        clear.setOnClickListener {
+            selected.clear()
+            render(search.text.toString())
+        }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                render(s?.toString().orEmpty())
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+        render("")
         android.app.AlertDialog.Builder(this)
             .setTitle(tr("Культуры для напоминаний"))
-            .setMultiChoiceItems(options.map { it.second }.toTypedArray(), checked) { _, which, isChecked ->
-                if (isChecked) selected.add(options[which].first) else selected.remove(options[which].first)
-            }
-            .setPositiveButton(tr("Сохранить")) { _, _ ->
-                prefs.edit().putStringSet("reminder_crop_ids", selected.toSet()).apply()
-                onSaved()
-            }
-            .setNeutralButton(tr("Выбрать все")) { _, _ ->
-                prefs.edit().putStringSet("reminder_crop_ids", options.map { it.first }.toSet()).apply()
-                onSaved()
+            .setView(container)
+            .setPositiveButton(if (isEnglish()) "Done" else "Готово") { _, _ ->
+                onSaved(selected.toSet())
             }
             .setNegativeButton(tr("Отмена"), null)
             .show()
     }
 
     private fun exportExcel() {
+        pendingExcelBytes = null
         try {
             pendingExcelBytes = ExcelTransfer.export(prefs, builtInPlants, cropIconCatalog)
             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
                 type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                putExtra(Intent.EXTRA_TITLE, "Мой_Посевной.xlsx")
+                putExtra(Intent.EXTRA_TITLE, if (isEnglish()) "My_Sowing_Calendar.xlsx" else "Мой_Посевной.xlsx")
             }
             startActivityForResult(intent, 2403)
         } catch (e: Exception) {
@@ -1511,7 +1717,7 @@ class MainActivity : Activity() {
         try {
             startActivityForResult(intent, 2404)
         } catch (_: Exception) {
-            Toast.makeText(this, "Не удалось открыть выбор файла", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, if (isEnglish()) "Could not open the document picker" else "Не удалось открыть выбор файла", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -1532,16 +1738,30 @@ class MainActivity : Activity() {
             } ?: throw IllegalStateException("Не удалось прочитать файл")
             val plan = ExcelTransfer.prepareImport(bytes, prefs)
             android.app.AlertDialog.Builder(this)
-                .setTitle("Проверка книги Excel")
-                .setMessage(plan.summary() + "\n\nИмпорт заменит рабочие списки данными из книги. Удалённые в Excel строки будут удалены и в приложении. Перед применением будет создана внутренняя точка отката. Продолжить?")
-                .setNegativeButton("Отмена", null)
-                .setPositiveButton("Применить изменения") { _, _ ->
-                    if (ExcelTransfer.applyImport(plan, prefs)) {
+                .setTitle(if (isEnglish()) "Review Excel import" else "Проверка книги Excel")
+                .setMessage(
+                    (if (isEnglish()) "New records: ${plan.added}\nChanged records: ${plan.changed}\nRecords to delete: ${plan.deleted}\nNotes in workbook: ${plan.notes}" else plan.summary()) +
+                    "\n\n" + (if (isEnglish())
+                        "Import replaces the working lists, including deletions. Save a ZIP backup before importing. If saving fails, the app will attempt to restore your previous preferences. Continue?"
+                    else
+                        "Импорт заменит рабочие списки, включая удалённые в Excel строки. Перед импортом сохраните ZIP-копию. При ошибке записи приложение попытается восстановить прежние данные. Продолжить?")
+                )
+                .setNegativeButton(tr("Отмена"), null)
+                .setPositiveButton(if (isEnglish()) "Apply changes" else "Применить изменения") { _, _ ->
+                    val applied = try {
+                        ExcelTransfer.applyImport(plan, prefs)
+                    } catch (error: Exception) {
+                        Toast.makeText(this,
+                            "Ошибка импорта Excel: ${error.message ?: "неизвестная ошибка"}. Проверьте данные и резервную копию.",
+                            Toast.LENGTH_LONG).show()
+                        return@setPositiveButton
+                    }
+                    if (applied) {
                         scheduleDailyReminder()
-                        Toast.makeText(this, "Данные из Excel успешно загружены", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this, if (isEnglish()) "Excel data imported successfully" else "Данные из Excel успешно загружены", Toast.LENGTH_LONG).show()
                         showHome()
                     } else {
-                        Toast.makeText(this, "Не удалось сохранить данные. Предыдущие данные восстановлены.", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this, if (isEnglish()) "Could not save the import. Previous data was restored." else "Не удалось сохранить данные. Предыдущие данные восстановлены.", Toast.LENGTH_LONG).show()
                     }
                 }
                 .show()
@@ -2253,9 +2473,20 @@ class MainActivity : Activity() {
             Triple(Color.rgb(210,65,65), "Красная точка", "Для осторожного планирования")
         ).forEach { item ->
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-            row.addView(TextView(this).apply { text = tr("●"); textSize = 20f; setTextColor(item.first); setPadding(0, 0, dp(10), 0) })
-            row.addView(txt(item.second + " — " + item.third, 13f))
-            legend.addView(row)
+            row.addView(TextView(this).apply {
+                text = "●"
+                textSize = 17f
+                setTextColor(item.first)
+                gravity = Gravity.CENTER_VERTICAL
+            }, LinearLayout.LayoutParams(dp(24), -2))
+            row.addView(txt(tr(item.second) + " — " + tr(item.third), 13f).apply {
+                maxLines = 3
+                setTextColor(Color.rgb(35, 48, 38))
+                breakStrategy = android.text.Layout.BREAK_STRATEGY_HIGH_QUALITY
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            legend.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = dp(3)
+            })
         }
         legend.addView(txt("Традиционная лунная подсказка, не научный прогноз урожайности. ● с числом — незавершённые задачи; ◆ — есть заметка.", 12f))
         content.addView(legend)
@@ -2397,7 +2628,7 @@ class MainActivity : Activity() {
             age<0.785 -> "Убывающая Луна"
             else -> "Убывающая Луна"
         }
-        return "$phase. Фаза вычислена приближённо. Лунные советы — традиционная практика и не заменяют агрономические рекомендации."
+        return tr(phase)
     }
 
     // Условная цветовая маркировка по лунному циклу: это традиционная подсказка, а не прогноз урожайности.
@@ -2670,13 +2901,16 @@ class MainActivity : Activity() {
         val form = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(4), dp(18), dp(4)) }
         form.addView(nameRow)
         listOf<View>(category, sowing, depth, sprouts, advice, txt("Цветная иконка культуры",14f,true), iconPicker).forEach { form.addView(it) }
-        val dialog = android.app.AlertDialog.Builder(this).setTitle(if(existing == null) "Добавить свою культуру" else "Изменить культуру")
+        val isNew = existing?.optString("id").isNullOrBlank()
+        val dialog = android.app.AlertDialog.Builder(this).setTitle(if (isNew) tr("Добавить свою культуру") else tr("Изменить культуру"))
             .setView(ScrollView(this).apply { addView(form) }).setNegativeButton(tr("Отмена"), null).setPositiveButton(tr("Сохранить"), null).create()
         dialog.setOnShowListener {
             dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val cropName = name.text.toString().trim()
                 if (cropName.isBlank()) { name.error = "Введите название"; return@setOnClickListener }
-                val all = userCrops(); val id = existing?.optString("id") ?: java.util.UUID.randomUUID().toString()
+                val all = userCrops()
+                val id = existing?.optString("id")?.takeIf { it.isNotBlank() }
+                    ?: java.util.UUID.randomUUID().toString()
                 val item = JSONObject().put("id",id).put("name",cropName).put("category",cropCategories[category.selectedItemPosition]).put("sowing",sowing.text.toString()).put("depth",depth.text.toString()).put("sprouts",sprouts.text.toString()).put("advice",advice.text.toString()).put("icon",iconChoices[iconPicker.selectedItemPosition].first).put("emoji",plantEmoji(cropName))
                 val next = JSONArray(); var replaced = false
                 for(i in 0 until all.length()) { val old = all.optJSONObject(i) ?: continue; if(old.optString("id")==id) { next.put(item); replaced=true } else next.put(old) }
@@ -2695,6 +2929,12 @@ class MainActivity : Activity() {
         val search = EditText(this).apply { hint = tr("Найти культуру или группу"); setSingleLine(true); setText(query) }
         content.addView(search)
         content.addView(Button(this).apply { text = tr("＋ Добавить свою культуру"); isAllCaps = false; setOnClickListener { addUserCrop() } })
+        val favoritesOnlyButton = Button(this).apply {
+            text = if (isEnglish()) "☆ Show favorites" else "☆ Показать избранные"
+            isAllCaps = false
+        }
+        content.addView(favoritesOnlyButton)
+        var favoritesOnly = false
         val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(results)
 
@@ -2715,9 +2955,16 @@ class MainActivity : Activity() {
                 previousFilter = filter
             }
             results.removeAllViews()
+            val favoriteIds = prefs.getStringSet("favorite_crop_ids", emptySet())?.toSet().orEmpty()
             val mine = userCrops()
             val matches = (0 until mine.length()).mapNotNull { mine.optJSONObject(it) }
-                .filter { it.optString("name").contains(filter,true) || tr(it.optString("name")).contains(filter,true) || it.optString("category").contains(filter,true) || tr(it.optString("category")).contains(filter,true) }
+                .filter { crop ->
+                    (!favoritesOnly || crop.optString("id") in favoriteIds) &&
+                        (crop.optString("name").contains(filter,true) ||
+                            tr(crop.optString("name")).contains(filter,true) ||
+                            crop.optString("category").contains(filter,true) ||
+                            tr(crop.optString("category")).contains(filter,true))
+                }
             if (matches.isNotEmpty()) {
                 results.addView(txt(tr("Мои культуры"),19f,true))
                 val userTiles = matches.map { crop ->
@@ -2735,6 +2982,22 @@ class MainActivity : Activity() {
                     tile.addView(txt(tr(crop.optString("name")),15f,true).apply { gravity = Gravity.CENTER; maxLines = 2 })
                     tile.addView(txt(tr(crop.optString("category")),12f).apply { gravity = Gravity.CENTER })
                     tile.addView(Button(this).apply {
+                        text = if (crop.optString("id") in favoriteIds)
+                            (if (isEnglish()) "★ Favorite" else "★ В избранном")
+                            else (if (isEnglish()) "☆ Add favorite" else "☆ В избранное")
+                        textSize = 11f; isAllCaps = false
+                        setOnClickListener {
+                            val id = crop.optString("id")
+                            prefs.edit().putStringSet("favorite_crop_ids",
+                                ReminderUiRules.toggleFavorite(favoriteIds, id)).apply()
+                            fill(filter)
+                        }
+                    })
+                    tile.addView(Button(this).apply {
+                        text = tr("Изменить культуру"); textSize = 11f; isAllCaps = false
+                        setOnClickListener { addUserCrop(crop) }
+                    })
+                    tile.addView(Button(this).apply {
                         text = tr("Подробнее"); textSize = 11f; isAllCaps = false
                         setOnClickListener {
                             val details = listOf("Сроки посева" to "sowing","Глубина" to "depth","Всходы" to "sprouts","Советы" to "advice")
@@ -2751,7 +3014,14 @@ class MainActivity : Activity() {
                                         .setPositiveButton(tr("Удалить")) { _,_ ->
                                             val next = JSONArray()
                                             for (i in 0 until mine.length()) { val v = mine.optJSONObject(i) ?: continue; if (v.optString("id") != crop.optString("id")) next.put(v) }
-                                            prefs.edit().putString("user_crops",next.toString()).apply()
+                                            val deletedId = crop.optString("id")
+                                            val editor = prefs.edit().putString("user_crops", next.toString())
+                                            editor.putStringSet("favorite_crop_ids",
+                                                prefs.getStringSet("favorite_crop_ids", emptySet()).orEmpty() - deletedId)
+                                            prefs.getStringSet("reminder_crop_ids", null)?.let { saved ->
+                                                editor.putStringSet("reminder_crop_ids", saved - deletedId)
+                                            }
+                                            editor.apply()
                                             showPlants("")
                                         }.show()
                                 }.show()
@@ -2764,8 +3034,9 @@ class MainActivity : Activity() {
 
             // Built-in crops are stored under their original Russian names; translate only visible labels.
             val builtMatches = builtInPlants.filter { plant ->
-                plant.name.contains(filter, true) || tr(plant.name).contains(filter, true) ||
-                    plant.group.contains(filter, true) || tr(plant.group).contains(filter, true)
+                (!favoritesOnly || cropIconKeyForName(plant.name) in favoriteIds) &&
+                    (plant.name.contains(filter, true) || tr(plant.name).contains(filter, true) ||
+                        plant.group.contains(filter, true) || tr(plant.group).contains(filter, true))
             }
             if (builtMatches.isNotEmpty()) {
                 val expanded = showBuiltIns
@@ -2790,6 +3061,39 @@ class MainActivity : Activity() {
                             addView(txt(tr(plant.name), 15f, true).apply { gravity = Gravity.CENTER; maxLines = 2 })
                             addView(txt(tr(plant.group), 12f).apply { gravity = Gravity.CENTER })
                             addView(Button(this@MainActivity).apply {
+                                val id = cropIconKeyForName(plant.name)
+                                text = if (id in favoriteIds)
+                                    (if (isEnglish()) "★ Favorite" else "★ В избранном")
+                                    else (if (isEnglish()) "☆ Add favorite" else "☆ В избранное")
+                                isAllCaps = false
+                                textSize = 11f
+                                setOnClickListener {
+                                    prefs.edit().putStringSet("favorite_crop_ids",
+                                        ReminderUiRules.toggleFavorite(favoriteIds, id)).apply()
+                                    fill(filter)
+                                }
+                            })
+                            addView(Button(this@MainActivity).apply {
+                                text = if (isEnglish()) "Edit as my crop" else "Изменить культуру"
+                                isAllCaps = false
+                                textSize = 11f
+                                setOnClickListener {
+                                    android.app.AlertDialog.Builder(this@MainActivity)
+                                        .setTitle(if (isEnglish()) "Edit built-in crop" else "Изменить встроенную культуру")
+                                        .setMessage(if (isEnglish())
+                                            "The built-in catalog is read-only. Create an editable personal copy?"
+                                            else "Встроенный каталог сохраняется без изменений. Создать собственную редактируемую копию?")
+                                        .setNegativeButton(tr("Отмена"), null)
+                                        .setPositiveButton(if (isEnglish()) "Create copy" else "Создать копию") { _, _ ->
+                                            addUserCrop(JSONObject()
+                                                .put("name", plant.name).put("category", plant.group)
+                                                .put("sowing", plant.sowing).put("depth", plant.depth)
+                                                .put("sprouts", plant.sprouts).put("advice", plant.advice)
+                                                .put("icon", cropIconKeyForName(plant.name)))
+                                        }.show()
+                                }
+                            })
+                            addView(Button(this@MainActivity).apply {
                                 text = tr("Подробнее")
                                 isAllCaps = false
                                 setOnClickListener {
@@ -2806,6 +3110,14 @@ class MainActivity : Activity() {
                 }
             }
             if (results.childCount == 0) results.addView(txt(if (isEnglish()) "No crops found." else "Культуры не найдены."))
+        }
+        favoritesOnlyButton.setOnClickListener {
+            favoritesOnly = !favoritesOnly
+            showBuiltIns = favoritesOnly || search.text.isNotBlank()
+            favoritesOnlyButton.text = if (favoritesOnly)
+                (if (isEnglish()) "★ Showing favorites" else "★ Только избранные")
+                else (if (isEnglish()) "☆ Show favorites" else "☆ Показать избранные")
+            fill(search.text.toString())
         }
         fill(query)
         search.addTextChangedListener(object:android.text.TextWatcher {

@@ -22,7 +22,6 @@ import java.util.zip.ZipOutputStream
  */
 internal object ExcelTransfer {
     private const val MAGIC = "МОЙПОСЕВ_XLSX_1"
-    private const val MAX_FILE_BYTES = 10 * 1024 * 1024
     private const val MAX_UNPACKED_BYTES = 20 * 1024 * 1024
     private const val MAX_ENTRIES = 80
     private const val TECH = "Технические данные (не изменять)"
@@ -31,6 +30,7 @@ internal object ExcelTransfer {
     private data class SheetRef(val name: String, val relId: String)
     data class ImportPlan(
         internal val values: Map<String, Any>,
+        internal val original: Map<String, Any>,
         val added: Int,
         val changed: Int,
         val deleted: Int,
@@ -136,15 +136,20 @@ internal object ExcelTransfer {
             raw += listOf(key, typeOf(safeValue), valueToText(safeValue))
         }
         sheets += Sheet("_Данные", raw, hidden = true)
-        return writeWorkbook(sheets)
+        // Never export an XLSX that the same application will reject as oversized.
+        return writeWorkbook(sheets).also { ExcelImportGuard.requireWorkbookSize(it.size) }
     }
 
     fun prepareImport(bytes: ByteArray, current: SharedPreferences): ImportPlan {
-        require(bytes.isNotEmpty() && bytes.size <= MAX_FILE_BYTES) { "Файл пустой или превышает 10 МБ" }
+        val snapshot: Map<String, Any> = current.all.mapNotNull { (key, value) ->
+            value?.let { key to (if (it is Set<*>) it.toSet() else it) }
+        }.toMap()
+        ExcelImportGuard.requireWorkbookSize(bytes.size)
         val entries = readZip(bytes)
         val workbook = entries["xl/workbook.xml"] ?: throw IllegalArgumentException("Это не книга Excel XLSX")
         val rels = entries["xl/_rels/workbook.xml.rels"] ?: throw IllegalArgumentException("В книге отсутствуют связи листов")
         val refs = parseWorkbookRefs(workbook)
+        require(refs.size <= ExcelImportGuard.MAX_SHEETS) { "Слишком много листов Excel" }
         val targets = parseRelationships(rels)
         val shared = entries["xl/sharedStrings.xml"]?.let { parseSharedStrings(it) } ?: emptyList()
         val sheets = linkedMapOf<String, List<List<String>>>()
@@ -152,6 +157,7 @@ internal object ExcelTransfer {
             val target = targets[ref.relId] ?: throw IllegalArgumentException("Не найден лист: ${ref.name}")
             val path = normalizeSheetPath(target)
             val xml = entries[path] ?: throw IllegalArgumentException("Не удалось прочитать лист: ${ref.name}")
+            require(ref.name !in sheets) { "Повторяется название листа Excel" }
             sheets[ref.name] = parseSheet(xml, shared)
         }
         val rawRows = sheets["_Данные"] ?: throw IllegalArgumentException("В книге нет служебного листа. Экспортируйте файл заново из приложения.")
@@ -159,15 +165,23 @@ internal object ExcelTransfer {
         val keyCol = rawHeader.indexOf("Ключ")
         val typeCol = rawHeader.indexOf("Тип")
         val valueCol = rawHeader.indexOf("Значение")
-        require(keyCol >= 0 && typeCol >= 0 && valueCol >= 0) { "Служебный лист повреждён" }
+        ExcelImportGuard.requireHeaders(rawHeader, listOf("Ключ", "Тип", "Значение"), "_Данные")
         val stored = linkedMapOf<String, Any>()
+        val rawKeys = mutableSetOf<String>()
         var marker = false
         rawRows.drop(1).forEach { row ->
             val key = row.getOrNull(keyCol).orEmpty()
             val type = row.getOrNull(typeCol).orEmpty()
             val value = row.getOrNull(valueCol).orEmpty()
-            if (key == "__формат__" && value == MAGIC) marker = true
-            else if (key.isNotBlank()) stored[key] = parseStoredValue(type, value)
+            if (key == "__формат__") {
+                require(!marker && type == "s" && value == MAGIC) { "Повреждён маркер формата Excel" }
+                marker = true
+            } else if (key.isNotBlank()) {
+                ExcelImportGuard.requireUniquePreferenceKey(key, rawKeys)
+                stored[key] = parseStoredValue(type, value)
+            } else {
+                require(type.isBlank() && value.isBlank()) { "Обнаружена строка настроек без ключа" }
+            }
         }
         require(marker) { "Версия книги не поддерживается или служебный лист изменён" }
 
@@ -208,7 +222,7 @@ internal object ExcelTransfer {
         val noteHeader = noteRows.firstOrNull().orEmpty()
         val dateCol = noteHeader.indexOf("Дата")
         val textCol = noteHeader.indexOf("Заметка")
-        require(dateCol >= 0 && textCol >= 0) { "Лист «Заметки» имеет неверные столбцы" }
+        ExcelImportGuard.requireHeaders(noteHeader, listOf("Дата", "Заметка", "Ключ записи"), "Заметки")
         var noteCount = 0
         val noteKeys = mutableSetOf<String>()
         noteRows.drop(1).forEachIndexed { index, row ->
@@ -223,8 +237,9 @@ internal object ExcelTransfer {
         }
 
         // Allow safe editing of the small, explicitly supported settings sheet.
-        val settingRows = sheets["Настройки"] ?: emptyList()
+        val settingRows = sheets["Настройки"] ?: throw IllegalArgumentException("В книге отсутствует лист «Настройки»")
         val settingHeader = settingRows.firstOrNull().orEmpty()
+        ExcelImportGuard.requireHeaders(settingHeader, listOf("Параметр", "Значение", "Ключ", "Тип"), "Настройки")
         val sKey = settingHeader.indexOf("Ключ")
         val sType = settingHeader.indexOf("Тип")
         val sValue = settingHeader.indexOf("Значение")
@@ -234,7 +249,7 @@ internal object ExcelTransfer {
                 if (key in setOf("garden_city","garden_region","garden_zone","garden_lat","garden_lon","garden_location_set","reminder_enabled","reminder_hour","reminder_minute","reminder_limit","app_language")) {
                     val value = row.getOrNull(sValue).orEmpty().trim()
                     stored[key] = when (key) {
-                        "garden_location_set", "reminder_enabled" -> value.equals("да", true) || value.equals("true", true) || value == "1"
+                        "garden_location_set", "reminder_enabled" -> ExcelImportGuard.parseBoolean(value)
                         "reminder_hour" -> value.toIntOrNull()?.takeIf { it in 0..23 } ?: throw IllegalArgumentException("Час напоминания должен быть от 0 до 23")
                         "reminder_minute" -> value.toIntOrNull()?.takeIf { it in 0..59 } ?: throw IllegalArgumentException("Минута напоминания должна быть от 0 до 59")
                         "reminder_limit" -> value.toIntOrNull()?.takeIf { it in 1..20 } ?: throw IllegalArgumentException("Лимит напоминаний должен быть от 1 до 20")
@@ -269,11 +284,18 @@ internal object ExcelTransfer {
                 changed += before.intersect(after).count { id -> oldById[id]?.toString() != newById[id]?.toString() }
             }
         }
-        return ImportPlan(stored, added, changed, deleted, noteCount)
+        // Retain unrelated preferences introduced after this workbook was exported.
+        ExcelImportGuard.preserveUneditedPreferences(snapshot, stored)
+        ExcelImportGuard.requireCompatibleTypes(snapshot, stored)
+        return ImportPlan(stored, snapshot, added, changed, deleted, noteCount)
     }
 
     fun applyImport(plan: ImportPlan, prefs: SharedPreferences): Boolean {
-        val old = prefs.all.mapNotNull { (key, value) -> value?.let { key to it } }.toMap()
+        val old: Map<String, Any> = prefs.all.mapNotNull { (key, value) ->
+            value?.let { key to (if (it is Set<*>) it.toSet() else it) }
+        }.toMap()
+        ExcelImportGuard.requireUnchangedSnapshot(plan.original, old)
+        ExcelImportGuard.requireCompatibleTypes(old, plan.values)
         fun write(values: Map<String, Any>): Boolean {
             val editor = prefs.edit().clear()
             values.forEach { (key, value) ->
@@ -283,13 +305,21 @@ internal object ExcelTransfer {
                     is Int -> editor.putInt(key, value)
                     is Long -> editor.putLong(key, value)
                     is Float -> editor.putFloat(key, value)
-                    is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+                    is Set<*> -> {
+                        require(value.all { it is String }) { "Некорректные строки в данных Excel" }
+                        editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+                    }
+                    else -> throw IllegalArgumentException("Неподдерживаемый тип настройки: $key")
                 }
             }
             return editor.commit()
         }
-        if (write(plan.values)) return true
-        write(old)
+        val applied = runCatching { write(plan.values) }.getOrDefault(false)
+        if (applied) return true
+        val rollbackSucceeded = runCatching { write(old) }.getOrDefault(false)
+        if (!rollbackSucceeded) {
+            throw IllegalStateException("Ошибка импорта и отката. Проверьте данные приложения и восстановите резервную копию.")
+        }
         return false
     }
 
@@ -318,16 +348,18 @@ internal object ExcelTransfer {
     ): JSONArray {
         val data = rows ?: throw IllegalArgumentException("В книге отсутствует лист «$sheetName»")
         val header = data.firstOrNull().orEmpty()
-        required.forEach { field ->
-            val title = expectedHeaders[fields.indexOf(field)]
-            require(header.contains(title)) { "На листе «$sheetName» отсутствует столбец «$title»" }
-        }
+        // Never treat deleted columns as blank: import replaces entire lists and
+        // would otherwise silently discard crop details, dates or hidden fields.
+        ExcelImportGuard.requireHeaders(header, expectedHeaders + TECH, sheetName)
         val indexes = fields.map { field -> header.indexOf(expectedHeaders[fields.indexOf(field)]) }
         val techIndex = header.indexOf(TECH)
         val result = JSONArray()
         val ids = mutableSetOf<String>()
         data.drop(1).forEachIndexed { rowIndex, row ->
-            val values = fields.mapIndexed { i, _ -> row.getOrNull(indexes[i]).orEmpty().trim() }
+            // Preserve spaces/newlines in notes, advice and task titles while trimming IDs/dates.
+            val values = fields.mapIndexed { i, field ->
+                ExcelImportGuard.recordCell(row.getOrNull(indexes[i]).orEmpty(), field)
+            }
             if (values.all { it.isBlank() }) return@forEachIndexed
             var item = if (techIndex >= 0) {
                 val raw = row.getOrNull(techIndex).orEmpty()
@@ -337,7 +369,7 @@ internal object ExcelTransfer {
             } else JSONObject()
             fields.forEachIndexed { i, field ->
                 val value = values[i]
-                if (field in booleanFields) item.put(field, value.equals("Да", true) || value.equals("true", true) || value == "1")
+                if (field in booleanFields) item.put(field, ExcelImportGuard.parseBoolean(value, allowBlank = true))
                 else if (field == "id") {
                     if (value.isNotBlank()) item.put(field, value.toLongOrNull() ?: value)
                     else {
@@ -367,7 +399,12 @@ internal object ExcelTransfer {
     private fun ids(array: JSONArray): Set<String> =
         (0 until array.length()).mapNotNull { array.optJSONObject(it)?.optString("id")?.takeIf(String::isNotBlank) }.toSet()
 
-    private fun jsonArray(value: String): JSONArray = try { JSONArray(value) } catch (_: Exception) { JSONArray() }
+    private fun jsonArray(value: String): JSONArray = try {
+        JSONArray(value)
+    } catch (error: Exception) {
+        // Never silently erase planted crops, harvests or tasks when a stored list is damaged.
+        throw IllegalArgumentException("Повреждён список записей приложения", error)
+    }
 
     private fun typeOf(value: Any): String = when (value) {
         is String -> "s"; is Boolean -> "b"; is Int -> "i"; is Long -> "l"; is Float -> "f"
@@ -380,15 +417,21 @@ internal object ExcelTransfer {
     }
 
     private fun parseStoredValue(type: String, value: String): Any = when (type) {
-        "b" -> value.equals("true", true) || value == "1" || value.equals("да", true)
-        "i" -> value.toIntOrNull() ?: 0
-        "l" -> value.toLongOrNull() ?: 0L
-        "f" -> value.toFloatOrNull() ?: 0f
+        "s" -> value
+        "b" -> ExcelImportGuard.parseBoolean(value)
+        "i" -> ExcelImportGuard.parseInt(value)
+        "l" -> ExcelImportGuard.parseLong(value)
+        "f" -> ExcelImportGuard.parseFloat(value)
         "ss" -> {
-            val array = try { JSONArray(value) } catch (_: Exception) { JSONArray() }
-            (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) }.toSet()
+            val array = try { JSONArray(value) } catch (_: Exception) {
+                throw IllegalArgumentException("Повреждены строковые настройки в книге Excel")
+            }
+            (0 until array.length()).map { index ->
+                array.opt(index) as? String
+                    ?: throw IllegalArgumentException("Повреждён строковый набор в книге Excel")
+            }.toSet()
         }
-        else -> value
+        else -> throw IllegalArgumentException("Неподдерживаемый тип в служебных данных Excel")
     }
 
     private fun normalizeAppDate(value: String): String? {
@@ -468,7 +511,10 @@ internal object ExcelTransfer {
                 entry("xl/worksheets/sheet${sheetIndex + 1}.xml", """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>$widths</cols><sheetData>$data</sheetData>$filter</worksheet>""")
             }
         }
-        return out.toByteArray()
+        val result = out.toByteArray()
+        // An exported workbook must remain re-importable by this app.
+        ExcelImportGuard.requireWorkbookSize(result.size)
+        return result
     }
 
     private fun readZip(bytes: ByteArray): Map<String, ByteArray> {
@@ -480,8 +526,8 @@ internal object ExcelTransfer {
                 val entry = zip.nextEntry ?: break
                 count++
                 require(count <= MAX_ENTRIES) { "В архиве слишком много элементов" }
-                val name = entry.name.replace('\\', '/')
-                require(!name.startsWith("/") && !name.split('/').contains("..")) { "Недопустимый путь в архиве" }
+                val name = ExcelImportGuard.zipEntryPath(entry.name)
+                require(name !in result) { "Повторяющийся файл в книге Excel" }
                 if (!entry.isDirectory) {
                     val output = ByteArrayOutputStream()
                     val buffer = ByteArray(8192)
@@ -508,6 +554,7 @@ internal object ExcelTransfer {
                 val name = parser.getAttributeValue(null, "name") ?: continue
                 val rel = attributeByLocalName(parser, "id") ?: continue
                 result += SheetRef(name, rel)
+                require(result.size <= ExcelImportGuard.MAX_SHEETS) { "Слишком много листов Excel" }
             }
         }
         require(result.isNotEmpty()) { "В книге нет листов" }
@@ -521,6 +568,7 @@ internal object ExcelTransfer {
             if (parser.eventType == XmlPullParser.START_TAG && parser.name == "Relationship") {
                 val id = parser.getAttributeValue(null, "Id") ?: continue
                 val target = parser.getAttributeValue(null, "Target") ?: continue
+                require(id !in result) { "Повторяется связь листа Excel" }
                 result[id] = target
             }
         }
@@ -533,9 +581,13 @@ internal object ExcelTransfer {
         var current: StringBuilder? = null
         while (parser.next() != XmlPullParser.END_DOCUMENT) {
             if (parser.eventType == XmlPullParser.START_TAG && parser.name == "si") current = StringBuilder()
-            else if (parser.eventType == XmlPullParser.START_TAG && parser.name == "t" && current != null) current!!.append(parser.nextText())
+            else if (parser.eventType == XmlPullParser.START_TAG && parser.name == "t" && current != null) {
+                current!!.append(parser.nextText())
+                ExcelImportGuard.requireCellLength(current!!.length)
+            }
             else if (parser.eventType == XmlPullParser.END_TAG && parser.name == "si") {
                 result += current?.toString().orEmpty()
+                ExcelImportGuard.requireSharedStringCount(result.size)
                 current = null
             }
         }
@@ -550,25 +602,41 @@ internal object ExcelTransfer {
         var cellType = ""
         var cellValue = StringBuilder()
         var maxColumn = -1
+        var currentRow = 0
+        var previousRow = 0
         while (parser.next() != XmlPullParser.END_DOCUMENT) {
             if (parser.eventType == XmlPullParser.START_TAG && parser.name == "row") {
+                currentRow = ExcelImportGuard.parseRowReference(
+                    parser.getAttributeValue(null, "r"), previousRow)
+                previousRow = currentRow
                 rowCells = mutableMapOf()
                 maxColumn = -1
             } else if (parser.eventType == XmlPullParser.START_TAG && parser.name == "c" && rowCells != null) {
                 val ref = parser.getAttributeValue(null, "r").orEmpty()
-                cellIndex = columnIndex(ref)
+                cellIndex = ExcelImportGuard.cellColumn(ref)
+                ExcelImportGuard.requireCellRow(ref, currentRow)
                 cellType = parser.getAttributeValue(null, "t").orEmpty()
+                ExcelImportGuard.requireSupportedCellType(cellType)
                 cellValue = StringBuilder()
+            } else if (parser.eventType == XmlPullParser.START_TAG && parser.name == "f" && rowCells != null && cellIndex >= 0) {
+                ExcelImportGuard.rejectFormulaCell()
             } else if (parser.eventType == XmlPullParser.START_TAG && (parser.name == "v" || parser.name == "t") && rowCells != null && cellIndex >= 0) {
                 cellValue.append(parser.nextText())
+                ExcelImportGuard.requireCellLength(cellValue.length)
             } else if (parser.eventType == XmlPullParser.END_TAG && parser.name == "c" && rowCells != null && cellIndex >= 0) {
                 val raw = cellValue.toString()
-                val value = if (cellType == "s") shared.getOrNull(raw.toIntOrNull() ?: -1).orEmpty() else raw
+                val value = if (cellType == "s") {
+                    shared.getOrNull(raw.toIntOrNull() ?: -1)
+                        ?: throw IllegalArgumentException("Неверная ссылка на общую строку Excel")
+                } else raw
+                ExcelImportGuard.requireCellLength(value.length)
+                ExcelImportGuard.requireUniqueCell(cellIndex, rowCells!!)
                 rowCells!![cellIndex] = value
                 maxColumn = maxOf(maxColumn, cellIndex)
                 cellIndex = -1
             } else if (parser.eventType == XmlPullParser.END_TAG && parser.name == "row" && rowCells != null) {
                 rows += (0..maxColumn).map { rowCells!![it].orEmpty() }
+                ExcelImportGuard.requireRowCount(rows.size)
                 rowCells = null
             }
         }
@@ -587,13 +655,8 @@ internal object ExcelTransfer {
         return null
     }
 
-    private fun normalizeSheetPath(target: String): String {
-        val clean = target.removePrefix("/")
-        return when {
-            clean.startsWith("xl/") -> clean
-            else -> "xl/" + clean
-        }
-    }
+    private fun normalizeSheetPath(target: String): String =
+        ExcelImportGuard.worksheetPath(target)
 
     private fun columnName(number: Int): String {
         var n = number
