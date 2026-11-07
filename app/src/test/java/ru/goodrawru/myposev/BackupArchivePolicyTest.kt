@@ -1,8 +1,12 @@
 package ru.goodrawru.myposev
 
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.charset.CharacterCodingException
 
 class BackupArchivePolicyTest {
     @Test fun acceptsExactlyFiveMegabytes() {
@@ -18,6 +22,63 @@ class BackupArchivePolicyTest {
         }
         assertThrows(IllegalArgumentException::class.java) {
             BackupArchivePolicy.requireSupportedSize(-1)
+        }
+    }
+
+    @Test fun stringSetsAreSavedAsJsonArraysAndCanBeRestored() {
+        val stored = linkedSetOf("Томат", "Огурец", "Базилик")
+        val encoded = BackupArchivePolicy.encodeValue(stored)
+        assertTrue(encoded is JSONArray)
+        val entry = JSONObject().put("type", "ss").put("value", encoded)
+        val restored = JSONObject(entry.toString()).getJSONArray("value")
+        val decoded = (0 until restored.length()).map { restored.getString(it) }.toSet()
+        assertEquals(stored, decoded)
+    }
+
+    @Test fun supportedScalarValuesRoundTripThroughJson() {
+        val cases: List<Pair<String, Any>> = listOf(
+            "s" to "Привет 🌱",
+            "b" to true,
+            "i" to 25,
+            "l" to 5000000000L,
+            "f" to 2.5f
+        )
+        for ((kind, value) in cases) {
+            val encoded = JSONObject().put("type", kind)
+                .put("value", BackupArchivePolicy.encodeValue(value))
+            val restored = JSONObject(encoded.toString())
+            assertEquals(kind, restored.getString("type"))
+            when (kind) {
+                "s" -> assertEquals(value, restored.getString("value"))
+                "b" -> assertEquals(value, restored.getBoolean("value"))
+                "i" -> assertEquals(value, restored.getInt("value"))
+                "l" -> assertEquals(value, restored.getLong("value"))
+                "f" -> assertEquals((value as Float).toDouble(), restored.getDouble("value"), 0.0001)
+            }
+        }
+    }
+
+    @Test fun emptyBackupsCannotEraseExistingPreferences() {
+        assertThrows(IllegalArgumentException::class.java) {
+            BackupArchivePolicy.requireNonEmptyPreferences(0)
+        }
+        BackupArchivePolicy.requireNonEmptyPreferences(1)
+    }
+
+    @Test fun malformedUtf8IsRejectedInsteadOfCorruptingNotes() {
+        val notes = "{\\"note\\":\\"Морковь 🥕\\"}"
+        assertEquals(notes, BackupArchivePolicy.decodeJson(notes.toByteArray(Charsets.UTF_8)))
+        assertThrows(CharacterCodingException::class.java) {
+            BackupArchivePolicy.decodeJson(byteArrayOf(0xC3.toByte(), 0x28))
+        }
+    }
+
+    @Test fun rejectsUnsupportedPreferenceTypes() {
+        assertThrows(IllegalArgumentException::class.java) {
+            BackupArchivePolicy.encodeValue(listOf("not", "a", "set"))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            BackupArchivePolicy.encodeValue(setOf("OK", 42))
         }
     }
 }
