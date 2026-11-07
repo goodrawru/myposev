@@ -1194,10 +1194,27 @@ class MainActivity : Activity() {
     }
 
     private fun createBackup() {
+        // Never reuse bytes prepared for a previous, failed save dialog.
+        pendingBackupBytes = null
         try {
+            val snapshot = prefs.all
+            BackupArchivePolicy.requireNonEmptyPreferences(snapshot.size)
             val json = JSONObject().put("format", 1).put("created", System.currentTimeMillis())
             val values = JSONObject()
-            prefs.all.forEach { (k,v) -> values.put(k, JSONObject().put("type", when(v) { is String -> "s"; is Boolean -> "b"; is Int -> "i"; is Long -> "l"; is Float -> "f"; is Set<*> -> "ss"; else -> "x" }).put("value", v)) }
+            snapshot.forEach { (key, value) ->
+                val type = when (value) {
+                    is String -> "s"
+                    is Boolean -> "b"
+                    is Int -> "i"
+                    is Long -> "l"
+                    is Float -> "f"
+                    is Set<*> -> "ss"
+                    else -> throw IllegalArgumentException("Неподдерживаемый тип данных: $key")
+                }
+                values.put(key, JSONObject()
+                    .put("type", type)
+                    .put("value", BackupArchivePolicy.encodeValue(value)))
+            }
             json.put("preferences", values)
             val payload = json.toString(2).toByteArray(Charsets.UTF_8)
             // Export only archives that this version is able to restore.
@@ -1247,12 +1264,14 @@ class MainActivity : Activity() {
                     if (zip.nextEntry != null) {
                         throw IllegalArgumentException("В архиве есть лишние файлы")
                     }
-                    output.toString(Charsets.UTF_8.name())
+                    BackupArchivePolicy.decodeJson(output.toByteArray())
                 }
             } ?: throw IllegalArgumentException("В архиве не найден backup.json")
             val root = JSONObject(jsonText)
             if (root.optInt("format", -1) != 1) throw IllegalArgumentException("Неподдерживаемый формат копии")
             val values = root.optJSONObject("preferences") ?: throw IllegalArgumentException("В копии нет настроек")
+            // An empty (or tampered) snapshot must never erase existing user data.
+            BackupArchivePolicy.requireNonEmptyPreferences(values.length())
 
             // Validate all supported values before changing any current data.
             val parsed = mutableListOf<Pair<String, Pair<String, Any?>>>()
