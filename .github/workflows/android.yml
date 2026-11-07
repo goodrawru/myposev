@@ -36,6 +36,9 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      - name: Run PDF period unit tests
+        run: gradle --no-daemon testDebugUnitTest
+
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
 
@@ -145,4 +148,4 @@ jobs:
             release-files/signed/app-release.apk
           prerelease: true
           make_latest: false
-          fail_on_unmatched_files: false
+          fail_on_unmatched_files: true
