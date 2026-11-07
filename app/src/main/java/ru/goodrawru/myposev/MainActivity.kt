@@ -1198,8 +1198,8 @@ class MainActivity : Activity() {
     private fun showUpdateNotes(manual: Boolean) {
         android.app.AlertDialog.Builder(this).setTitle(tr("Что нового · версия ") + BuildConfig.VERSION_NAME)
             .setMessage(if (isEnglish())
-                "• Calendar legend and screen headings fit smaller displays.\n• Crop favorites and editable crop copies are available.\n• Reminder settings highlight unsaved changes; crop selection is searchable.\n• Safer ZIP backups and Excel import with extra data-integrity checks."
-                else "• Исправлены обозначения календаря и заголовки экранов.\n• Добавлены избранные культуры и редактируемые копии встроенных культур.\n• Несохранённые настройки напоминаний подсвечиваются; появился поиск культур.\n• Повышена надёжность резервных копий ZIP и импорта Excel.")
+                "• Favorites now use a star in the upper-right corner of crop cards.\n• An outlined star means not favorite; a filled yellow star means favorite.\n• Saved favorites and other user data are preserved."
+                else "• Вместо кнопки «В избранное» на карточках культур появилась звёздочка в правом верхнем углу.\n• Контурная звезда — обычная культура, жёлтая — избранная.\n• Сохранённое избранное и остальные данные пользователя сохраняются.")
             .setPositiveButton(tr("Понятно"), null).show()
     }
 
@@ -2866,6 +2866,40 @@ class MainActivity : Activity() {
         image.setImageResource(userCropIconResource(key))
     }
 
+    /**
+     * Small favorite toggle in the upper-right corner of a crop tile.
+     * The existing favorite_crop_ids preference and stable crop IDs are unchanged.
+     * Keep a 44dp touch target so the star remains accessible on small screens.
+     */
+    private fun cropIconWithFavoriteStar(
+        iconKey: String,
+        cropName: String,
+        isFavorite: Boolean,
+        onToggle: () -> Unit
+    ): FrameLayout = FrameLayout(this).apply {
+        addView(ImageView(this@MainActivity).apply {
+            setCropIcon(this, iconKey)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = (if (isEnglish()) "Crop icon: " else "Иконка культуры: ") + cropName
+        }, FrameLayout.LayoutParams(dp(76), dp(76), Gravity.CENTER))
+
+        addView(TextView(this@MainActivity).apply {
+            text = if (isFavorite) "★" else "☆"
+            textSize = 30f
+            gravity = Gravity.CENTER
+            setTextColor(if (isFavorite) Color.rgb(255, 193, 7) else Color.rgb(98, 112, 103))
+            contentDescription = when {
+                isEnglish() && isFavorite -> "Remove $cropName from favorites"
+                isEnglish() -> "Add $cropName to favorites"
+                isFavorite -> "Убрать из избранного: $cropName"
+                else -> "Добавить в избранное: $cropName"
+            }
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { onToggle() }
+        }, FrameLayout.LayoutParams(dp(44), dp(44), Gravity.TOP or Gravity.END))
+    }
+
     private fun userCrops(): JSONArray = try { JSONArray(prefs.getString("user_crops", "[]")) } catch (_: Exception) { JSONArray() }
 
     private fun addUserCrop(existing: JSONObject? = null) {
@@ -3003,25 +3037,18 @@ class MainActivity : Activity() {
                         background = roundedBackground(Color.WHITE,14f,Color.rgb(220,230,216))
                         elevation = dp(1).toFloat()
                     }
-                    tile.addView(ImageView(this).apply {
-                        run { val key = crop.optString("icon", "generic"); setCropIcon(this, key) }
-                        scaleType = ImageView.ScaleType.FIT_CENTER
-                        contentDescription = tr("Иконка культуры ") + crop.optString("name")
-                    }, LinearLayout.LayoutParams(dp(76),dp(76)).apply { bottomMargin = dp(4) })
+                    val cropId = crop.optString("id")
+                    tile.addView(cropIconWithFavoriteStar(
+                        crop.optString("icon", "generic"),
+                        tr(crop.optString("name")),
+                        cropId in favoriteIds
+                    ) {
+                        prefs.edit().putStringSet("favorite_crop_ids",
+                            ReminderUiRules.toggleFavorite(favoriteIds, cropId)).apply()
+                        fill(filter)
+                    }, LinearLayout.LayoutParams(-1, dp(92)).apply { bottomMargin = dp(4) })
                     tile.addView(txt(tr(crop.optString("name")),15f,true).apply { gravity = Gravity.CENTER; maxLines = 2 })
                     tile.addView(txt(tr(crop.optString("category")),12f).apply { gravity = Gravity.CENTER })
-                    tile.addView(Button(this).apply {
-                        text = if (crop.optString("id") in favoriteIds)
-                            (if (isEnglish()) "★ Favorite" else "★ В избранном")
-                            else (if (isEnglish()) "☆ Add favorite" else "☆ В избранное")
-                        textSize = 11f; isAllCaps = false
-                        setOnClickListener {
-                            val id = crop.optString("id")
-                            prefs.edit().putStringSet("favorite_crop_ids",
-                                ReminderUiRules.toggleFavorite(favoriteIds, id)).apply()
-                            fill(filter)
-                        }
-                    })
                     tile.addView(Button(this).apply {
                         text = tr("Изменить культуру"); textSize = 11f; isAllCaps = false
                         setOnClickListener { addUserCrop(crop) }
@@ -3082,26 +3109,18 @@ class MainActivity : Activity() {
                             gravity = Gravity.CENTER_HORIZONTAL
                             setPadding(dp(8), dp(10), dp(8), dp(8))
                             background = roundedBackground(Color.WHITE, 14f, Color.rgb(220,230,216))
-                            val icon = ImageView(this@MainActivity)
-                            setCropIcon(icon, cropIconKeyForName(plant.name))
-                            icon.scaleType = ImageView.ScaleType.FIT_CENTER
-                            icon.contentDescription = tr(plant.name)
-                            addView(icon, LinearLayout.LayoutParams(dp(76), dp(76)))
+                            val cropId = cropIconKeyForName(plant.name)
+                            addView(cropIconWithFavoriteStar(
+                                cropId,
+                                tr(plant.name),
+                                cropId in favoriteIds
+                            ) {
+                                prefs.edit().putStringSet("favorite_crop_ids",
+                                    ReminderUiRules.toggleFavorite(favoriteIds, cropId)).apply()
+                                fill(filter)
+                            }, LinearLayout.LayoutParams(-1, dp(92)))
                             addView(txt(tr(plant.name), 15f, true).apply { gravity = Gravity.CENTER; maxLines = 2 })
                             addView(txt(tr(plant.group), 12f).apply { gravity = Gravity.CENTER })
-                            addView(Button(this@MainActivity).apply {
-                                val id = cropIconKeyForName(plant.name)
-                                text = if (id in favoriteIds)
-                                    (if (isEnglish()) "★ Favorite" else "★ В избранном")
-                                    else (if (isEnglish()) "☆ Add favorite" else "☆ В избранное")
-                                isAllCaps = false
-                                textSize = 11f
-                                setOnClickListener {
-                                    prefs.edit().putStringSet("favorite_crop_ids",
-                                        ReminderUiRules.toggleFavorite(favoriteIds, id)).apply()
-                                    fill(filter)
-                                }
-                            })
                             addView(Button(this@MainActivity).apply {
                                 text = if (isEnglish()) "Edit as my crop" else "Изменить культуру"
                                 isAllCaps = false
