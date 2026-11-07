@@ -144,6 +144,15 @@ class ExcelImportGuardTest {
         }
     }
 
+    @Test fun importKeepsUserTextExactlyAsWritten() {
+        val note = "  Томаты: полить утром\nоставить мульчу  "
+        assertEquals(note, ExcelImportGuard.recordCell(note, "notes"))
+        assertEquals(note, ExcelImportGuard.recordCell(note, "advice"))
+        assertEquals(note, ExcelImportGuard.recordCell(note, "title"))
+        assertEquals("Томат", ExcelImportGuard.recordCell("  Томат  ", "crop"))
+        assertEquals("15.03.2027", ExcelImportGuard.recordCell(" 15.03.2027 ", "date"))
+    }
+
     @Test fun rejectsChangedPreferenceTypesEvenWhenValuesLookValid() {
         val before = mapOf<String, Any>(
             "garden_city" to "Москва",
