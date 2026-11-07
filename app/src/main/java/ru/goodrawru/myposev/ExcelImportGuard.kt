@@ -12,6 +12,37 @@ internal object ExcelImportGuard {
     const val MAX_SHARED_STRINGS = 100_000
     const val MAX_SHEETS = 30
 
+    /** Detect changes made while an import confirmation dialog is open. */
+    fun requireUnchangedSnapshot(before: Map<String, Any>, now: Map<String, Any>) {
+        require(before == now) {
+            "Данные приложения изменились после проверки Excel. Откройте книгу заново перед импортом."
+        }
+    }
+
+    /**
+     * Keep SharedPreferences value types stable. A type changed by editing
+     * the hidden worksheet could crash subsequent reads (getString/getInt).
+     */
+    fun requireCompatibleTypes(previous: Map<String, Any>, incoming: Map<String, Any>) {
+        fun preferenceType(value: Any): String = when (value) {
+            is String -> "string"
+            is Boolean -> "boolean"
+            is Int -> "int"
+            is Long -> "long"
+            is Float -> "float"
+            is Set<*> -> "string_set"
+            else -> throw IllegalArgumentException("Неизвестный тип настройки Excel")
+        }
+        incoming.forEach { (key, value) ->
+            val old = previous[key]
+            if (old != null) {
+                require(preferenceType(old) == preferenceType(value)) {
+                    "Изменён тип настройки «$key». Исправьте служебный лист Excel."
+                }
+            }
+        }
+    }
+
     fun requireWorkbookSize(byteCount: Int) {
         require(byteCount in 1..MAX_FILE_BYTES) { "Файл пустой или превышает 10 МБ" }
     }
