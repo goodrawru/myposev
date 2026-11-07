@@ -30,6 +30,7 @@ internal object ExcelTransfer {
     private data class SheetRef(val name: String, val relId: String)
     data class ImportPlan(
         internal val values: Map<String, Any>,
+        internal val original: Map<String, Any>,
         val added: Int,
         val changed: Int,
         val deleted: Int,
@@ -140,6 +141,9 @@ internal object ExcelTransfer {
     }
 
     fun prepareImport(bytes: ByteArray, current: SharedPreferences): ImportPlan {
+        val snapshot: Map<String, Any> = current.all.mapNotNull { (key, value) ->
+            value?.let { key to (if (it is Set<*>) it.toSet() else it) }
+        }.toMap()
         ExcelImportGuard.requireWorkbookSize(bytes.size)
         val entries = readZip(bytes)
         val workbook = entries["xl/workbook.xml"] ?: throw IllegalArgumentException("Это не книга Excel XLSX")
@@ -280,11 +284,16 @@ internal object ExcelTransfer {
                 changed += before.intersect(after).count { id -> oldById[id]?.toString() != newById[id]?.toString() }
             }
         }
-        return ImportPlan(stored, added, changed, deleted, noteCount)
+        ExcelImportGuard.requireCompatibleTypes(snapshot, stored)
+        return ImportPlan(stored, snapshot, added, changed, deleted, noteCount)
     }
 
     fun applyImport(plan: ImportPlan, prefs: SharedPreferences): Boolean {
-        val old = prefs.all.mapNotNull { (key, value) -> value?.let { key to it } }.toMap()
+        val old: Map<String, Any> = prefs.all.mapNotNull { (key, value) ->
+            value?.let { key to (if (it is Set<*>) it.toSet() else it) }
+        }.toMap()
+        ExcelImportGuard.requireUnchangedSnapshot(plan.original, old)
+        ExcelImportGuard.requireCompatibleTypes(old, plan.values)
         fun write(values: Map<String, Any>): Boolean {
             val editor = prefs.edit().clear()
             values.forEach { (key, value) ->
