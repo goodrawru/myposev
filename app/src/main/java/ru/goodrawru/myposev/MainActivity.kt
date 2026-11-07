@@ -1197,7 +1197,9 @@ class MainActivity : Activity() {
 
     private fun showUpdateNotes(manual: Boolean) {
         android.app.AlertDialog.Builder(this).setTitle(tr("Что нового · версия ") + BuildConfig.VERSION_NAME)
-            .setMessage(if (isEnglish()) "• Built-in crop cards are visible again, with Russian and English search.\n• The printable planner now filters tasks and notes correctly across winter.\n• English labels and PDF export have been improved.\n• Release APK signing checks and PDF regression tests have been added." else "• Восстановлены карточки встроенных культур, добавлен поиск на русском и английском.\n• Исправлен зимний PDF: задачи и заметки теперь соответствуют выбранному периоду.\n• Улучшены английские подписи и оформление PDF.\n• Добавлены проверки подписи APK и тесты PDF.")
+            .setMessage(if (isEnglish())
+                "• Calendar legend and screen headings fit smaller displays.\n• Crop favorites and editable crop copies are available.\n• Reminder settings highlight unsaved changes; crop selection is searchable.\n• Safer ZIP backups and Excel import with extra data-integrity checks."
+                else "• Исправлены обозначения календаря и заголовки экранов.\n• Добавлены избранные культуры и редактируемые копии встроенных культур.\n• Несохранённые настройки напоминаний подсвечиваются; появился поиск культур.\n• Повышена надёжность резервных копий ZIP и импорта Excel.")
             .setPositiveButton(tr("Понятно"), null).show()
     }
 
@@ -1410,9 +1412,13 @@ class MainActivity : Activity() {
         val hour = prefs.getInt("reminder_hour", 9).coerceIn(0, 23)
         val minute = prefs.getInt("reminder_minute", 0).coerceIn(0, 59)
         val selected = prefs.getStringSet("reminder_categories", null) ?: defaultReminderCategories()
-        val count = prefs.getStringSet("reminder_crop_ids", null)?.size ?: cropIconCatalog.length()
-        return if (enabled) "Каждый день примерно в %02d:%02d · категорий: %d · культур: %d. Нажмите, чтобы настроить."
-            .format(Locale.US, hour, minute, selected.size, count)
+        val count = prefs.getStringSet("reminder_crop_ids", null)?.size ?: reminderCropOptions().size
+        return if (enabled) {
+            if (isEnglish()) "Every day around %02d:%02d · categories: %d · crops: %d. Tap to configure."
+                .format(Locale.US, hour, minute, selected.size, count)
+            else "Каждый день примерно в %02d:%02d · категорий: %d · культур: %d. Нажмите, чтобы настроить."
+                .format(Locale.US, hour, minute, selected.size, count)
+        } else if (isEnglish()) "Daily reminders are off. Tap to configure."
         else "Ежедневные уведомления выключены. Нажмите, чтобы настроить."
     }
 
@@ -1464,11 +1470,11 @@ class MainActivity : Activity() {
         }
 
         fun selectedCropCount(): Int =
-            draftCropIds?.size ?: (cropIconCatalog.length() + userCrops().length())
+            draftCropIds?.size ?: reminderCropOptions().size
         val cropSummary = txt("", 14f)
         fun updateCropSummary() {
             val count = selectedCropCount()
-            val total = cropIconCatalog.length() + userCrops().length()
+            val total = reminderCropOptions().size
             cropSummary.text = if (isEnglish()) "Selected crops: $count of $total"
                 else "Выбрано культур: $count из $total"
         }
