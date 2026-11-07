@@ -211,4 +211,27 @@ class ExcelImportGuardTest {
             }
         }
     }
+
+    @Test fun oldWorkbookDoesNotEraseNewUneditableSettings() {
+        val old: Map<String, Any> = mapOf(
+            "garden_city" to "Москва",
+            "favorite_crop_ids" to setOf("tomato"),
+            "reminder_enabled" to true,
+            "note_2026-11-07" to "Старая заметка",
+            "care_tasks" to "[{\\"id\\":1}]",
+            "user_crops" to "[]"
+        )
+        val imported = mutableMapOf<String, Any>(
+            "garden_city" to "Ялта",
+            "care_tasks" to "[]",
+            "note_2026-11-08" to "Новая заметка"
+        )
+        ExcelImportGuard.preserveUneditedPreferences(old, imported)
+        assertEquals("Ялта", imported["garden_city"])
+        assertEquals(setOf("tomato"), imported["favorite_crop_ids"])
+        assertEquals(true, imported["reminder_enabled"])
+        assertEquals("[]", imported["care_tasks"])
+        assertFalse(imported.containsKey("note_2026-11-07"))
+        assertFalse(imported.containsKey("user_crops"))
+    }
 }
