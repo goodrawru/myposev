@@ -2701,13 +2701,14 @@ class MainActivity : Activity() {
             }
         }
 
+        var showBuiltIns = false
         fun fill(filter:String) {
             results.removeAllViews()
             val mine = userCrops()
             val matches = (0 until mine.length()).mapNotNull { mine.optJSONObject(it) }
                 .filter { it.optString("name").contains(filter,true) || tr(it.optString("name")).contains(filter,true) || it.optString("category").contains(filter,true) || tr(it.optString("category")).contains(filter,true) }
             if (matches.isNotEmpty()) {
-                results.addView(txt("Мои культуры",19f,true))
+                results.addView(txt(tr("Мои культуры"),19f,true))
                 val userTiles = matches.map { crop ->
                     val tile = LinearLayout(this).apply {
                         orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
@@ -2750,7 +2751,50 @@ class MainActivity : Activity() {
                 addTileRows(results,userTiles)
             }
 
-            if (results.childCount == 0) results.addView(txt(if (filter.isBlank()) "Здесь будут отображаться ваши собственные культуры." else "Свои культуры не найдены. Введите название в форме посадки, чтобы выбрать встроенную культуру."))
+            // Built-in crops are stored under their original Russian names; translate only visible labels.
+            val builtMatches = builtInPlants.filter { plant ->
+                plant.name.contains(filter, true) || tr(plant.name).contains(filter, true) ||
+                    plant.group.contains(filter, true) || tr(plant.group).contains(filter, true)
+            }
+            if (builtMatches.isNotEmpty()) {
+                val expanded = showBuiltIns || filter.isNotBlank()
+                results.addView(Button(this).apply {
+                    text = (if (isEnglish()) "Built-in crops" else "Встроенные культуры") +
+                        " (${builtMatches.size}) " + (if (expanded) "▴" else "▾")
+                    isAllCaps = false
+                    setOnClickListener { showBuiltIns = !expanded; fill(filter) }
+                })
+                if (expanded) {
+                    val builtTiles = builtMatches.map { plant ->
+                        LinearLayout(this).apply {
+                            orientation = LinearLayout.VERTICAL
+                            gravity = Gravity.CENTER_HORIZONTAL
+                            setPadding(dp(8), dp(10), dp(8), dp(8))
+                            background = roundedBackground(Color.WHITE, 14f, Color.rgb(220,230,216))
+                            val icon = ImageView(this@MainActivity)
+                            setCropIcon(icon, cropIconKeyForName(plant.name))
+                            icon.scaleType = ImageView.ScaleType.FIT_CENTER
+                            icon.contentDescription = tr(plant.name)
+                            addView(icon, LinearLayout.LayoutParams(dp(76), dp(76)))
+                            addView(txt(tr(plant.name), 15f, true).apply { gravity = Gravity.CENTER; maxLines = 2 })
+                            addView(txt(tr(plant.group), 12f).apply { gravity = Gravity.CENTER })
+                            addView(Button(this@MainActivity).apply {
+                                text = tr("Подробнее")
+                                isAllCaps = false
+                                setOnClickListener {
+                                    android.app.AlertDialog.Builder(this@MainActivity)
+                                        .setTitle(tr(plant.name))
+                                        .setMessage(tr(plant.group) + "\\n\\n" + tr(plant.sowing) + "\\n" + tr(plant.depth) + "\\n" + tr(plant.sprouts) + "\\n\\n" + tr(plant.advice))
+                                        .setPositiveButton(tr("Закрыть"), null)
+                                        .show()
+                                }
+                            })
+                        }
+                    }
+                    addTileRows(results, builtTiles)
+                }
+            }
+            if (results.childCount == 0) results.addView(txt(if (isEnglish()) "No crops found." else "Культуры не найдены."))
         }
         fill(query)
         search.addTextChangedListener(object:android.text.TextWatcher {
