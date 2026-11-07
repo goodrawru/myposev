@@ -1148,6 +1148,17 @@ class MainActivity : Activity() {
         if(bold) setTypeface(null,android.graphics.Typeface.BOLD)
         setPadding(0,dp(7),0,dp(7))
     }
+    /** Consistent secondary action styling for calendar and crop controls. */
+    private fun styleSecondaryButton(button: Button, compact: Boolean = false) {
+        button.isAllCaps = false
+        button.textSize = if (compact) 12f else 14f
+        button.minHeight = dp(44)
+        button.setPadding(dp(if (compact) 5 else 12), dp(6), dp(if (compact) 5 else 12), dp(6))
+        button.setTextColor(Color.rgb(34, 76, 45))
+        button.background = roundedBackground(Color.WHITE, 12f, Color.rgb(207, 222, 202))
+        button.stateListAnimator = null
+    }
+
     private fun button(label:String, action:()->Unit) {
         val b = Button(this).apply {
             text=tr(label)
@@ -1198,8 +1209,8 @@ class MainActivity : Activity() {
     private fun showUpdateNotes(manual: Boolean) {
         android.app.AlertDialog.Builder(this).setTitle(tr("Что нового · версия ") + BuildConfig.VERSION_NAME)
             .setMessage(if (isEnglish())
-                "• Favorites now use a star in the upper-right corner of crop cards.\n• An outlined star means not favorite; a filled yellow star means favorite.\n• Saved favorites and other user data are preserved."
-                else "• Вместо кнопки «В избранное» на карточках культур появилась звёздочка в правом верхнем углу.\n• Контурная звезда — обычная культура, жёлтая — избранная.\n• Сохранённое избранное и остальные данные пользователя сохраняются.")
+                "• Weather cards now show the correct forecast dates instead of a repeated calendar icon.\n• Calendar and crop catalog buttons use a consistent rounded style.\n• Built-in crops offer an editable personal copy without changing the original.\n• Weather cache, crops and other personal data remain compatible."
+                else "• В карточках погоды теперь указана дата прогноза вместо одинакового значка календаря.\n• Кнопки календаря и каталога приведены к единому стилю.\n• Для встроенных культур действие называется «Создать свою копию».\n• Сохранённый прогноз, избранное и пользовательские данные остаются совместимыми.")
             .setPositiveButton(tr("Понятно"), null).show()
     }
 
@@ -2244,9 +2255,7 @@ class MainActivity : Activity() {
                         val savedLon = prefs.getString("weather_summary_7timer_lon", null)?.toDoubleOrNull()
                         if (!savedForecast.isNullOrBlank() && savedLat == lat && savedLon == lon) {
                             content.addView(txt("Не удалось обновить прогноз. Показаны последние сохранённые данные.", 15f, true))
-                            savedForecast.split("\n\n").forEachIndexed { index, part ->
-                                card(if (index < 7) "Прогноз погоды" else "Предупреждение", part)
-                            }
+                            renderWeatherCards(savedForecast)
                         } else {
                             content.addView(txt("Не удалось загрузить прогноз. Проверьте интернет-соединение и повторите попытку.", 15f))
                         }
@@ -2271,18 +2280,17 @@ class MainActivity : Activity() {
             content.addView(txt("Обновлено: $fetchedText", 12f))
         }
         button("Источник данных: 7Timer!") { openExternalLink("https://www.7timer.info/doc.php?lang=en") }
-        val parts = summary.split("\n\n")
-        parts.forEachIndexed { index, part ->
-            if (part.startsWith("⚠️")) {
-                card("🌡️ Температура", part)
-            } else {
-                card(if (index == 0) "🌤️ Сегодня" else "📅 Прогноз", part)
-            }
-        }
+        renderWeatherCards(summary)
         button("↻ Обновить прогноз") { loadWeatherForecast(lat, lon) }
         button("← На главную") {
             weatherForecastOpen = false
             showHome()
+        }
+    }
+
+    private fun renderWeatherCards(summary: String) {
+        WeatherCardFormat.entries(summary, isEnglish()).forEach { day ->
+            card(day.title, day.description)
         }
     }
 
@@ -2445,15 +2453,16 @@ class MainActivity : Activity() {
         val controls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         listOf("‹" to -1, "Сегодня" to 0, "›" to 1).forEach { (label, delta) ->
             controls.addView(Button(this).apply {
-                text = tr(label); isAllCaps = false
+                text = tr(label)
+                styleSecondaryButton(this, compact = true)
                 setOnClickListener {
                     if (delta == 0) selectedDate = Calendar.getInstance() else shiftSelectedMonth(delta)
                     showCalendar()
                 }
             }, LinearLayout.LayoutParams(0, -2, if (delta == 0) 2f else 1f))
         }
-        controls.addView(Button(this).apply { text = tr("Год −"); isAllCaps = false; setOnClickListener { shiftSelectedYear(-1); showCalendar() } }, LinearLayout.LayoutParams(0, -2, 1f))
-        controls.addView(Button(this).apply { text = tr("Год +"); isAllCaps = false; setOnClickListener { shiftSelectedYear(1); showCalendar() } }, LinearLayout.LayoutParams(0, -2, 1f))
+        controls.addView(Button(this).apply { text = tr("Год −"); styleSecondaryButton(this, compact = true); setOnClickListener { shiftSelectedYear(-1); showCalendar() } }, LinearLayout.LayoutParams(0, -2, 1f))
+        controls.addView(Button(this).apply { text = tr("Год +"); styleSecondaryButton(this, compact = true); setOnClickListener { shiftSelectedYear(1); showCalendar() } }, LinearLayout.LayoutParams(0, -2, 1f))
         content.addView(controls)
         val weekdays = listOf("Пн","Вт","Ср","Чт","Пт","Сб","Вс")
         val header = GridLayout(this).apply { columnCount = 7; rowCount = 1 }
@@ -2991,10 +3000,10 @@ class MainActivity : Activity() {
         baseLayout("Каталог культур")
         val search = EditText(this).apply { hint = tr("Найти культуру или группу"); setSingleLine(true); setText(query) }
         content.addView(search)
-        content.addView(Button(this).apply { text = tr("＋ Добавить свою культуру"); isAllCaps = false; setOnClickListener { addUserCrop() } })
+        content.addView(Button(this).apply { text = tr("＋ Добавить свою культуру"); styleSecondaryButton(this); setOnClickListener { addUserCrop() } })
         val favoritesOnlyButton = Button(this).apply {
             text = if (isEnglish()) "☆ Show favorites" else "☆ Показать избранные"
-            isAllCaps = false
+            styleSecondaryButton(this)
         }
         content.addView(favoritesOnlyButton)
         var favoritesOnly = false
@@ -3050,11 +3059,13 @@ class MainActivity : Activity() {
                     tile.addView(txt(tr(crop.optString("name")),15f,true).apply { gravity = Gravity.CENTER; maxLines = 2 })
                     tile.addView(txt(tr(crop.optString("category")),12f).apply { gravity = Gravity.CENTER })
                     tile.addView(Button(this).apply {
-                        text = tr("Изменить культуру"); textSize = 11f; isAllCaps = false
+                        text = tr("Изменить культуру")
+                        styleSecondaryButton(this, compact = true)
                         setOnClickListener { addUserCrop(crop) }
                     })
                     tile.addView(Button(this).apply {
-                        text = tr("Подробнее"); textSize = 11f; isAllCaps = false
+                        text = tr("Подробнее")
+                        styleSecondaryButton(this, compact = true)
                         setOnClickListener {
                             val details = listOf("Сроки посева" to "sowing","Глубина" to "depth","Всходы" to "sprouts","Советы" to "advice")
                                 .mapNotNull { (label,key) -> crop.optString(key).takeIf { it.isNotBlank() }?.let { tr("$label: $it") } }
@@ -3099,7 +3110,7 @@ class MainActivity : Activity() {
                 results.addView(Button(this).apply {
                     text = (if (isEnglish()) "Built-in crops" else "Встроенные культуры") +
                         " (${builtMatches.size}) " + (if (expanded) "▴" else "▾")
-                    isAllCaps = false
+                    styleSecondaryButton(this)
                     setOnClickListener { showBuiltIns = !showBuiltIns; fill(filter) }
                 })
                 if (expanded) {
@@ -3122,9 +3133,8 @@ class MainActivity : Activity() {
                             addView(txt(tr(plant.name), 15f, true).apply { gravity = Gravity.CENTER; maxLines = 2 })
                             addView(txt(tr(plant.group), 12f).apply { gravity = Gravity.CENTER })
                             addView(Button(this@MainActivity).apply {
-                                text = if (isEnglish()) "Edit as my crop" else "Изменить культуру"
-                                isAllCaps = false
-                                textSize = 11f
+                                text = if (isEnglish()) "Create my copy" else "Создать свою копию"
+                                styleSecondaryButton(this, compact = true)
                                 setOnClickListener {
                                     android.app.AlertDialog.Builder(this@MainActivity)
                                         .setTitle(if (isEnglish()) "Edit built-in crop" else "Изменить встроенную культуру")
@@ -3143,7 +3153,7 @@ class MainActivity : Activity() {
                             })
                             addView(Button(this@MainActivity).apply {
                                 text = tr("Подробнее")
-                                isAllCaps = false
+                                styleSecondaryButton(this, compact = true)
                                 setOnClickListener {
                                     android.app.AlertDialog.Builder(this@MainActivity)
                                         .setTitle(tr(plant.name))
