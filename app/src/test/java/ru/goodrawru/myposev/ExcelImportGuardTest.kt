@@ -174,4 +174,30 @@ class ExcelImportGuardTest {
             ExcelImportGuard.requireCompatibleTypes(before, before + ("last_update" to 10))
         }
     }
+    @Test fun importingOlderWorkbookPreservesNoneditablePreferences() {
+        val current: Map<String, Any> = mapOf(
+            "garden_city" to "Москва",
+            "last_seen_version" to "1.3.7",
+            "reminder_enabled" to true,
+            "note_2026-11-07" to "Старые заметки",
+            "care_tasks" to "[{\"id\":1}]",
+            "user_crops" to "[{\"id\":2}]",
+            "plantings" to "Старый список"
+        )
+        val imported = mutableMapOf<String, Any>(
+            "garden_city" to "Ялта",
+            "care_tasks" to "[]",
+            "note_2026-11-08" to "Новая заметка"
+        )
+        ExcelImportGuard.preserveUneditedPreferences(current, imported)
+        assertEquals("Ялта", imported["garden_city"])
+        assertEquals("1.3.7", imported["last_seen_version"])
+        assertEquals(true, imported["reminder_enabled"])
+        assertEquals("[]", imported["care_tasks"])
+        assertEquals("Новая заметка", imported["note_2026-11-08"])
+        assertFalse(imported.containsKey("note_2026-11-07"))
+        assertFalse(imported.containsKey("user_crops"))
+        assertFalse(imported.containsKey("plantings"))
+    }
+
 }
