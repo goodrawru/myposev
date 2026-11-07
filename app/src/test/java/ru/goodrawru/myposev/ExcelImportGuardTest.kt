@@ -127,4 +127,42 @@ class ExcelImportGuardTest {
         assertThrows(IllegalArgumentException::class.java) { ExcelImportGuard.parseFloat("NaN") }
         assertThrows(IllegalArgumentException::class.java) { ExcelImportGuard.parseFloat("Infinity") }
     }
+
+    @Test fun rejectsOutdatedImportPreviewBeforeWriting() {
+        val checked = mapOf<String, Any>(
+            "garden_city" to "Москва",
+            "care_tasks" to "[]",
+            "selected_categories" to linkedSetOf("Овощи", "Цветы")
+        )
+        ExcelImportGuard.requireUnchangedSnapshot(checked, checked.toMap())
+        val edited = checked + ("care_tasks" to "[{\"title\":\"Полив\"}]")
+        assertThrows(IllegalArgumentException::class.java) {
+            ExcelImportGuard.requireUnchangedSnapshot(checked, edited)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ExcelImportGuard.requireUnchangedSnapshot(checked, checked - "garden_city")
+        }
+    }
+
+    @Test fun rejectsChangedPreferenceTypesEvenWhenValuesLookValid() {
+        val before = mapOf<String, Any>(
+            "garden_city" to "Москва",
+            "reminder_hour" to 8,
+            "reminder_enabled" to true,
+            "favorite_crops" to setOf("Томат"),
+            "last_update" to 5000000000L,
+            "soil_temperature" to 12.5f
+        )
+        ExcelImportGuard.requireCompatibleTypes(before, before.toMap())
+        ExcelImportGuard.requireCompatibleTypes(before, before + ("garden_city" to "Ялта"))
+        assertThrows(IllegalArgumentException::class.java) {
+            ExcelImportGuard.requireCompatibleTypes(before, before + ("reminder_hour" to "8"))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ExcelImportGuard.requireCompatibleTypes(before, before + ("favorite_crops" to "[\"Томат\"]"))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            ExcelImportGuard.requireCompatibleTypes(before, before + ("last_update" to 10))
+        }
+    }
 }
