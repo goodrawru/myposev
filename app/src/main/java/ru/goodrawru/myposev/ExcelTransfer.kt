@@ -22,7 +22,6 @@ import java.util.zip.ZipOutputStream
  */
 internal object ExcelTransfer {
     private const val MAGIC = "МОЙПОСЕВ_XLSX_1"
-    private const val MAX_FILE_BYTES = 10 * 1024 * 1024
     private const val MAX_UNPACKED_BYTES = 20 * 1024 * 1024
     private const val MAX_ENTRIES = 80
     private const val TECH = "Технические данные (не изменять)"
@@ -136,11 +135,12 @@ internal object ExcelTransfer {
             raw += listOf(key, typeOf(safeValue), valueToText(safeValue))
         }
         sheets += Sheet("_Данные", raw, hidden = true)
-        return writeWorkbook(sheets)
+        // Never export an XLSX that the same application will reject as oversized.
+        return writeWorkbook(sheets).also { ExcelImportGuard.requireWorkbookSize(it.size) }
     }
 
     fun prepareImport(bytes: ByteArray, current: SharedPreferences): ImportPlan {
-        require(bytes.isNotEmpty() && bytes.size <= MAX_FILE_BYTES) { "Файл пустой или превышает 10 МБ" }
+        ExcelImportGuard.requireWorkbookSize(bytes.size)
         val entries = readZip(bytes)
         val workbook = entries["xl/workbook.xml"] ?: throw IllegalArgumentException("Это не книга Excel XLSX")
         val rels = entries["xl/_rels/workbook.xml.rels"] ?: throw IllegalArgumentException("В книге отсутствуют связи листов")
@@ -161,15 +161,23 @@ internal object ExcelTransfer {
         val keyCol = rawHeader.indexOf("Ключ")
         val typeCol = rawHeader.indexOf("Тип")
         val valueCol = rawHeader.indexOf("Значение")
-        require(keyCol >= 0 && typeCol >= 0 && valueCol >= 0) { "Служебный лист повреждён" }
+        ExcelImportGuard.requireHeaders(rawHeader, listOf("Ключ", "Тип", "Значение"), "_Данные")
         val stored = linkedMapOf<String, Any>()
+        val rawKeys = mutableSetOf<String>()
         var marker = false
         rawRows.drop(1).forEach { row ->
             val key = row.getOrNull(keyCol).orEmpty()
             val type = row.getOrNull(typeCol).orEmpty()
             val value = row.getOrNull(valueCol).orEmpty()
-            if (key == "__формат__" && value == MAGIC) marker = true
-            else if (key.isNotBlank()) stored[key] = parseStoredValue(type, value)
+            if (key == "__формат__") {
+                require(!marker && type == "s" && value == MAGIC) { "Повреждён маркер формата Excel" }
+                marker = true
+            } else if (key.isNotBlank()) {
+                ExcelImportGuard.requireUniquePreferenceKey(key, rawKeys)
+                stored[key] = parseStoredValue(type, value)
+            } else {
+                require(type.isBlank() && value.isBlank()) { "Обнаружена строка настроек без ключа" }
+            }
         }
         require(marker) { "Версия книги не поддерживается или служебный лист изменён" }
 
@@ -210,7 +218,7 @@ internal object ExcelTransfer {
         val noteHeader = noteRows.firstOrNull().orEmpty()
         val dateCol = noteHeader.indexOf("Дата")
         val textCol = noteHeader.indexOf("Заметка")
-        require(dateCol >= 0 && textCol >= 0) { "Лист «Заметки» имеет неверные столбцы" }
+        ExcelImportGuard.requireHeaders(noteHeader, listOf("Дата", "Заметка", "Ключ записи"), "Заметки")
         var noteCount = 0
         val noteKeys = mutableSetOf<String>()
         noteRows.drop(1).forEachIndexed { index, row ->
@@ -225,8 +233,9 @@ internal object ExcelTransfer {
         }
 
         // Allow safe editing of the small, explicitly supported settings sheet.
-        val settingRows = sheets["Настройки"] ?: emptyList()
+        val settingRows = sheets["Настройки"] ?: throw IllegalArgumentException("В книге отсутствует лист «Настройки»")
         val settingHeader = settingRows.firstOrNull().orEmpty()
+        ExcelImportGuard.requireHeaders(settingHeader, listOf("Параметр", "Значение", "Ключ", "Тип"), "Настройки")
         val sKey = settingHeader.indexOf("Ключ")
         val sType = settingHeader.indexOf("Тип")
         val sValue = settingHeader.indexOf("Значение")
@@ -285,13 +294,21 @@ internal object ExcelTransfer {
                     is Int -> editor.putInt(key, value)
                     is Long -> editor.putLong(key, value)
                     is Float -> editor.putFloat(key, value)
-                    is Set<*> -> editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+                    is Set<*> -> {
+                        require(value.all { it is String }) { "Некорректные строки в данных Excel" }
+                        editor.putStringSet(key, value.filterIsInstance<String>().toSet())
+                    }
+                    else -> throw IllegalArgumentException("Неподдерживаемый тип настройки: $key")
                 }
             }
             return editor.commit()
         }
-        if (write(plan.values)) return true
-        write(old)
+        val applied = runCatching { write(plan.values) }.getOrDefault(false)
+        if (applied) return true
+        val rollbackSucceeded = runCatching { write(old) }.getOrDefault(false)
+        if (!rollbackSucceeded) {
+            throw IllegalStateException("Ошибка импорта и отката. Проверьте данные приложения и восстановите резервную копию.")
+        }
         return false
     }
 
