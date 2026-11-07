@@ -250,18 +250,23 @@ class MainActivity : Activity() {
 
     private fun showPaperPlanner() {
         baseLayout("Бумажный вариант")
-        card("📘 Бумажный вариант огородного дневника", "Выберите разделы и период. PDF будет многостраничным, с переносом длинного текста и календарём по месяцам.")
+        card(if (isEnglish()) "📘 Printable garden diary" else "📘 Бумажный вариант огородного дневника",
+            if (isEnglish()) "Choose sections and a season. Your PDF includes monthly calendars and automatically wraps long text." else "Выберите разделы и период. PDF будет многостраничным, с переносом длинного текста и календарём по месяцам.")
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val yearInput = EditText(this).apply { hint = tr("Год"); setText(currentYear.toString()); inputType = android.text.InputType.TYPE_CLASS_NUMBER; setSingleLine(true) }
-        content.addView(txt("Год календаря", 16f, true)); content.addView(yearInput)
-        val choices = listOf("calendar" to "Посевной календарь", "work" to "Сезонные рекомендации и работы", "tasks" to "Мои задачи и статус выполнения", "plants" to "Каталог культур (культуры с доступными значками)", "notes" to "Мои заметки", "blank" to "Страницы для записей")
+        content.addView(txt(if (isEnglish()) "Calendar year" else "Год календаря", 16f, true)); content.addView(yearInput)
+        val choices = if (isEnglish()) listOf(
+            "calendar" to "Sowing calendar", "work" to "Seasonal recommendations and tasks",
+            "tasks" to "My tasks and completion status", "plants" to "Crop catalog (available icons)",
+            "notes" to "My notes", "blank" to "Blank note pages"
+        ) else listOf("calendar" to "Посевной календарь", "work" to "Сезонные рекомендации и работы", "tasks" to "Мои задачи и статус выполнения", "plants" to "Каталог культур (культуры с доступными значками)", "notes" to "Мои заметки", "blank" to "Страницы для записей")
         val checks = mutableMapOf<String, CheckBox>()
         choices.forEachIndexed { index, item -> val cb = CheckBox(this).apply { text = item.second; isChecked = index < 4; setTextColor(Color.rgb(42,55,43)) }; checks[item.first] = cb; content.addView(cb) }
-        val periodLabels = listOf("Весь год", "Весна (март–май)", "Лето (июнь–август)", "Осень (сентябрь–ноябрь)", "Зима (декабрь–февраль)")
+        val periodLabels = if (isEnglish()) listOf("Full year", "Spring (March–May)", "Summer (June–August)", "Autumn (September–November)", "Winter (December–February)") else listOf("Весь год", "Весна (март–май)", "Лето (июнь–август)", "Осень (сентябрь–ноябрь)", "Зима (декабрь–февраль)")
         val period = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, periodLabels.map { tr(it) }) }
-        content.addView(txt("Период", 16f, true)); content.addView(period)
-        val colorMode = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listOf("Цветной", "Чёрно-белый, экономный").map { tr(it) }) }
-        content.addView(txt("Оформление", 16f, true)); content.addView(colorMode)
+        content.addView(txt(if (isEnglish()) "Season" else "Период", 16f, true)); content.addView(period)
+        val colorMode = Spinner(this).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, if (isEnglish()) listOf("Color", "Black and white (ink-saving)") else listOf("Цветной", "Чёрно-белый, экономный") ) }
+        content.addView(txt(if (isEnglish()) "Appearance" else "Оформление", 16f, true)); content.addView(colorMode)
         button("Сформировать и сохранить PDF") {
             val year = yearInput.text.toString().toIntOrNull()
             if (year == null || year !in 2000..2100) { Toast.makeText(this, tr("Введите год от 2000 до 2100"), Toast.LENGTH_LONG).show(); return@button }
@@ -269,14 +274,16 @@ class MainActivity : Activity() {
             if (selected.isEmpty()) { Toast.makeText(this, tr("Выберите хотя бы один раздел"), Toast.LENGTH_LONG).show(); return@button }
             try {
                 pendingPdfBytes = buildPaperPdf(year, period.selectedItemPosition, selected, colorMode.selectedItemPosition == 0)
-                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "application/pdf"; putExtra(Intent.EXTRA_TITLE, "Мой_Посевной_" + year + ".pdf") }
+                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "application/pdf"; putExtra(Intent.EXTRA_TITLE, (if (isEnglish()) "My_Sowing_Calendar_" else "Мой_Посевной_") + year + ".pdf") }
                 startActivityForResult(intent, 2027)
             } catch (e: Exception) { pendingPdfBytes = null; Toast.makeText(this, tr("Ошибка подготовки PDF: ") + (e.message ?: "неизвестная ошибка"), Toast.LENGTH_LONG).show() }
         }
-        card("Что попадёт в документ", "Календарь с датами и фазами Луны, рекомендации по месяцам, задачи с культурой/грядкой и статусом, доступные встроенные культуры и выбранные заметки. Длинные разделы переносятся на следующие страницы.")
+        card(if (isEnglish()) "What the PDF contains" else "Что попадёт в документ",
+            if (isEnglish()) "Monthly calendars, approximate Moon phases, seasonal advice, tasks and statuses, built-in crops, and notes for the selected season. Long sections flow onto new pages." else "Календарь с датами и фазами Луны, рекомендации по месяцам, задачи с культурой/грядкой и статусом, доступные встроенные культуры и выбранные заметки. Длинные разделы переносятся на следующие страницы.")
     }
 
     private fun buildPaperPdf(year: Int, periodIndex: Int, selected: Set<String>, colorMode: Boolean): ByteArray {
+        fun pdfText(ru: String, en: String): String = if (isEnglish()) en else ru
         val pdfLocale = if (isEnglish()) Locale.ENGLISH else Locale("ru"); val doc = PdfDocument(); val width = 595; val height = 842; val left = 42f; val right = 553f; val bottom = 795f
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 19f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); color = if (colorMode) android.graphics.Color.rgb(39,91,57) else android.graphics.Color.BLACK }
         val headPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 12f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); color = if (colorMode) android.graphics.Color.rgb(39,91,57) else android.graphics.Color.BLACK }
@@ -296,16 +303,16 @@ class MainActivity : Activity() {
         }
         fun section(value: String) { ensure(25f); y += 5f; line(value, headPaint); y += 3f }
         val months = PdfPeriod.months(periodIndex)
-        newPage("Мой Посевной — бумажный вариант"); line("План огородника на " + year, headPaint); line((if (isEnglish()) "Generated: " else "Сформировано: ") + SimpleDateFormat("dd.MM.yyyy", pdfLocale).format(Date())); line((if (isEnglish()) "Period: " else "Период: ") + (if (isEnglish()) listOf("full year","spring","summer","autumn","winter") else listOf("весь год","весна","лето","осень","зима"))[periodIndex]); line("Лунные обозначения — справочная подсказка. Учитывайте регион, погоду и температуру почвы."); y += 12f
-        section("Содержание"); if ("calendar" in selected) line("Посевной календарь"); if ("work" in selected) line("Сезонные рекомендации"); if ("tasks" in selected) line("Мои задачи"); if ("plants" in selected) line("Каталог культур"); if ("notes" in selected) line("Мои заметки"); if ("blank" in selected) line("Страницы для записей")
+        newPage(pdfText("Мой Посевной — бумажный вариант", "My Sowing Calendar — printable planner")); line(pdfText("План огородника на ", "Gardener's plan for ") + year, headPaint); line((if (isEnglish()) "Generated: " else "Сформировано: ") + SimpleDateFormat("dd.MM.yyyy", pdfLocale).format(Date())); line((if (isEnglish()) "Period: " else "Период: ") + (if (isEnglish()) listOf("full year","spring","summer","autumn","winter") else listOf("весь год","весна","лето","осень","зима"))[periodIndex]); line(pdfText("Лунные обозначения — справочная подсказка. Учитывайте регион, погоду и температуру почвы.", "Moon phases are approximate guidance. Check your region, weather and soil temperature.")); y += 12f
+        section(pdfText("Содержание", "Contents")); if ("calendar" in selected) line(pdfText("Посевной календарь", "Sowing calendar")); if ("work" in selected) line(pdfText("Сезонные рекомендации", "Seasonal advice")); if ("tasks" in selected) line(pdfText("Мои задачи", "My tasks")); if ("plants" in selected) line(pdfText("Каталог культур", "Crop catalog")); if ("notes" in selected) line(pdfText("Мои заметки", "My notes")); if ("blank" in selected) line(pdfText("Страницы для записей", "Blank pages"))
         if ("calendar" in selected) months.forEach { month ->
             val actualYear = PdfPeriod.yearFor(year, periodIndex, month)
             val c = Calendar.getInstance().apply { set(actualYear, month, 1, 12, 0, 0) }
-            newPage("Календарь — " + SimpleDateFormat("LLLL yyyy", pdfLocale).format(c.time))
+            newPage(pdfText("Календарь — ", "Calendar — ") + SimpleDateFormat("LLLL yyyy", pdfLocale).format(c.time))
             line(if (isEnglish()) "Mon      Tue      Wed      Thu      Fri      Sat      Sun" else "Пн       Вт       Ср       Чт       Пт       Сб       Вс", headPaint)
             val offset = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7; val days = c.getActualMaximum(Calendar.DAY_OF_MONTH); val cells = MutableList(offset) { 0 } + (1..days).toList()
             cells.chunked(7).forEach { row -> val labels = (row + List(7-row.size) { 0 }).map { day -> if (day == 0) "       " else day.toString().padStart(2) + " " + lunarGlyph(Calendar.getInstance().apply { set(actualYear, month, day, 12, 0, 0) }) }; line(labels.joinToString("   ")) }
-            y += 5f; line("Фазы Луны даны как ориентир; сроки работ корректируйте по местным условиям.")
+            y += 5f; line(pdfText("Фазы Луны даны как ориентир; сроки работ корректируйте по местным условиям.", "Moon phases are approximate; adjust planting dates to local conditions."))
             val monthNotes = prefs.all.toList().filter { entry ->
                 val noteKey = entry.first
                 val noteValue = entry.second
@@ -315,7 +322,7 @@ class MainActivity : Activity() {
                     noteKey.substring(10, 12).toIntOrNull() == month + 1
             }.sortedBy { entry -> entry.first }
             if (monthNotes.isNotEmpty()) {
-                section("Заметки к календарю")
+                section(pdfText("Заметки к календарю", "Calendar notes"))
                 monthNotes.forEach { entry ->
                     val rawDate = entry.first.removePrefix("note_")
                     val noteValue = entry.second as String
@@ -324,15 +331,15 @@ class MainActivity : Activity() {
                 }
             }
         }
-        if ("work" in selected) { newPage("Сезонные рекомендации"); months.forEach { month -> val actualYear = PdfPeriod.yearFor(year, periodIndex, month); val c = Calendar.getInstance().apply { set(actualYear, month, 15, 12, 0, 0) }; section(SimpleDateFormat("LLLL", pdfLocale).format(c.time)); line(seasonalAdvice(c)) } }
+        if ("work" in selected) { newPage(pdfText("Сезонные рекомендации", "Seasonal advice")); months.forEach { month -> val actualYear = PdfPeriod.yearFor(year, periodIndex, month); val c = Calendar.getInstance().apply { set(actualYear, month, 15, 12, 0, 0) }; section(SimpleDateFormat("LLLL", pdfLocale).format(c.time)); line(seasonalAdvice(c)) } }
         if ("tasks" in selected) {
-            newPage("Мои задачи"); val tasks = tasksArray(); var count = 0
+            newPage(pdfText("Мои задачи", "My tasks")); val tasks = tasksArray(); var count = 0
             for (i in 0 until tasks.length()) { val item = tasks.optJSONObject(i) ?: continue; val date = item.optString("date", ""); if (!PdfPeriod.includesDate(year, periodIndex, date)) continue; count++; section(date + " • " + item.optString("title", "Задача")); line("Тип работы: " + item.optString("type", "Уход")); val crop = item.optString("crop", "").trim(); if (crop.isNotEmpty()) line("Культура/грядка: " + crop); line("Статус: " + if (item.optBoolean("done", false)) "Выполнено" else "Запланировано") }
-            if (count == 0) line("На выбранный период задач нет.")
+            if (count == 0) line(pdfText("На выбранный период задач нет.", "No tasks for the selected season."))
         }
-        if ("plants" in selected) { newPage("Каталог культур"); builtInPlants.forEach { p -> section(tr(p.name)); line((if (isEnglish()) "Group: " else "Группа: ") + tr(p.group)); line("Срок посева: " + p.sowing); line("Глубина: " + p.depth); line("Всходы: " + p.sprouts); line(p.advice) } }
-        if ("notes" in selected) { newPage("Мои заметки"); val notes = prefs.all.filter { it.key.startsWith("note_") && PdfPeriod.includesDate(year, periodIndex, it.key.removePrefix("note_")) && it.value is String && (it.value as String).isNotBlank() }.toSortedMap(); if (notes.isEmpty()) line("Сохранённых заметок нет."); notes.forEach { entry -> section(entry.key.removePrefix("note_")); line(entry.value.toString()) } }
-        if ("blank" in selected) repeat(3) { index -> newPage("Свободные записи " + (index + 1)); repeat(22) { canvas!!.drawLine(left, y, right, y, footerPaint); y += 30f } }
+        if ("plants" in selected) { newPage(pdfText("Каталог культур", "Crop catalog")); builtInPlants.forEach { p -> section(tr(p.name)); line((if (isEnglish()) "Group: " else "Группа: ") + tr(p.group)); line(pdfText("Срок посева: ", "Sowing time: ") + tr(p.sowing)); line(pdfText("Глубина: ", "Depth: ") + tr(p.depth)); line(pdfText("Всходы: ", "Germination: ") + tr(p.sprouts)); line(tr(p.advice)) } }
+        if ("notes" in selected) { newPage(pdfText("Мои заметки", "My notes")); val notes = prefs.all.filter { it.key.startsWith("note_") && PdfPeriod.includesDate(year, periodIndex, it.key.removePrefix("note_")) && it.value is String && (it.value as String).isNotBlank() }.toSortedMap(); if (notes.isEmpty()) line(pdfText("Сохранённых заметок нет.", "No saved notes for the selected season.")); notes.forEach { entry -> section(entry.key.removePrefix("note_")); line(entry.value.toString()) } }
+        if ("blank" in selected) repeat(3) { index -> newPage(pdfText("Свободные записи ", "Blank notes ") + (index + 1)); repeat(22) { canvas!!.drawLine(left, y, right, y, footerPaint); y += 30f } }
         if (page != null) { canvas!!.drawText(if (isEnglish()) "My Sowing Calendar • $year • page $pageNo" else "Мой Посевной • $year • стр. $pageNo", left, 822f, footerPaint); doc.finishPage(page!!) }
         val out = java.io.ByteArrayOutputStream(); doc.writeTo(out); doc.close(); return out.toByteArray()
     }
