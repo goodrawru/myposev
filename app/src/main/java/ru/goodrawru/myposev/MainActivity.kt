@@ -1228,7 +1228,10 @@ class MainActivity : Activity() {
             pendingBackupBytes = bytes.toByteArray()
             val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "application/zip"; putExtra(Intent.EXTRA_TITLE, "Moi_Posevnoy_backup.zip") }
             startActivityForResult(intent, 2401)
-        } catch (e: Exception) { Toast.makeText(this, tr("Ошибка создания копии: ") + (e.message ?: "ошибка"), Toast.LENGTH_LONG).show() }
+        } catch (e: Exception) {
+            pendingBackupBytes = null
+            Toast.makeText(this, tr("Ошибка создания копии: ") + (e.message ?: "ошибка"), Toast.LENGTH_LONG).show()
+        }
     }
     private fun restoreBackup() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
