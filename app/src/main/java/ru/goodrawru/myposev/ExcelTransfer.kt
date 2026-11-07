@@ -284,6 +284,8 @@ internal object ExcelTransfer {
                 changed += before.intersect(after).count { id -> oldById[id]?.toString() != newById[id]?.toString() }
             }
         }
+        // Retain unrelated preferences introduced after this workbook was exported.
+        ExcelImportGuard.preserveUneditedPreferences(snapshot, stored)
         ExcelImportGuard.requireCompatibleTypes(snapshot, stored)
         return ImportPlan(stored, snapshot, added, changed, deleted, noteCount)
     }
