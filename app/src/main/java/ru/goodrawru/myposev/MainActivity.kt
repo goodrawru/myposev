@@ -3,6 +3,7 @@ package ru.goodrawru.myposev
 import android.Manifest
 import android.app.Activity
 import android.app.AlarmManager
+import android.app.AlertDialog
 import android.app.DatePickerDialog
 import android.app.PendingIntent
 import android.app.NotificationChannel
@@ -61,6 +62,9 @@ class MainActivity : Activity() {
     private var gardenLocationRequestId = 0
     private var gardenLocationCancellation: CancellationSignal? = null
     private val locationHandler = Handler(Looper.getMainLooper())
+    private var reminderDialog: AlertDialog? = null
+    private var reminderTitle: String? = null
+    private var reminderMessage: String? = null
 
     private val green = Color.rgb(39, 91, 57)
     private val pale = Color.rgb(239, 246, 235)
@@ -152,6 +156,57 @@ class MainActivity : Activity() {
         scheduleDailyReminder()
         showHome()
         showFirstRunOrUpdateNotice()
+        if (savedInstanceState == null) {
+            openReminderFromIntent(intent)
+        } else {
+            val title = savedInstanceState.getString(ReminderReceiver.EXTRA_REMINDER_TITLE)
+            val message = savedInstanceState.getString(ReminderReceiver.EXTRA_REMINDER_MESSAGE)
+            if (title != null && message != null) showReminderDialog(title, message)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        openReminderFromIntent(intent)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(ReminderReceiver.EXTRA_REMINDER_TITLE, reminderTitle)
+        outState.putString(ReminderReceiver.EXTRA_REMINDER_MESSAGE, reminderMessage)
+    }
+
+    override fun onDestroy() {
+        reminderDialog?.dismiss()
+        super.onDestroy()
+    }
+
+    private fun openReminderFromIntent(intent: Intent) {
+        if (intent.action != ReminderReceiver.ACTION_OPEN_REMINDER) return
+        val title = intent.getStringExtra(ReminderReceiver.EXTRA_REMINDER_TITLE) ?: return
+        val message = intent.getStringExtra(ReminderReceiver.EXTRA_REMINDER_MESSAGE) ?: return
+        showReminderDialog(title, message)
+    }
+
+    private fun showReminderDialog(title: String, message: String) {
+        reminderDialog?.dismiss()
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton(tr("Закрыть"), null)
+            .create()
+        reminderTitle = title
+        reminderMessage = message
+        reminderDialog = dialog
+        dialog.setOnDismissListener {
+            if (reminderDialog === dialog) {
+                reminderDialog = null
+                reminderTitle = null
+                reminderMessage = null
+            }
+        }
+        dialog.show()
     }
 
     private fun baseLayout(title:String) {
@@ -1209,8 +1264,8 @@ class MainActivity : Activity() {
     private fun showUpdateNotes(manual: Boolean) {
         android.app.AlertDialog.Builder(this).setTitle(tr("Что нового · версия ") + BuildConfig.VERSION_NAME)
             .setMessage(if (isEnglish())
-                "• Weather cards now show the correct forecast dates instead of a repeated calendar icon.\n• Calendar and crop catalog buttons use a consistent rounded style.\n• Built-in crops offer an editable personal copy without changing the original.\n• Weather cache, crops and other personal data remain compatible."
-                else "• В карточках погоды теперь указана дата прогноза вместо одинакового значка календаря.\n• Кнопки календаря и каталога приведены к единому стилю.\n• Для встроенных культур действие называется «Создать свою копию».\n• Сохранённый прогноз, избранное и пользовательские данные остаются совместимыми.")
+                "• Tap a reminder to read its full text in a scrollable window.\n• The app icon now matches the icon prepared for RuStore."
+                else "• Нажмите на уведомление, чтобы открыть полный текст в окне с прокруткой.\n• Иконка приложения теперь соответствует иконке, подготовленной для RuStore.")
             .setPositiveButton(tr("Понятно"), null).show()
     }
 
