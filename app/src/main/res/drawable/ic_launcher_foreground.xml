@@ -1,20 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <!-- Sun -->
-    <path android:fillColor="#F7D66B" android:pathData="M78,22 A8,8 0,1 0,78 6 A8,8 0,1 0,78 22 Z" />
-    <!-- Pale sky and rolling fields -->
-    <path android:fillColor="#CDE9D0" android:pathData="M0,61 C22,47 39,53 56,61 C73,69 88,54 108,49 L108,108 L0,108 Z" />
-    <path android:fillColor="#78B86B" android:pathData="M0,77 C24,61 44,72 61,79 C79,87 94,72 108,68 L108,108 L0,108 Z" />
-    <path android:fillColor="#3F8750" android:pathData="M0,91 C24,79 45,88 62,94 C79,100 95,88 108,84 L108,108 L0,108 Z" />
-    <!-- Soil -->
-    <path android:fillColor="#765035" android:pathData="M17,86 C35,80 73,80 91,86 L88,98 C70,103 38,103 20,98 Z" />
-    <!-- Stem and leaves -->
-    <path android:fillColor="#276B3D" android:pathData="M53,87 C53,72 54,58 54,44 L59,44 C58,60 58,74 59,87 Z" />
-    <path android:fillColor="#D7F0A7" android:pathData="M54,61 C35,61 25,49 27,32 C44,32 56,42 54,61 Z" />
-    <path android:fillColor="#A9D96B" android:pathData="M57,48 C57,29 69,20 85,22 C85,39 74,49 57,48 Z" />
-    <path android:fillColor="#F0F7D8" android:pathData="M55,83 C43,75 33,76 26,83 C35,91 46,91 55,87 C64,91 75,91 83,83 C76,76 66,75 55,83 Z" />
-</vector>
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_launcher_art"
+    android:inset="16.6667%" />

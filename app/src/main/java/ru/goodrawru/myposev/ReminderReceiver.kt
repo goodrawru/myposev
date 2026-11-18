@@ -36,8 +36,16 @@ class ReminderReceiver : BroadcastReceiver() {
             else return
         } else items.joinToString("\n") { "• $it" }
 
+        val title = if (english) "My Sowing Calendar · Today's plan" else "Мой Посевной · План на сегодня"
+        val date = SimpleDateFormat("d MMMM", if (english) Locale.ENGLISH else Locale("ru")).format(Date())
+        val message = "$date\n$body"
+        val openReminder = Intent(context, MainActivity::class.java)
+            .setAction(ACTION_OPEN_REMINDER)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(EXTRA_REMINDER_TITLE, title)
+            .putExtra(EXTRA_REMINDER_MESSAGE, message)
         val openApp = PendingIntent.getActivity(
-            context, 92, Intent(context, MainActivity::class.java),
+            context, 92, openReminder,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -46,12 +54,11 @@ class ReminderReceiver : BroadcastReceiver() {
             @Suppress("DEPRECATION")
             Notification.Builder(context)
         }
-        val date = SimpleDateFormat("d MMMM", if (english) Locale.ENGLISH else Locale("ru")).format(Date())
         val notification = builder
             .setSmallIcon(android.R.drawable.ic_menu_my_calendar)
-            .setContentTitle(if (english) "My Sowing Calendar · Today's plan" else "Мой Посевной · План на сегодня")
+            .setContentTitle(title)
             .setContentText(items.firstOrNull() ?: if (english) "Daily notification test" else "Проверка ежедневных уведомлений")
-            .setStyle(Notification.BigTextStyle().bigText("$date\n$body"))
+            .setStyle(Notification.BigTextStyle().bigText(message))
             .setContentIntent(openApp)
             .setAutoCancel(true)
             .build()
@@ -254,6 +261,9 @@ class ReminderReceiver : BroadcastReceiver() {
     }
 
     companion object {
+        const val ACTION_OPEN_REMINDER = "ru.goodrawru.myposev.ACTION_OPEN_REMINDER"
+        const val EXTRA_REMINDER_TITLE = "reminder_title"
+        const val EXTRA_REMINDER_MESSAGE = "reminder_message"
         const val ACTION_TEST = "ru.goodrawru.myposev.ACTION_TEST_REMINDER"
         private val DEFAULT_CATEGORIES = setOf(
             "Сезонные работы", "Посев и рассада", "Уход и полив", "Подкормка",
